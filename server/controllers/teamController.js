@@ -1,8 +1,29 @@
-const Team = require('../models/Team');
+const db = require('../services/dbService');
+const { uploadImage } = require('../services/cloudinaryService');
 
 const createTeam = async (req, res) => {
     try {
-        const team = await Team.create(req.body);
+        if (!req.body.tournamentId) {
+            return res.status(400).json({ message: 'tournamentId is strictly required. Teams cannot be added globally.' });
+        }
+
+        // Automatic Cloudinary Upload for Team Logo
+        if (req.body.logo && typeof req.body.logo === 'string' && req.body.logo.startsWith('data:image/')) {
+            const uploaded = await uploadImage(req.body.logo, 'dabcricauction/teams');
+            if (uploaded?.secure_url) {
+                req.body.logo = uploaded.secure_url;
+            }
+        }
+
+        // Automatic Cloudinary Upload for Captain Photo
+        if (req.body.captainPhoto && typeof req.body.captainPhoto === 'string' && req.body.captainPhoto.startsWith('data:image/')) {
+            const uploaded = await uploadImage(req.body.captainPhoto, 'dabcricauction/captains');
+            if (uploaded?.secure_url) {
+                req.body.captainPhoto = uploaded.secure_url;
+            }
+        }
+
+        const team = await db.createTeam(req.body);
         res.status(201).json(team);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -12,7 +33,7 @@ const createTeam = async (req, res) => {
 const getTeamsByTournament = async (req, res) => {
     try {
         const { tournamentId } = req.params;
-        const teams = await Team.find({ tournamentId }).populate('ownerId');
+        const teams = await db.getTeamsByTournament(tournamentId);
         res.json(teams);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -21,7 +42,23 @@ const getTeamsByTournament = async (req, res) => {
 
 const updateTeam = async (req, res) => {
     try {
-        const team = await Team.findByIdAndUpdate(req.params.id, req.body, { new: true });
+        // Automatic Cloudinary Upload for Team Logo
+        if (req.body.logo && typeof req.body.logo === 'string' && req.body.logo.startsWith('data:image/')) {
+            const uploaded = await uploadImage(req.body.logo, 'dabcricauction/teams');
+            if (uploaded?.secure_url) {
+                req.body.logo = uploaded.secure_url;
+            }
+        }
+
+        // Automatic Cloudinary Upload for Captain Photo
+        if (req.body.captainPhoto && typeof req.body.captainPhoto === 'string' && req.body.captainPhoto.startsWith('data:image/')) {
+            const uploaded = await uploadImage(req.body.captainPhoto, 'dabcricauction/captains');
+            if (uploaded?.secure_url) {
+                req.body.captainPhoto = uploaded.secure_url;
+            }
+        }
+
+        const team = await db.updateTeam(req.params.id, req.body);
         if (!team) return res.status(404).json({ message: 'Team not found' });
         res.json(team);
     } catch (error) {
@@ -31,8 +68,7 @@ const updateTeam = async (req, res) => {
 
 const deleteTeam = async (req, res) => {
     try {
-        const team = await Team.findByIdAndDelete(req.params.id);
-        if (!team) return res.status(404).json({ message: 'Team not found' });
+        await db.deleteTeam(req.params.id);
         res.json({ message: 'Team deleted successfully' });
     } catch (error) {
         res.status(500).json({ message: error.message });

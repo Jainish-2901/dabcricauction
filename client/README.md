@@ -1,16 +1,43 @@
-# React + Vite
+# 🌐 Dab Cric Auction - Web Client
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+The web portal for **Dab Cric Auction**, built with **React**, **Vite**, and **Tailwind CSS**.
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## 🎯 Portals Included
 
-## React Compiler
+1. **Super Admin Dashboard**: Multi-tournament creation, team roster, player catalog with 1:1 image cropping, category/slot queues, and user credential management.
+2. **Auctioneer Master Console**: Live bidding controller with pause/resume, countdown timers, force-sell, unsold queuing, and rollback capabilities.
+3. **Owner Bidding Dashboard**: Interactive web room for team owners to place bids.
+4. **Public Spectator View**: Projector/TV-ready broadcast view displaying live auction progress, player cards, and team budgets.
+5. **Player Self-Registration Page**: Open registration form for tournament applicants.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+---
 
-## Expanding the ESLint configuration
+## 🚀 Local Development
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+```bash
+cd client
+npm install
+npm run dev
+```
+
+Runs the development server on `http://localhost:5173`.
+
+---
+
+## 🚢 Vercel Production Deployment
+
+1. Set **Root Directory** to `client` in the Vercel project dashboard.
+2. Ensure the build configuration is:
+   - **Framework**: Vite
+   - **Build Command**: `npm run build`
+   - **Output Directory**: `dist`
+3. Add the following **Environment Variables**:
+   ```env
+   VITE_SOCKET_URL=https://your-server-api.onrender.com
+   VITE_PUBLIC_URL=https://your-domain.vercel.app
+   VITE_SUPABASE_URL=https://your-project.supabase.co
+   VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
+   ```
+4. Deploy!

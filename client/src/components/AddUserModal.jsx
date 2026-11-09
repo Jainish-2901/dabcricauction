@@ -19,7 +19,7 @@ const AddUserModal = ({ isOpen, onClose, tournamentId, onAdded, initialData = nu
         if (initialData) {
             setFormData({
                 username: initialData.username || '',
-                password: '', // Don't prefill password
+                password: '',
                 role: initialData.role || 'team_owner',
                 teamId: initialData.teamId?._id || initialData.teamId || ''
             });
@@ -65,26 +65,31 @@ const AddUserModal = ({ isOpen, onClose, tournamentId, onAdded, initialData = nu
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-            <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg shadow-2xl relative">
-                <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-white">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
+            <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-lg shadow-xl relative overflow-hidden">
+                <button onClick={onClose} className="absolute top-5 right-5 text-slate-400 hover:text-slate-700 p-1">
                     <X className="w-5 h-5" />
                 </button>
 
-                <div className="p-6 border-b border-slate-800">
-                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                        <UserPlus className="w-5 h-5 text-blue-500" />
-                        {isEdit ? 'Edit User' : 'Create New User'}
-                    </h2>
+                <div className="p-6 border-b border-slate-100 bg-slate-50 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600">
+                        <UserPlus className="w-5 h-5" />
+                    </div>
+                    <div>
+                        <h2 className="text-lg font-black text-slate-900">
+                            {isEdit ? 'Edit User Account' : 'Create New User Account'}
+                        </h2>
+                        <p className="text-xs text-slate-500 font-medium">Assign roles, teams, and login credentials</p>
+                    </div>
                 </div>
 
                 <form onSubmit={handleSubmit} className="p-6 space-y-4">
                     <div>
-                        <label className="block text-sm font-medium text-slate-300 mb-1">Username</label>
+                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Username</label>
                         <input
                             type="text"
                             required
-                            className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-blue-500"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-slate-900 text-sm focus:outline-none focus:border-blue-600 focus:bg-white"
                             placeholder="unique_username"
                             value={formData.username}
                             onChange={(e) => setFormData({ ...formData, username: e.target.value })}
@@ -92,24 +97,24 @@ const AddUserModal = ({ isOpen, onClose, tournamentId, onAdded, initialData = nu
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-slate-300 mb-1">{isEdit ? 'New Password (leave blank to keep)' : 'Password'}</label>
+                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">{isEdit ? 'New Password (leave blank to keep current)' : 'Password'}</label>
                         <div className="relative">
                             <input
                                 type="text"
                                 required={!isEdit}
-                                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-blue-500"
+                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-slate-900 text-sm focus:outline-none focus:border-blue-600 focus:bg-white"
                                 placeholder={isEdit ? "Enter new password" : "password123"}
                                 value={formData.password}
                                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                             />
-                            <Lock className="w-4 h-4 text-slate-500 absolute right-3 top-3" />
+                            <Lock className="w-4 h-4 text-slate-400 absolute right-3.5 top-3.5" />
                         </div>
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-slate-300 mb-1">Role</label>
+                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Role</label>
                         <select
-                            className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-blue-500"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-slate-900 text-sm focus:outline-none focus:border-blue-600 focus:bg-white font-medium"
                             value={formData.role}
                             onChange={(e) => setFormData({ ...formData, role: e.target.value })}
                         >
@@ -121,9 +126,9 @@ const AddUserModal = ({ isOpen, onClose, tournamentId, onAdded, initialData = nu
 
                     {formData.role === 'team_owner' && tournamentId !== 'superadmin' && (
                         <div>
-                            <label className="block text-sm font-medium text-slate-300 mb-1">Assign Team</label>
+                            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Assign Team</label>
                             <select
-                                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-blue-500"
+                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-slate-900 text-sm focus:outline-none focus:border-blue-600 focus:bg-white font-medium"
                                 value={formData.teamId}
                                 onChange={(e) => setFormData({ ...formData, teamId: e.target.value })}
                             >
@@ -135,11 +140,11 @@ const AddUserModal = ({ isOpen, onClose, tournamentId, onAdded, initialData = nu
                         </div>
                     )}
 
-                    <div className="pt-4">
+                    <div className="pt-2">
                         <button
                             type="submit"
                             disabled={loading}
-                            className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-semibold shadow-lg shadow-blue-500/20 transition-all disabled:opacity-50"
+                            className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-sm transition-all disabled:opacity-50 text-sm"
                         >
                             {loading ? 'Saving...' : (isEdit ? 'Update User' : 'Create User')}
                         </button>

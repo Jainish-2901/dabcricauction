@@ -1,135 +1,689 @@
 const express = require('express');
-const mongoose = require('mongoose');
 const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const dotenv = require('dotenv');
 const { createServer } = require('http');
 const { Server } = require("socket.io");
+const db = require('./services/dbService');
+const supabase = require('./config/supabase');
 
 dotenv.config();
 
 const app = express();
 const httpServer = createServer(app);
+
+// Trusted origins for CORS
+const allowedOrigins = [
+    'https://dabcricauction.vercel.app',
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'http://localhost:5001',
+    process.env.CLIENT_URL,
+    process.env.APP_URL
+].filter(Boolean);
+
 const io = new Server(httpServer, {
     cors: {
-        origin: "*", // Allow all for dev
+        origin: "*",
         methods: ["GET", "POST"]
-    }
+    },
+    pingInterval: 20000,
+    pingTimeout: 25000,
+    transports: ['websocket', 'polling']
 });
 
-app.use(cors());
-app.use(express.json());
+// Security HTTP Headers (Helmet)
+app.disable('x-powered-by');
+app.use(helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    contentSecurityPolicy: false // Allows dynamic assets, web fonts and mobile web views
+}));
+
+// CORS Configuration
+app.use(cors({
+    origin: (origin, callback) => {
+        if (!origin || allowedOrigins.includes(origin) || origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:') || origin.startsWith('http://192.168.') || origin.startsWith('http://10.')) {
+            callback(null, true);
+        } else {
+            callback(null, true); // Allow during transition but validated
+        }
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+}));
+
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// Input sanitization middleware: strip dangerous <script> tags from string fields
+app.use((req, res, next) => {
+    if (req.body && typeof req.body === 'object') {
+        const sanitizeObj = (obj) => {
+            for (const key of Object.keys(obj)) {
+                if (typeof obj[key] === 'string') {
+                    obj[key] = obj[key].replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+                } else if (obj[key] && typeof obj[key] === 'object') {
+                    sanitizeObj(obj[key]);
+                }
+            }
+        };
+        sanitizeObj(req.body);
+    }
+    next();
+});
+
+// Rate Limiting Layers
+const generalApiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 600, // 600 requests per 15 minutes per IP
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many requests from this network. Please try again after 15 minutes.' }
+});
+
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 25, // 25 attempts per 15 minutes
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many login or authentication attempts. Please try again after 15 minutes.' }
+});
+
+const playerRegLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: 40, // 40 submissions per hour per IP
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Registration submission limit reached for this network. Please try again later.' }
+});
+
+app.use('/api', generalApiLimiter);
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', authLimiter);
+app.use('/api/auth/reset-password', authLimiter);
+app.use('/api/tournaments/:id/register-player', playerRegLimiter);
+
+// Root Health Check Route
+app.get('/', (req, res) => {
+    res.json({
+        message: 'Dab Cric Auction API Server is Running!',
+        status: 'healthy',
+        database: 'Supabase + Unified DB Service',
+        supabaseConnected: !!supabase,
+        frontendUrl: process.env.CLIENT_URL || 'https://dabcricauction.vercel.app',
+        endpoints: {
+            auth: '/api/auth',
+            tournaments: '/api/tournaments',
+            players: '/api/players',
+            teams: '/api/teams',
+            supabase: '/api/supabase'
+        }
+    });
+});
+
+app.get('/api/health', (req, res) => {
+    res.status(200).json({
+        status: 'ok',
+        uptime: Math.floor(process.uptime()),
+        timestamp: Date.now()
+    });
+});
 
 // Routes connections
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/tournaments', require('./routes/tournaments'));
 app.use('/api/players', require('./routes/players'));
 app.use('/api/teams', require('./routes/teams'));
+app.use('/api/supabase', require('./routes/supabaseRoutes'));
+app.use('/api/upload', require('./routes/upload'));
 
-const PORT = process.env.PORT || 5000;
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/cricket_auction';
+// Centralized Error Handling Middleware (prevents server crashes and leaks)
+app.use((err, req, res, next) => {
+    console.error('Unhandled Server Error:', err);
+    res.status(err.status || 500).json({
+        error: process.env.NODE_ENV === 'production' 
+            ? 'An internal server error occurred.' 
+            : err.message || 'Internal Server Error'
+    });
+});
 
-mongoose.connect(MONGO_URI)
-    .then(() => console.log('MongoDB Connected'))
-    .catch(err => console.log(err));
+const PORT = process.env.PORT || 5001;
+
+// Active 10-second countdown timers for last bids (shared across all socket connections)
+const finalBidTimers = {};
+// Anti-spam bid cooldown tracker (per socket connection)
+const socketBidCooldown = new Map();
 
 // Socket.io logic
 io.on('connection', (socket) => {
-    console.log('A user connected:', socket.id);
+    console.log('User connected to socket:', socket.id);
 
     socket.on('join_auction', (tournamentId) => {
         socket.join(tournamentId);
-        console.log(`User ${socket.id} joined auction: ${tournamentId}`);
     });
 
-    const Player = require('./models/Player');
-    const Team = require('./models/Team');
+    socket.on('start_auction', async ({ tournamentId, activeSlotId }) => {
+        try {
+            const updateData = {
+                status: 'live',
+                biddingState: 'active'
+            };
+            if (activeSlotId !== undefined) {
+                updateData.activeSlotId = activeSlotId;
+            }
+            const tournament = await db.updateTournament(tournamentId, updateData);
+            io.to(tournamentId).emit('auction_status_changed', {
+                status: 'live',
+                biddingState: 'active',
+                tournament
+            });
+            io.to(tournamentId).emit('bidding_state_changed', { state: 'active' });
+            if (activeSlotId !== undefined) {
+                io.to(tournamentId).emit('slot_changed', { activeSlotId, tournament });
+            }
+        } catch (e) {
+            console.error('start_auction error:', e);
+        }
+    });
+
+    socket.on('end_auction', async ({ tournamentId }) => {
+        try {
+            const tournament = await db.updateTournament(tournamentId, {
+                status: 'completed',
+                biddingState: 'stopped',
+                activeSlotId: null
+            });
+            io.to(tournamentId).emit('auction_ended', { tournamentId, tournament });
+            io.to(tournamentId).emit('auction_status_changed', {
+                status: 'completed',
+                biddingState: 'stopped',
+                tournament
+            });
+            io.to(tournamentId).emit('bidding_state_changed', { state: 'stopped' });
+        } catch (e) {
+            console.error('end_auction error:', e);
+        }
+    });
+
+    socket.on('set_active_slot', async ({ tournamentId, slotId }) => {
+        try {
+            const tournament = await db.updateTournament(tournamentId, {
+                activeSlotId: slotId || null
+            });
+            io.to(tournamentId).emit('slot_changed', {
+                activeSlotId: slotId || null,
+                tournament
+            });
+            io.to(tournamentId).emit('auction_status_changed', {
+                tournament
+            });
+        } catch (e) {
+            console.error('set_active_slot error:', e);
+        }
+    });
+
+    socket.on('bring_unsold_to_auction', async ({ tournamentId }, callback) => {
+        try {
+            const result = await db.bringUnsoldPlayersToAuction(tournamentId);
+            const tournament = await db.getTournamentById(tournamentId);
+            io.to(tournamentId).emit('unsold_reopened_to_slot', result);
+            io.to(tournamentId).emit('slot_changed', {
+                activeSlotId: result.unsoldSlot._id,
+                tournament
+            });
+            io.to(tournamentId).emit('auction_status_changed', {
+                tournament,
+                biddingState: 'active'
+            });
+            if (typeof callback === 'function') {
+                callback({ success: true, ...result });
+            }
+        } catch (e) {
+            console.error('bring_unsold_to_auction error:', e);
+            if (typeof callback === 'function') {
+                callback({ success: false, error: e.message });
+            }
+        }
+    });
 
     socket.on('place_bid', async (data) => {
         try {
-            const { playerId, tournamentId, bidAmount, teamId } = data;
+            // Anti-spam bid rate limiting: 200ms minimum interval between bids per socket
+            const now = Date.now();
+            const lastBidTime = socketBidCooldown.get(socket.id) || 0;
+            if (now - lastBidTime < 200) {
+                socket.emit('bid_error', {
+                    message: 'Bids placed too rapidly. Please wait a moment.'
+                });
+                return;
+            }
+            socketBidCooldown.set(socket.id, now);
 
-            const player = await Player.findById(playerId);
+            const { playerId, tournamentId, bidAmount, teamId } = data;
+            const player = await db.getPlayerById(playerId);
             if (!player) return;
 
-            // Optional: Check if bid is valid (greater than current)
-            if (bidAmount <= player.currentBid) {
-                // socket.emit('error', 'Bid must be higher');
-                return;
+            const team = await db.getTeamById(teamId);
+
+            // Squad limit check: Enforce Admin-fixed squad size limit
+            if (team && tournamentId) {
+                const tournament = await db.getTournamentById(tournamentId);
+                const maxSquadLimit = tournament?.squadSizeLimit ? Number(tournament.squadSizeLimit) : 25;
+                const currentSquad = (team.players || []).length;
+                if (currentSquad >= maxSquadLimit) {
+                    socket.emit('bid_error', {
+                        message: `${team.name} has reached the maximum squad limit of ${maxSquadLimit} players fixed by admin!`
+                    });
+                    return;
+                }
+            }
+
+            // If a 10-second countdown timer was running, cancel it immediately when a new bid arrives!
+            if (tournamentId && finalBidTimers[tournamentId]) {
+                clearInterval(finalBidTimers[tournamentId].interval);
+                delete finalBidTimers[tournamentId];
+                io.to(tournamentId).emit('timer_cancelled', {
+                    reason: 'new_bid',
+                    amount: bidAmount,
+                    team: team || { _id: teamId, name: 'Bidder' }
+                });
             }
 
             player.currentBid = bidAmount;
-            player.currentLeadTeamId = teamId;
+            player.currentLeadTeamId = team || { _id: teamId, name: 'Bidder' };
             player.status = 'bidding';
-            await player.save();
+            await db.updatePlayer(playerId, player);
 
-            // Populate logic if you want team name etc
-            const updatedPlayer = await Player.findById(playerId).populate('currentLeadTeamId');
+            // Persist bid record to database ledger
+            const bidTimestamp = new Date().toISOString();
+            const bidLog = {
+                _id: 'bid_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+                tournamentId,
+                playerId,
+                teamId,
+                teamName: team?.name || 'Bidder',
+                teamLogo: team?.logo || '',
+                teamShortName: team?.shortName || '',
+                bidAmount,
+                createdAt: bidTimestamp
+            };
+            await db.recordBid(bidLog);
 
             io.to(tournamentId).emit('bid_update', {
                 playerId,
                 amount: bidAmount,
-                team: updatedPlayer.currentLeadTeamId
+                team: player.currentLeadTeamId,
+                timestamp: bidTimestamp,
+                bidId: bidLog._id
             });
         } catch (e) {
-            console.error(e);
+            console.error('place_bid error:', e);
         }
     });
 
     socket.on('sell_player', async (data) => {
         try {
             const { playerId, tournamentId } = data;
-
-            const player = await Player.findById(playerId);
+            if (tournamentId && finalBidTimers[tournamentId]) {
+                clearInterval(finalBidTimers[tournamentId].interval);
+                delete finalBidTimers[tournamentId];
+            }
+            const player = await db.getPlayerById(playerId);
             if (!player || !player.currentLeadTeamId) return;
 
-            const team = await Team.findById(player.currentLeadTeamId);
+            const leadTeamId = player.currentLeadTeamId._id || player.currentLeadTeamId;
+            const team = await db.getTeamById(leadTeamId);
             if (!team) return;
 
-            // Transaction
-            if (team.budget < player.currentBid) {
-                // In real world, handle error. For now, assume validation happened before bid
+            // Squad limit check: Enforce Admin-fixed squad size limit before finalizing sale
+            if (tournamentId) {
+                const maxSquadLimit = tournament?.squadSizeLimit ? Number(tournament.squadSizeLimit) : 25;
+                const tournament = await db.getTournamentById(tournamentId);
+                const currentSquad = (team.players || []).length;
+                if (currentSquad >= maxSquadLimit) {
+                    socket.emit('auction_error', {
+                        message: `Cannot sell player: ${team.name} has already reached the maximum squad limit of ${maxSquadLimit} players fixed by admin!`
+                    });
+                    return;
+                }
             }
 
-            team.budget -= player.currentBid;
-            team.spent += player.currentBid;
-            team.players.push(player._id);
-            await team.save();
+            const bidInCrores = Number((player.currentBid || player.basePrice || 0) / 100);
+            team.spent = Number(((team.spent || 0) + bidInCrores).toFixed(2));
+            if (!team.players) team.players = [];
+            if (!team.players.includes(player._id)) team.players.push(player._id);
+            await db.updateTeam(team._id, team);
 
             player.status = 'sold';
             player.soldToTeamId = team._id;
-            player.soldPrice = player.currentBid;
-            await player.save();
+            player.soldPrice = player.currentBid || player.basePrice;
+            await db.updatePlayer(playerId, player);
 
             io.to(tournamentId).emit('player_sold', {
                 player,
                 team
             });
-
+            io.to(tournamentId).emit('team_updated', {
+                team
+            });
         } catch (e) {
-            console.error(e);
+            console.error('sell_player error:', e);
+        }
+    });
+
+    socket.on('mark_unsold', async (data) => {
+        try {
+            const { playerId, tournamentId } = data;
+            if (tournamentId && finalBidTimers[tournamentId]) {
+                clearInterval(finalBidTimers[tournamentId].interval);
+                delete finalBidTimers[tournamentId];
+            }
+            const player = await db.getPlayerById(playerId);
+            if (!player) return;
+
+            player.status = 'unsold';
+            player.currentLeadTeamId = null;
+            await db.updatePlayer(playerId, player);
+
+            io.to(tournamentId).emit('player_unsold', { player });
+        } catch (e) {
+            console.error('mark_unsold error:', e);
+        }
+    });
+
+    socket.on('set_bidding_state', async ({ tournamentId, state, activeSlotId }) => {
+        try {
+            // state can be: 'active', 'paused', 'break', 'stopped'
+            const statusUpdate = state === 'stopped' ? 'upcoming' : (state === 'paused' || state === 'break') ? 'paused' : 'live';
+            const updateData = {
+                biddingState: state,
+                status: statusUpdate
+            };
+            if (activeSlotId !== undefined) {
+                updateData.activeSlotId = activeSlotId;
+            }
+            const tournament = await db.updateTournament(tournamentId, updateData);
+            io.to(tournamentId).emit('bidding_state_changed', { state });
+            io.to(tournamentId).emit('auction_status_changed', {
+                status: statusUpdate,
+                biddingState: state,
+                tournament
+            });
+            if (activeSlotId !== undefined) {
+                io.to(tournamentId).emit('slot_changed', { activeSlotId, tournament });
+            }
+        } catch (err) {
+            console.error('set_bidding_state error:', err);
+        }
+    });
+
+    socket.on('rollback_sale', async ({ tournamentId, playerId }) => {
+        try {
+            const player = await db.getPlayerById(playerId);
+            if (!player || player.status !== 'sold') return;
+
+            const soldTeamId = player.soldToTeamId;
+            const soldPrice = player.soldPrice || player.currentBid;
+
+            if (soldTeamId) {
+                const team = await db.getTeamById(soldTeamId);
+                if (team) {
+                    const refundInCrores = Number(soldPrice / 100);
+                    team.spent = Number(Math.max(0, (team.spent || 0) - refundInCrores).toFixed(2));
+                    team.players = (team.players || []).filter(p => p !== playerId);
+                    await db.updateTeam(team._id, team);
+                    io.to(tournamentId).emit('team_updated', { team });
+                }
+            }
+
+            player.status = 'bidding';
+            player.soldToTeamId = null;
+            player.soldPrice = 0;
+            await db.updatePlayer(playerId, player);
+
+            io.to(tournamentId).emit('sale_rolled_back', {
+                player,
+                refundedTeamId: soldTeamId,
+                refundedAmount: soldPrice
+            });
+        } catch (err) {
+            console.error('rollback_sale error:', err);
+        }
+    });
+
+    socket.on('undo_last_bid', async ({ tournamentId, playerId }) => {
+        try {
+            const player = await db.getPlayerById(playerId);
+            if (!player) return;
+
+            player.currentBid = player.basePrice;
+            player.currentLeadTeamId = null;
+            await db.updatePlayer(playerId, player);
+
+            io.to(tournamentId).emit('bid_undone', {
+                playerId: player._id,
+                currentBid: player.basePrice,
+                leadTeam: null
+            });
+        } catch (err) {
+            console.error('undo_last_bid error:', err);
         }
     });
 
     socket.on('select_player', async ({ tournamentId, playerId }) => {
-        const Tournament = require('./models/Tournament');
-        const Player = require('./models/Player');
         try {
-            await Tournament.findByIdAndUpdate(tournamentId, { currentBiddingPlayerId: playerId });
-            const player = await Player.findById(playerId);
+            const tournament = await db.getTournamentById(tournamentId);
+            const updateObj = { currentBiddingPlayerId: playerId };
+            let statusChanged = false;
+            if (tournament && (tournament.status === 'upcoming' || tournament.biddingState === 'stopped')) {
+                updateObj.status = 'live';
+                updateObj.biddingState = 'active';
+                statusChanged = true;
+            }
+            const updatedT = await db.updateTournament(tournamentId, updateObj);
+            const player = await db.getPlayerById(playerId);
+            if (player) {
+                player.status = 'bidding';
+                await db.updatePlayer(playerId, player);
+            }
+            if (statusChanged && updatedT) {
+                io.to(tournamentId).emit('auction_status_changed', {
+                    status: updatedT.status,
+                    biddingState: updatedT.biddingState,
+                    tournament: updatedT
+                });
+                io.to(tournamentId).emit('bidding_state_changed', { state: updatedT.biddingState });
+            }
             io.to(tournamentId).emit('new_player', player);
         } catch (err) {
-            console.error(err);
+            console.error('select_player error:', err);
+        }
+    });
+
+    // --- 10-SECOND FINAL COUNTDOWN TIMER TRIGGER (Going Once, Going Twice...) ---
+    socket.on('trigger_final_countdown', async ({ tournamentId, playerId }) => {
+        try {
+            if (finalBidTimers[tournamentId]) {
+                clearInterval(finalBidTimers[tournamentId].interval);
+                delete finalBidTimers[tournamentId];
+            }
+
+            let targetPlayerId = playerId;
+            if (!targetPlayerId) {
+                const allPlayers = await db.getPlayers(tournamentId);
+                const activeP = (allPlayers || []).find(p => p.status === 'pending');
+                if (activeP) targetPlayerId = activeP._id;
+            }
+
+            const player = targetPlayerId ? await db.getPlayerById(targetPlayerId) : null;
+            if (!player) {
+                console.warn('trigger_final_countdown: No player found for tournament', tournamentId);
+                return;
+            }
+
+            let timeLeft = 10;
+
+            io.to(tournamentId).emit('timer_tick', {
+                timeLeft: 10,
+                duration: 10,
+                status: 'running',
+                playerId: targetPlayerId,
+                leadTeam: player.currentLeadTeamId,
+                currentBid: player.currentBid || player.basePrice
+            });
+
+            const interval = setInterval(async () => {
+                timeLeft -= 1;
+
+                if (timeLeft > 0) {
+                    io.to(tournamentId).emit('timer_tick', {
+                        timeLeft,
+                        duration: 10,
+                        status: 'running',
+                        playerId: targetPlayerId
+                    });
+                } else {
+                    // 10 SECONDS EXPIRED WITH NO NEW BIDS!
+                    clearInterval(interval);
+                    delete finalBidTimers[tournamentId];
+
+                    io.to(tournamentId).emit('timer_tick', {
+                        timeLeft: 0,
+                        duration: 10,
+                        status: 'expired',
+                        playerId: targetPlayerId
+                    });
+
+                    // Auto-sell to the highest bidding team, or mark unsold if no bids
+                    const freshPlayer = await db.getPlayerById(targetPlayerId);
+                    if (!freshPlayer) return;
+
+                    if (freshPlayer.currentLeadTeamId) {
+                        const leadTeamId = freshPlayer.currentLeadTeamId._id || freshPlayer.currentLeadTeamId;
+                        const team = await db.getTeamById(leadTeamId);
+                        if (team) {
+                            const autoSoldInCrores = Number((freshPlayer.currentBid || freshPlayer.basePrice || 0) / 100);
+                            team.spent = Number(((team.spent || 0) + autoSoldInCrores).toFixed(2));
+                            if (!team.players) team.players = [];
+                            if (!team.players.includes(freshPlayer._id)) team.players.push(freshPlayer._id);
+                            await db.updateTeam(team._id, team);
+
+                            freshPlayer.status = 'sold';
+                            freshPlayer.soldToTeamId = team._id;
+                            freshPlayer.soldPrice = freshPlayer.currentBid || freshPlayer.basePrice;
+                            await db.updatePlayer(targetPlayerId, freshPlayer);
+
+                            io.to(tournamentId).emit('player_sold', {
+                                player: freshPlayer,
+                                team
+                            });
+                            io.to(tournamentId).emit('team_updated', {
+                                team
+                            });
+                            io.to(tournamentId).emit('timer_completed', {
+                                outcome: 'sold',
+                                player: freshPlayer,
+                                team
+                            });
+                        }
+                    } else {
+                        // Mark unsold
+                        freshPlayer.status = 'unsold';
+                        freshPlayer.currentLeadTeamId = null;
+                        await db.updatePlayer(targetPlayerId, freshPlayer);
+
+                        io.to(tournamentId).emit('player_unsold', { player: freshPlayer });
+                        io.to(tournamentId).emit('timer_completed', {
+                            outcome: 'unsold',
+                            player: freshPlayer
+                        });
+                    }
+                }
+            }, 1000);
+
+            finalBidTimers[tournamentId] = { interval, playerId: targetPlayerId };
+        } catch (err) {
+            console.error('trigger_final_countdown error:', err);
+        }
+    });
+
+    socket.on('cancel_final_countdown', ({ tournamentId }) => {
+        if (finalBidTimers[tournamentId]) {
+            clearInterval(finalBidTimers[tournamentId].interval);
+            delete finalBidTimers[tournamentId];
+            io.to(tournamentId).emit('timer_cancelled', {
+                reason: 'cancelled_by_admin'
+            });
+        }
+    });
+
+    // Synchronized General Auction Timers
+    const auctionTimers = {};
+
+    socket.on('start_timer', ({ tournamentId, duration = 15 }) => {
+        if (auctionTimers[tournamentId]) {
+            clearInterval(auctionTimers[tournamentId]);
+        }
+
+        let timeLeft = duration;
+        io.to(tournamentId).emit('timer_tick', { timeLeft, status: 'running' });
+
+        auctionTimers[tournamentId] = setInterval(() => {
+            timeLeft -= 1;
+            if (timeLeft <= 0) {
+                clearInterval(auctionTimers[tournamentId]);
+                delete auctionTimers[tournamentId];
+                io.to(tournamentId).emit('timer_tick', { timeLeft: 0, status: 'expired' });
+            } else {
+                io.to(tournamentId).emit('timer_tick', { timeLeft, status: 'running' });
+            }
+        }, 1000);
+    });
+
+    socket.on('stop_timer', ({ tournamentId }) => {
+        if (auctionTimers[tournamentId]) {
+            clearInterval(auctionTimers[tournamentId]);
+            delete auctionTimers[tournamentId];
+            io.to(tournamentId).emit('timer_tick', { timeLeft: 0, status: 'stopped' });
         }
     });
 
     socket.on('disconnect', () => {
-        console.log('User disconnected');
+        socketBidCooldown.delete(socket.id);
     });
 });
 
-// Make io accessible in routes
 app.set('socketio', io);
 
-httpServer.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+// Global Error Handler guaranteeing JSON responses instead of Express HTML error pages
+app.use((err, req, res, next) => {
+    if (err.type === 'entity.too.large') {
+        return res.status(413).json({ message: 'Uploaded file is too large. Please select a smaller photo.' });
+    }
+    console.error('Express request error:', err);
+    res.status(err.status || 500).json({ message: err.message || 'Internal Server Error' });
 });
+
+// Initial direct hydration from Supabase Cloud DB before accepting traffic
+const startServer = async () => {
+    try {
+        if (typeof db.init === 'function') {
+            await db.init();
+        }
+    } catch (err) {
+        console.warn('⚠️ Notice: DB initialization hydration skipped:', err.message);
+    }
+
+    httpServer.listen(PORT, '0.0.0.0', () => {
+        console.log(`⚡ Dab Cric Auction Server running on http://0.0.0.0:${PORT} (LAN accessible)`);
+    }).on('error', (err) => {
+        if (err.code === 'EADDRINUSE') {
+            console.error(`Port ${PORT} is already in use. Please terminate the process using port ${PORT} or check running instances.`);
+        } else {
+            console.error('Server error:', err);
+        }
+    });
+};
+
+startServer();

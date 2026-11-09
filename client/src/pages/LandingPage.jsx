@@ -1,58 +1,119 @@
-import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, Link } from 'react-router-dom';
-import { ArrowRight, Trophy, Users, Activity } from 'lucide-react';
-import axios from 'axios';
+import {
+    ArrowRight,
+    Trophy,
+    Users,
+    Activity,
+    Sparkles,
+    Smartphone,
+    Monitor,
+    Gavel,
+    Shield,
+    RotateCcw,
+    Layers,
+    UserCheck,
+    Radio,
+    Clock,
+    Phone,
+    Mail,
+    Globe,
+    Github,
+    Linkedin,
+    Instagram,
+    MessageCircle,
+    ExternalLink,
+    CheckCircle2,
+    ChevronRight,
+    Zap,
+    Maximize2,
+    X,
+    Code2
+} from 'lucide-react';
 
 const LandingPage = () => {
     const navigate = useNavigate();
-    const [tournaments, setTournaments] = useState([]);
+    const [spectatorCode, setSpectatorCode] = useState('');
+    const [imageModalOpen, setImageModalOpen] = useState(false);
 
-    useEffect(() => {
-        fetchTournaments();
-    }, []);
-
-    const fetchTournaments = async () => {
-        try {
-            const res = await axios.get('/api/tournaments');
-            setTournaments(res.data);
-        } catch (err) {
-            console.error("Failed to fetch tournaments", err);
-        }
+    const handleJoinSpectator = (e) => {
+        e.preventDefault();
+        const clean = spectatorCode.trim();
+        if (!clean) return;
+        // If user pasted a full URL or just the tournament ID
+        const id = clean.includes('/auction/') ? clean.split('/auction/')[1].split('/')[0] : clean;
+        navigate(`/auction/${id}`);
     };
 
     return (
-        <div className="relative min-h-screen bg-slate-950 text-white overflow-hidden font-sans">
-            {/* Background Elements */}
+        <div className="relative min-h-screen bg-slate-50 text-slate-900 overflow-x-hidden font-sans selection:bg-blue-600 selection:text-white">
+            {/* Subtle Gradient Glow Elements */}
             <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
-                <div className="absolute -top-[20%] -left-[10%] w-[60%] h-[60%] bg-blue-600/10 rounded-full blur-[120px]" />
-                <div className="absolute top-[40%] -right-[10%] w-[50%] h-[50%] bg-indigo-600/10 rounded-full blur-[100px]" />
+                <div className="absolute -top-[20%] -left-[10%] w-[55%] h-[55%] bg-blue-100/60 rounded-full blur-[120px]" />
+                <div className="absolute top-[25%] -right-[10%] w-[45%] h-[45%] bg-indigo-100/60 rounded-full blur-[120px]" />
+                <div className="absolute top-[65%] left-[10%] w-[40%] h-[40%] bg-violet-100/50 rounded-full blur-[120px]" />
             </div>
 
-            <nav className="relative z-50 flex items-center justify-between px-6 py-6 max-w-7xl mx-auto backdrop-blur-sm bg-slate-900/30 rounded-b-2xl border-b border-white/5 sticky top-0">
-                <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-blue-500 to-indigo-500 flex items-center justify-center">
-                        <Trophy className="w-5 h-5 text-white" />
+            {/* Top Navigation Bar */}
+            <nav className="relative z-50 flex items-center justify-between px-5 md:px-8 py-3.5 max-w-7xl mx-auto backdrop-blur-md bg-white/85 rounded-2xl border border-slate-200/80 sticky top-4 shadow-sm mt-4">
+                <div className="flex items-center gap-3">
+                    <img
+                        src="/logo.png"
+                        alt="Dab Cric Auction"
+                        className="w-10 h-10 rounded-xl object-contain bg-white border border-slate-200/80 p-0.5 shadow-sm"
+                    />
+                    <div>
+                        <span className="text-xl font-black tracking-tight text-slate-900">
+                            Dab Cric <span className="text-blue-600">Auction</span>
+                        </span>
+                        <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-semibold">
+                            <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                            Live Auction Cloud Platform
+                        </div>
                     </div>
-                    <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">
-                        CricAuction
-                    </span>
                 </div>
-                <div className="flex items-center gap-4">
-                    <Link to="/login" className="px-5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700/50 transition-all text-sm font-medium text-slate-300 hover:text-white">
-                        Admin Login
+
+                <div className="hidden lg:flex items-center gap-6 text-sm font-semibold text-slate-600">
+                    <a href="#services" className="hover:text-blue-600 transition-colors">Our Services</a>
+                    <a href="#how-it-works" className="hover:text-blue-600 transition-colors">How It Works</a>
+                    <a href="#cross-platform" className="hover:text-blue-600 transition-colors">Cross-Platform</a>
+                    <a href="#developer" className="hover:text-blue-600 transition-colors">Developer</a>
+                </div>
+
+                <div className="flex items-center gap-2.5">
+                    <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 rounded-lg text-xs font-bold text-slate-600">
+                        <Monitor className="w-3.5 h-3.5 text-blue-600" />
+                        <span>Web</span>
+                        <span className="text-slate-300">|</span>
+                        <Smartphone className="w-3.5 h-3.5 text-indigo-600" />
+                        <span>Mobile App</span>
+                    </div>
+                    <Link
+                        to="/register"
+                        className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs border border-slate-200 transition-all"
+                    >
+                        Host Register
+                    </Link>
+                    <Link
+                        to="/login"
+                        className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-sm hover:shadow-md transition-all flex items-center gap-1"
+                    >
+                        Sign In
                     </Link>
                 </div>
             </nav>
 
-            <main className="relative z-10 container mx-auto px-4 pt-20 pb-32 flex flex-col items-center text-center">
+            {/* Hero Section */}
+            <main className="relative z-10 container mx-auto px-4 pt-12 md:pt-20 pb-20 flex flex-col items-center text-center">
                 <motion.div
-                    initial={{ opacity: 0, y: 20 }}
+                    initial={{ opacity: 0, y: 15 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.6 }}
+                    transition={{ duration: 0.5 }}
                 >
-                    <span className="inline-block px-4 py-1.5 mb-6 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-sm font-medium tracking-wide">
-                        PREMIER AUCTION PLATFORM
+                    <span className="inline-flex items-center gap-2 px-4 py-1.5 mb-6 rounded-full bg-blue-50 border border-blue-200/80 text-blue-700 text-xs font-extrabold uppercase tracking-wider shadow-sm">
+                        <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+                        Enterprise Cricket Auction Management
                     </span>
                 </motion.div>
 
@@ -60,11 +121,11 @@ const LandingPage = () => {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.1, duration: 0.6 }}
-                    className="text-5xl md:text-7xl font-bold tracking-tight mb-8 leading-tight"
+                    className="text-4xl sm:text-6xl md:text-7xl font-black tracking-tight mb-6 leading-[1.1] text-slate-900 max-w-4xl"
                 >
-                    Build Your <br />
-                    <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-indigo-400 to-violet-400 animate-gradient">
-                        Dream Team
+                    Host IPL-Style Cricket Auctions <br className="hidden sm:inline" />
+                    <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600">
+                        With Real-Time Precision
                     </span>
                 </motion.h1>
 
@@ -72,92 +133,518 @@ const LandingPage = () => {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.2, duration: 0.6 }}
-                    className="text-lg md:text-xl text-slate-400 max-w-2xl mb-12 leading-relaxed"
+                    className="text-base sm:text-lg md:text-xl text-slate-600 max-w-2xl mb-10 leading-relaxed font-normal"
                 >
-                    The most advanced platform for managing cricket tournaments and conducting professional live player auctions with real-time bidding.
+                    Complete gavel hammer controls, live team owner bidding keypads, automatic purse validation, public broadcast stream, and instant audit-safe rollbacks across Web & Mobile.
                 </motion.p>
 
+                {/* Primary CTA Buttons */}
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.3, duration: 0.6 }}
-                    className="flex flex-col sm:flex-row gap-4 justify-center w-full sm:w-auto"
+                    className="flex flex-col sm:flex-row gap-3.5 justify-center w-full sm:w-auto"
                 >
-                    <button
-                        onClick={() => document.getElementById('active-auctions').scrollIntoView({ behavior: 'smooth' })}
-                        className="group px-8 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-semibold shadow-lg shadow-blue-500/25 transition-all flex items-center justify-center gap-2"
+                    <Link
+                        to="/login"
+                        className="px-7 py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-lg shadow-blue-500/25 transition-all flex items-center justify-center gap-2 hover:scale-[1.02]"
                     >
-                        Watch Live Auctions
-                        <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                    </button>
+                        <span>Enter Auctioneer / Owner Portal</span>
+                        <ArrowRight className="w-4 h-4" />
+                    </Link>
+                    <Link
+                        to="/register"
+                        className="px-7 py-3.5 bg-white hover:bg-slate-50 text-slate-800 rounded-xl font-bold border border-slate-300 shadow-sm transition-all hover:scale-[1.02]"
+                    >
+                        Create Tournament Host Account
+                    </Link>
                 </motion.div>
 
-                {/* Stats / Features Grid */}
+                {/* Join Live Spectator Bar */}
                 <motion.div
-                    initial={{ opacity: 0, y: 40 }}
+                    initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.5, duration: 0.8 }}
-                    className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-20 w-full max-w-5xl"
+                    transition={{ delay: 0.4, duration: 0.6 }}
+                    className="mt-10 w-full max-w-lg bg-white/90 backdrop-blur border border-slate-200/90 p-2.5 rounded-2xl shadow-sm"
                 >
-                    {[
-                        { label: 'Real-time Bidding', icon: Activity, desc: 'Instant updates with zero latency sockets' },
-                        { label: 'Team Management', icon: Users, desc: 'Complete roster and budget control' },
-                        { label: 'Tournament Stats', icon: Trophy, desc: 'Live tracking of sold players and stats' }
-                    ].map((item, idx) => (
-                        <div key={idx} className="p-6 rounded-2xl bg-white/5 border border-white/5 backdrop-blur-sm text-left hover:border-blue-500/30 transition-colors">
-                            <item.icon className="w-8 h-8 text-blue-400 mb-4" />
-                            <h3 className="text-lg font-semibold text-white mb-2">{item.label}</h3>
-                            <p className="text-slate-400 text-sm">{item.desc}</p>
+                    <form onSubmit={handleJoinSpectator} className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 pl-3 flex-1">
+                            <Radio className="w-4 h-4 text-emerald-600 animate-pulse shrink-0" />
+                            <input
+                                type="text"
+                                placeholder="Enter Tournament ID or Live Link to Spectate..."
+                                value={spectatorCode}
+                                onChange={(e) => setSpectatorCode(e.target.value)}
+                                className="w-full bg-transparent text-xs sm:text-sm font-semibold text-slate-800 placeholder-slate-400 focus:outline-none"
+                            />
                         </div>
-                    ))}
+                        <button
+                            type="submit"
+                            className="px-4 py-2 bg-slate-900 hover:bg-blue-600 text-white text-xs font-bold rounded-xl transition-all shrink-0"
+                        >
+                            Spectate Live
+                        </button>
+                    </form>
+                </motion.div>
+
+                {/* Platform Highlights Badges */}
+                <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.5, duration: 0.7 }}
+                    className="flex flex-wrap items-center justify-center gap-4 sm:gap-8 mt-12 text-xs font-bold text-slate-500"
+                >
+                    <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                        <span>Supabase Realtime Engine</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                        <span>Instant Rollback & Undo</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                        <span>CricHeroes Profile Integration</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                        <span>Mobile Expo & Web Parity</span>
+                    </div>
                 </motion.div>
             </main>
 
-            <section id="active-auctions" className="relative z-10 container mx-auto px-4 py-24 border-t border-white/5">
-                <div className="flex justify-between items-end mb-12">
-                    <div>
-                        <h2 className="text-3xl font-bold text-white mb-2">Active Tournaments</h2>
-                        <p className="text-slate-400">Join or watch live bidding events occurring right now.</p>
+            {/* Services & Core Features Section */}
+            <section id="services" className="relative z-10 container mx-auto px-4 py-20 border-t border-slate-200/80">
+                <div className="max-w-3xl mx-auto text-center mb-16">
+                    <span className="text-xs font-extrabold uppercase tracking-wider text-blue-600 bg-blue-50 px-3 py-1 rounded-full border border-blue-200/60">
+                        End-To-End Auction Solutions
+                    </span>
+                    <h2 className="text-3xl sm:text-4xl font-black text-slate-900 mt-3 mb-4">
+                        Everything You Need For A Flawless Auction
+                    </h2>
+                    <p className="text-slate-600 text-sm sm:text-base leading-relaxed">
+                        Built specifically for corporate cricket leagues, community tournaments, and professional clubs to conduct fast, transparent, and exciting live auctions.
+                    </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
+                    {[
+                        {
+                            icon: Gavel,
+                            color: 'bg-blue-50 text-blue-600 border-blue-100',
+                            title: 'Live Auctioneer Console',
+                            subtitle: 'Official Gavel Room',
+                            desc: 'Full hammer controls, customized dynamic bid increment buttons (+500, +1K, +5K), live countdown timer, audio sound effects, and instant Sold/Unsold gavel buttons.'
+                        },
+                        {
+                            icon: Users,
+                            color: 'bg-emerald-50 text-emerald-600 border-emerald-100',
+                            title: 'Team Owner Bidding Keypad',
+                            subtitle: 'Interactive Mobile & Web Keypad',
+                            desc: 'Dedicated owner view with 1-tap live bidding button, real-time purse balance, remaining player slot requirements, squad roster preview, and instant outbid notifications.'
+                        },
+                        {
+                            icon: Radio,
+                            color: 'bg-violet-50 text-violet-600 border-violet-100',
+                            title: 'Public Live Spectator Stream',
+                            subtitle: 'Zero Login Required',
+                            desc: 'Public viewing portal for fans, audience, and community members. Live bid ticker, recent bids ledger stream, current player stats card, and sold roster boards.'
+                        },
+                        {
+                            icon: UserCheck,
+                            color: 'bg-amber-50 text-amber-600 border-amber-100',
+                            title: 'Player Self-Registration Portal',
+                            subtitle: 'With Form Open/Close Switch',
+                            desc: 'Shareable registration link for players to submit CricHeroes profile URL, career stats, batting/bowling roles, and photos. Tournament organizer can open or close registrations with 1 click.'
+                        },
+                        {
+                            icon: Layers,
+                            color: 'bg-indigo-50 text-indigo-600 border-indigo-100',
+                            title: 'Category Slots & Purse Management',
+                            subtitle: 'Budget & Squad Governance',
+                            desc: 'Strict slot controls for Batsmen, Bowlers, All-rounders, and Keepers. Prevents teams from bidding when purse is insufficient or team player quota is filled.'
+                        },
+                        {
+                            icon: RotateCcw,
+                            color: 'bg-rose-50 text-rose-600 border-rose-100',
+                            title: 'Audit-Safe Rollback & Undo',
+                            subtitle: 'Zero Data Loss Guarantee',
+                            desc: 'Made a mistake during lightning-fast bidding? Instantly undo erroneous bids or roll back sold players with atomic database accuracy and real-time bid log tracking.'
+                        }
+                    ].map((service, idx) => (
+                        <div
+                            key={idx}
+                            className="p-7 rounded-2xl bg-white border border-slate-200/90 shadow-sm hover:shadow-md hover:border-blue-400 transition-all flex flex-col justify-between group"
+                        >
+                            <div>
+                                <div className={`w-12 h-12 rounded-xl ${service.color} border flex items-center justify-center mb-5 group-hover:scale-110 transition-transform`}>
+                                    <service.icon className="w-6 h-6" />
+                                </div>
+                                <span className="text-[11px] font-extrabold text-blue-600 uppercase tracking-wider block mb-1">
+                                    {service.subtitle}
+                                </span>
+                                <h3 className="text-lg font-bold text-slate-900 mb-2.5">
+                                    {service.title}
+                                </h3>
+                                <p className="text-slate-600 text-xs sm:text-sm leading-relaxed">
+                                    {service.desc}
+                                </p>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </section>
+
+            {/* How It Works Section */}
+            <section id="how-it-works" className="relative z-10 bg-slate-100/70 py-20 border-y border-slate-200">
+                <div className="container mx-auto px-4 max-w-6xl">
+                    <div className="max-w-2xl mx-auto text-center mb-16">
+                        <span className="text-xs font-extrabold uppercase tracking-wider text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-200/60">
+                            Simple 4-Step Process
+                        </span>
+                        <h2 className="text-3xl sm:text-4xl font-black text-slate-900 mt-3 mb-4">
+                            How An Auction Runs Seamlessly
+                        </h2>
+                        <p className="text-slate-600 text-sm">
+                            From tournament configuration to the final gavel strike in just four easy steps.
+                        </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                        {[
+                            {
+                                step: '01',
+                                title: 'Configure & Setup',
+                                desc: 'Define tournament rules, purse budget, team slots, and generate secure passwords for auctioneers & owners.'
+                            },
+                            {
+                                step: '02',
+                                title: 'Register Players',
+                                desc: 'Collect player entries via the self-registration form or import CricHeroes profiles with stats and photos.'
+                            },
+                            {
+                                step: '03',
+                                title: 'Conduct Live Bidding',
+                                desc: 'Auctioneer controls gavel timer while team owners place live bids from their mobile or web keypad.'
+                            },
+                            {
+                                step: '04',
+                                title: 'Export & Celebrate',
+                                desc: 'Instant sold rosters, team expense ledger, remaining balances, and printable squad PDFs.'
+                            }
+                        ].map((item, idx) => (
+                            <div key={idx} className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm relative">
+                                <span className="text-4xl font-black text-slate-200 block mb-3 font-mono">
+                                    {item.step}
+                                </span>
+                                <h3 className="text-base font-bold text-slate-900 mb-2">
+                                    {item.title}
+                                </h3>
+                                <p className="text-xs text-slate-600 leading-relaxed">
+                                    {item.desc}
+                                </p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </section>
+
+            {/* Cross-Platform Parity Banner */}
+            <section id="cross-platform" className="relative z-10 container mx-auto px-4 py-20">
+                <div className="max-w-5xl mx-auto bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 text-white rounded-3xl p-8 sm:p-12 shadow-xl border border-slate-700/60 flex flex-col md:flex-row items-center justify-between gap-8">
+                    <div className="max-w-lg text-left">
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/20 text-blue-300 text-xs font-bold uppercase tracking-wider mb-4 border border-blue-400/30">
+                            <Zap className="w-3.5 h-3.5 text-blue-400" />
+                            Multi-Platform Cloud Architecture
+                        </span>
+                        <h2 className="text-2xl sm:text-4xl font-black tracking-tight mb-4 leading-tight">
+                            Run On Any Laptop, Tablet, Android or iPhone
+                        </h2>
+                        <p className="text-slate-300 text-xs sm:text-sm leading-relaxed mb-6 font-normal">
+                            Auctioneers can command the gavel from their laptop browser while franchise owners tap bids comfortably from their mobile smartphones. Everything syncs instantaneously via Supabase.
+                        </p>
+                        <div className="flex flex-wrap gap-3">
+                            <Link
+                                to="/login"
+                                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl transition-all shadow-md"
+                            >
+                                Launch Web Console
+                            </Link>
+                            <Link
+                                to="/register"
+                                className="px-5 py-2.5 bg-white/10 hover:bg-white/20 text-white font-bold text-xs rounded-xl transition-all border border-white/20"
+                            >
+                                Register Host
+                            </Link>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 w-full md:w-auto">
+                        <div className="bg-white/10 backdrop-blur p-5 rounded-2xl border border-white/10 text-center">
+                            <Monitor className="w-8 h-8 text-blue-400 mx-auto mb-2" />
+                            <h4 className="text-sm font-bold">Web Platform</h4>
+                            <p className="text-[11px] text-slate-400 mt-1">Full Gavel & Admin Tools</p>
+                        </div>
+                        <div className="bg-white/10 backdrop-blur p-5 rounded-2xl border border-white/10 text-center">
+                            <Smartphone className="w-8 h-8 text-indigo-400 mx-auto mb-2" />
+                            <h4 className="text-sm font-bold">Mobile App</h4>
+                            <p className="text-[11px] text-slate-400 mt-1">Native Expo SDK 58</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            {/* Developer & Contact Information (Full-Width Footer) */}
+            <footer id="developer" className="relative z-10 bg-slate-950 text-slate-100 pt-16 pb-10 border-t border-slate-800/80">
+                {/* Background Ambient Glows */}
+                <div className="absolute top-0 right-1/4 w-96 h-96 bg-blue-600/5 rounded-full blur-3xl pointer-events-none" />
+                <div className="absolute bottom-0 left-1/4 w-96 h-96 bg-indigo-600/5 rounded-full blur-3xl pointer-events-none" />
+
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+                    {/* Main Footer Grid */}
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-start">
+                        {/* Left Column: Developer Profile (5 cols) */}
+                        <div className="lg:col-span-5 flex flex-col items-start">
+                            {/* Profile Header */}
+                            <div className="flex items-center gap-4 sm:gap-5 mb-5">
+                                {/* Interactive Avatar with Zoom Lightbox */}
+                                <div
+                                    className="relative group cursor-pointer shrink-0"
+                                    onClick={() => setImageModalOpen(true)}
+                                    title="Click to view full photo"
+                                >
+                                    <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl p-0.5 bg-gradient-to-br from-blue-500 via-indigo-500 to-violet-600 shadow-xl group-hover:scale-105 transition-all duration-300">
+                                        <img
+                                            src="/developer.jpg"
+                                            alt="Jainish Dabgar"
+                                            className="w-full h-full object-cover rounded-[14px]"
+                                        />
+                                    </div>
+                                    <div className="absolute -bottom-1.5 -right-1.5 bg-blue-600 group-hover:bg-blue-500 text-white p-1 rounded-lg border-2 border-slate-950 shadow-md transition-colors flex items-center justify-center">
+                                        <Maximize2 className="w-3 h-3" />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-500/10 border border-blue-400/20 text-blue-400 text-[11px] font-bold uppercase tracking-wider mb-1.5">
+                                        <Sparkles className="w-3 h-3 text-blue-400" />
+                                        Designed & Crafted by
+                                    </span>
+                                    <h3 className="text-2xl sm:text-3xl font-black text-white tracking-tight leading-tight">
+                                        Jainish Dabgar
+                                    </h3>
+                                    <p className="text-xs sm:text-sm font-semibold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-indigo-300 to-purple-400 mt-0.5">
+                                        Full-Stack Developer & UI/UX Designer
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Tech Stack Badges */}
+                            <div className="flex flex-wrap gap-1.5 mb-5">
+                                {['React', 'React Native (Expo)', 'Node.js', 'Supabase', 'Socket.io', 'Tailwind CSS'].map((tech) => (
+                                    <span
+                                        key={tech}
+                                        className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-[11px] font-semibold text-slate-300"
+                                    >
+                                        {tech}
+                                    </span>
+                                ))}
+                            </div>
+
+                            {/* Gujarati Project Enquiry Note */}
+                            <div className="w-full p-4 rounded-2xl bg-slate-900/80 border border-slate-800/80 text-left">
+                                <p className="text-xs text-slate-300 leading-relaxed font-medium">
+                                    💡 એપ્લિકેશન ડેવલપમેન્ટ, ડિઝાઇન અથવા અન્ય ટેક્નિકલ પ્રોજેક્ટ્સ માટે આપ કોઈપણ સોશિયલ મીડિયા કે ઈમેલ મારફતે સીધો સંપર્ક કરી શકો છો.
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Right Column: Direct Contacts & Social Links (7 cols) */}
+                        <div className="lg:col-span-7 flex flex-col justify-between h-full">
+                            {/* Section Header */}
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-800/80 gap-2 mb-6">
+                                <div>
+                                    <h4 className="text-xs sm:text-sm font-extrabold text-slate-300 uppercase tracking-wider">
+                                        Connect & Contact (સંપર્ક)
+                                    </h4>
+                                    <p className="text-xs text-slate-400 mt-0.5">
+                                        Feel free to reach out for inquiries or collaborations.
+                                    </p>
+                                </div>
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold self-start sm:self-auto">
+                                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                                    Available for Projects
+                                </span>
+                            </div>
+
+                            {/* Contact Links Grid */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                                {/* Direct Call */}
+                                <a
+                                    href="tel:+919773272749"
+                                    className="group flex items-center gap-3 p-3 rounded-xl bg-slate-900/90 hover:bg-emerald-600/20 text-white border border-slate-800 hover:border-emerald-500/60 shadow-sm transition-all hover:scale-[1.02]"
+                                    title="Direct Call"
+                                >
+                                    <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 group-hover:bg-emerald-500 group-hover:text-white transition-colors">
+                                        <Phone className="w-4 h-4" />
+                                    </div>
+                                    <div className="text-left overflow-hidden">
+                                        <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Direct Call</span>
+                                        <span className="text-xs font-bold text-white truncate block">+91 97732 72749</span>
+                                    </div>
+                                </a>
+
+                                {/* Direct WhatsApp */}
+                                <a
+                                    href="https://wa.me/919773272749"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="group flex items-center gap-3 p-3 rounded-xl bg-slate-900/90 hover:bg-[#25D366]/20 text-white border border-slate-800 hover:border-[#25D366]/60 shadow-sm transition-all hover:scale-[1.02]"
+                                    title="WhatsApp"
+                                >
+                                    <div className="w-8 h-8 rounded-lg bg-[#25D366]/10 border border-[#25D366]/20 flex items-center justify-center text-[#25D366] group-hover:bg-[#25D366] group-hover:text-white transition-colors">
+                                        <MessageCircle className="w-4 h-4" />
+                                    </div>
+                                    <div className="text-left overflow-hidden">
+                                        <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">WhatsApp</span>
+                                        <span className="text-xs font-bold text-white truncate block">Chat Directly</span>
+                                    </div>
+                                </a>
+
+                                {/* Portfolio */}
+                                <a
+                                    href="https://jainishdabgar.vercel.app/"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="group flex items-center gap-3 p-3 rounded-xl bg-slate-900/90 hover:bg-sky-600/20 text-white border border-slate-800 hover:border-sky-500/60 shadow-sm transition-all hover:scale-[1.02]"
+                                    title="Portfolio"
+                                >
+                                    <div className="w-8 h-8 rounded-lg bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-400 group-hover:bg-sky-500 group-hover:text-white transition-colors">
+                                        <Globe className="w-4 h-4" />
+                                    </div>
+                                    <div className="text-left overflow-hidden">
+                                        <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Portfolio</span>
+                                        <span className="text-xs font-bold text-white truncate block">jainishdabgar.vercel.app</span>
+                                    </div>
+                                </a>
+
+                                {/* LinkedIn */}
+                                <a
+                                    href="https://www.linkedin.com/in/jainish-dabgar-87474a320/"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="group flex items-center gap-3 p-3 rounded-xl bg-slate-900/90 hover:bg-[#0A66C2]/20 text-white border border-slate-800 hover:border-[#0A66C2]/60 shadow-sm transition-all hover:scale-[1.02]"
+                                    title="LinkedIn"
+                                >
+                                    <div className="w-8 h-8 rounded-lg bg-[#0A66C2]/10 border border-[#0A66C2]/20 flex items-center justify-center text-[#0A66C2] group-hover:bg-[#0A66C2] group-hover:text-white transition-colors">
+                                        <Linkedin className="w-4 h-4" />
+                                    </div>
+                                    <div className="text-left overflow-hidden">
+                                        <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">LinkedIn</span>
+                                        <span className="text-xs font-bold text-white truncate block">Jainish Dabgar</span>
+                                    </div>
+                                </a>
+
+                                {/* GitHub */}
+                                <a
+                                    href="https://github.com/Jainish-2901"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="group flex items-center gap-3 p-3 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-white border border-slate-800 hover:border-slate-600 shadow-sm transition-all hover:scale-[1.02]"
+                                    title="GitHub"
+                                >
+                                    <div className="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-300 group-hover:bg-slate-700 group-hover:text-white transition-colors">
+                                        <Github className="w-4 h-4" />
+                                    </div>
+                                    <div className="text-left overflow-hidden">
+                                        <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">GitHub</span>
+                                        <span className="text-xs font-bold text-white truncate block">@Jainish-2901</span>
+                                    </div>
+                                </a>
+
+                                {/* Instagram */}
+                                <a
+                                    href="https://www.instagram.com/dabgar_jainish_2901/"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="group flex items-center gap-3 p-3 rounded-xl bg-slate-900/90 hover:bg-pink-600/20 text-white border border-slate-800 hover:border-pink-500/60 shadow-sm transition-all hover:scale-[1.02]"
+                                    title="Instagram"
+                                >
+                                    <div className="w-8 h-8 rounded-lg bg-pink-500/10 border border-pink-500/20 flex items-center justify-center text-pink-400 group-hover:bg-gradient-to-r group-hover:from-[#833ab4] group-hover:via-[#fd1d1d] group-hover:to-[#fcb045] group-hover:text-white transition-colors">
+                                        <Instagram className="w-4 h-4" />
+                                    </div>
+                                    <div className="text-left overflow-hidden">
+                                        <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Instagram</span>
+                                        <span className="text-xs font-bold text-white truncate block">@dabgar_jainish_2901</span>
+                                    </div>
+                                </a>
+
+                                {/* Email (Full width on sm) */}
+                                <a
+                                    href="mailto:jainishdabgar2901@gmail.com"
+                                    className="sm:col-span-2 md:col-span-3 group flex items-center gap-3 p-3 rounded-xl bg-slate-900/90 hover:bg-rose-600/20 text-white border border-slate-800 hover:border-rose-500/60 shadow-sm transition-all hover:scale-[1.01]"
+                                    title="Email"
+                                >
+                                    <div className="w-8 h-8 rounded-lg bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400 group-hover:bg-rose-500 group-hover:text-white transition-colors">
+                                        <Mail className="w-4 h-4" />
+                                    </div>
+                                    <div className="text-left overflow-hidden">
+                                        <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Email Inquiry</span>
+                                        <span className="text-xs font-bold text-white truncate block">jainishdabgar2901@gmail.com</span>
+                                    </div>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Bottom Full-Width Sub-Footer Bar */}
+                    <div className="mt-12 pt-6 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400">
+                        <p>© 2026 Dab Cric Auction. All rights reserved.</p>
+                        <p className="text-[11px] text-slate-400">
+                            Crafted with passion for community cricket by <span className="text-slate-300 font-semibold">Jainish Dabgar</span>.
+                        </p>
                     </div>
                 </div>
 
-                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-                    {tournaments.length > 0 ? tournaments.map((t) => (
-                        <div key={t._id} className="group relative bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden hover:border-blue-500/50 hover:shadow-2xl hover:shadow-blue-500/10 transition-all duration-300 cursor-pointer"
-                            onClick={() => navigate(`/auction/${t._id}`)}
+                {/* Developer Image Lightbox Modal */}
+                <AnimatePresence>
+                    {imageModalOpen && (
+                        <div
+                            className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4"
+                            onClick={() => setImageModalOpen(false)}
                         >
-                            <div className="h-48 bg-slate-800 relative overflow-hidden">
-                                <div className="absolute inset-0 bg-gradient-to-t from-slate-900 to-transparent z-10" />
-                                {/* Placeholder for Tournament Image - Could be dynamic if added later */}
-                                <div className="absolute inset-0 bg-blue-900/20 group-hover:scale-105 transition-transform duration-700" />
-                                <div className="absolute bottom-4 left-4 z-20">
-                                    <span className={`px-2 py-1 text-xs rounded-md font-medium flex items-center gap-1 ${t.status === 'live' ? 'bg-green-500/20 text-green-400 border border-green-500/20' : 'bg-slate-500/20 text-slate-400 border border-slate-500/20'}`}>
-                                        {t.status === 'live' && <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />}
-                                        {t.status.toUpperCase()}
-                                    </span>
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.9 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                exit={{ opacity: 0, scale: 0.9 }}
+                                transition={{ duration: 0.2 }}
+                                className="relative bg-slate-900 border border-slate-700 rounded-3xl overflow-hidden max-w-sm sm:max-w-md w-full p-4 shadow-2xl"
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                <button
+                                    onClick={() => setImageModalOpen(false)}
+                                    className="absolute top-6 right-6 w-8 h-8 rounded-full bg-black/60 hover:bg-black/90 text-white flex items-center justify-center z-10 transition-colors"
+                                >
+                                    <X className="w-4 h-4" />
+                                </button>
+                                <div className="rounded-2xl overflow-hidden border border-slate-800 aspect-square">
+                                    <img
+                                        src="/developer.jpg"
+                                        alt="Jainish Dabgar"
+                                        className="w-full h-full object-cover"
+                                    />
                                 </div>
-                            </div>
-                            <div className="p-6">
-                                <h3 className="text-xl font-bold text-white mb-2 group-hover:text-blue-400 transition-colors">{t.name}</h3>
-                                <div className="flex justify-between items-center text-slate-400 text-sm mb-4">
-                                    <span>{new Date(t.startDate).toLocaleDateString()}</span>
-                                    <span>•</span>
-                                    <span className="capitalize">{t.auctionType?.replace('_', ' ')}</span>
+                                <div className="pt-4 text-center">
+                                    <h4 className="text-lg font-black text-white">Jainish Dabgar</h4>
+                                    <p className="text-xs text-blue-400 font-semibold mt-0.5">
+                                        Full-Stack Developer & UI/UX Designer
+                                    </p>
                                 </div>
-                                <div className="w-full h-px bg-slate-800 mb-4" />
-                                <div className="flex items-center justify-between">
-                                    <span className="text-slate-500 text-sm">{t.time ? `Starts at ${t.time}` : 'TBA'}</span>
-                                    <span className="text-blue-400 text-sm font-medium">View &rarr;</span>
-                                </div>
-                            </div>
-                        </div>
-                    )) : (
-                        <div className="col-span-full py-16 text-center text-slate-500 bg-slate-900/30 rounded-2xl border border-white/5 border-dashed">
-                            No active tournaments found at the moment.
+                            </motion.div>
                         </div>
                     )}
-                </div>
-            </section>
+                </AnimatePresence>
+            </footer>
         </div>
     );
 };

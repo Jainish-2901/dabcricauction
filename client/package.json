@@ -1,5 +1,6 @@
 {
-  "name": "client",
+  "name": "dab-cric-auction-client",
+  "productName": "Dab Cric Auction",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -10,6 +11,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.119.0",
     "axios": "^1.13.4",
     "clsx": "^2.1.1",
     "framer-motion": "^12.29.2",
