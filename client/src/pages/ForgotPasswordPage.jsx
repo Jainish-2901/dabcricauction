@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Trophy, KeyRound, ArrowLeft, Lock, User, Phone, Eye, EyeOff, CheckCircle2, AlertCircle, Shield, Sparkles } from 'lucide-react';
+import { apiFetch } from '../lib/api';
 
 const ForgotPasswordPage = () => {
     const navigate = useNavigate();
@@ -29,7 +30,7 @@ const ForgotPasswordPage = () => {
         setLoading(true);
 
         try {
-            const res = await fetch('/api/auth/check-username', {
+            const res = await apiFetch('/api/auth/check-username', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username: username.trim() })
@@ -79,7 +80,7 @@ const ForgotPasswordPage = () => {
         setLoading(true);
 
         try {
-            const res = await fetch('/api/auth/reset-password', {
+            const res = await apiFetch('/api/auth/reset-password', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

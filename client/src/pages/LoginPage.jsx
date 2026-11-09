@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Lock, ArrowLeft, Shield, User, LogIn, Trophy, Eye, EyeOff, AlertCircle, Sparkles, Key } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { apiFetch } from '../lib/api';
 
 const LoginPage = () => {
     const navigate = useNavigate();
@@ -25,7 +26,7 @@ const LoginPage = () => {
         setLoading(true);
 
         try {
-            const response = await fetch('/api/auth/login', {
+            const response = await apiFetch('/api/auth/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -47,7 +48,7 @@ const LoginPage = () => {
             }
         } catch (err) {
             console.error(err);
-            setErrorMsg('Unable to connect to server. Please verify the server is running on port 5001.');
+            setErrorMsg('Unable to connect to backend server. Please verify your Render server is live and VITE_API_URL / VITE_SOCKET_URL is set in Vercel settings.');
         } finally {
             setLoading(false);
         }

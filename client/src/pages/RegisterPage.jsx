@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Trophy, Shield, ArrowLeft, Lock, User, Building, Phone, Eye, EyeOff, CheckCircle2, AlertCircle, Sparkles } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { apiFetch } from '../lib/api';
 
 const RegisterPage = () => {
     const navigate = useNavigate();
@@ -47,7 +48,7 @@ const RegisterPage = () => {
         setLoading(true);
 
         try {
-            const response = await fetch('/api/auth/register', {
+            const response = await apiFetch('/api/auth/register', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

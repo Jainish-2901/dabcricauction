@@ -23,17 +23,16 @@
       "favicon": "./assets/favicon.png"
     },
     "updates": {
-      "url": "https://u.expo.dev/YOUR_EXPO_PROJECT_ID",
-      "checkAutomatically": "ON_LOAD",
-      "fallbackToCacheTimeout": 0
+      "url": "https://u.expo.dev/3d00bb3e-26cf-401a-826d-693f81d396a2"
     },
     "runtimeVersion": {
       "policy": "appVersion"
     },
     "extra": {
       "eas": {
-        "projectId": "YOUR_EXPO_PROJECT_ID"
+        "projectId": "3d00bb3e-26cf-401a-826d-693f81d396a2"
       }
-    }
+    },
+    "owner": "jainish_j_dabgar"
   }
 }
