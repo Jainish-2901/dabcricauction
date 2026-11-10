@@ -451,11 +451,11 @@ const hydrateFromSupabase = async () => {
             age: r.age,
             stats: r.stats || {},
             isReAuction: r.is_re_auction,
-            isCaptain: Boolean(r.is_captain)
+            isCaptain: Boolean(r.is_captain) || String(r._id || '').startsWith('pl_cap_')
         }));
 
         // Preserve any local captain players not yet in Supabase
-        const localCaptains = (currentLocal.players || []).filter(lp => lp.isCaptain && !players.some(p => p._id === lp._id));
+        const localCaptains = (currentLocal.players || []).filter(lp => (lp.isCaptain || String(lp._id || '').startsWith('pl_cap_')) && !players.some(p => p._id === lp._id));
         const allPlayers = [...players, ...localCaptains];
 
         const users = (usersRes.data || []).map(r => {
@@ -913,10 +913,13 @@ const db = {
         // Synchronize with captain player profile (or find by team)
         let capPlayer = user.captainPlayerId ? (state.players || []).find(p => p._id === user.captainPlayerId) : null;
         if (!capPlayer && targetTeamId) {
-            capPlayer = (state.players || []).find(p => (p.soldToTeamId === targetTeamId || p.teamId === targetTeamId) && p.isCaptain);
+            capPlayer = (state.players || []).find(
+                p => (p.soldToTeamId === targetTeamId || p.teamId === targetTeamId) && (p.isCaptain || String(p._id || '').startsWith('pl_cap_'))
+            );
         }
 
         if (capPlayer) {
+            capPlayer.isCaptain = true;
             user.captainPlayerId = capPlayer._id;
             if (captainName) capPlayer.name = captainName.trim();
             if (data.captainPhoto !== undefined) capPlayer.image = user.captainPhoto;
@@ -942,51 +945,25 @@ const db = {
                 }
             }
         } else if (targetTeamId && user.role === 'team_owner') {
-            // Auto-create captain player if not present yet
-            const parsedPrice = Number(captainPrice || user.captainPrice) || 15;
-            capPlayer = {
-                _id: 'pl_cap_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
-                tournamentId: user.tournamentId || tournamentId,
-                teamId: targetTeamId,
-                name: (captainName || user.captainName || user.name || user.username).trim(),
-                category: category || user.category || 'All-Rounder',
-                battingStyle: battingStyle || user.battingStyle || 'Right Handed',
-                bowlingStyle: bowlingStyle || user.bowlingStyle || 'Right-arm Medium',
-                basePrice: parsedPrice,
-                soldPrice: parsedPrice,
-                currentBid: parsedPrice,
-                status: 'sold',
-                isCaptain: true,
-                isOwner: true,
-                soldToTeamId: targetTeamId,
-                currentLeadTeamId: targetTeamId,
-                mobile: (mobile || user.mobile || '').trim(),
-                age: Number(age || user.age) || 28,
-                cricHeroesProfileUrl: (cricHeroesProfileUrl || user.cricHeroesProfileUrl || '').trim(),
-                image: (data.captainPhoto !== undefined ? user.captainPhoto : user.image) || '',
-                stats: { matches: 0, runs: 0, wickets: 0, highestScore: '', bestBowling: '' }
-            };
-
-            if (!state.players) state.players = [];
-            state.players.unshift(capPlayer);
-            user.captainPlayerId = capPlayer._id;
-
+            // Keep captain info synced directly on the team & user without inserting a duplicate player row
             const team = state.teams.find(t => t._id === targetTeamId);
             if (team) {
                 team.isOwnerCaptain = true;
-                team.captainPlayerId = capPlayer._id;
-                team.captainName = capPlayer.name;
-                team.captainPrice = parsedPrice;
+                if (captainName) team.captainName = captainName.trim();
+                if (captainPrice !== undefined) team.captainPrice = Number(captainPrice) || 0;
                 if (data.captainPhoto !== undefined) team.captainPhoto = user.captainPhoto;
-                if (!team.players) team.players = [];
-                if (!team.players.some(p => (p._id || p) === capPlayer._id)) {
-                    team.players.unshift(capPlayer);
-                }
             }
         }
 
         writeData(state);
         await supaSync.updateUser(userId, state.users[idx]);
+        if (targetTeamId) {
+            const team = state.teams.find(t => t._id === targetTeamId);
+            if (team) await supaSync.updateTeam(targetTeamId, team);
+        }
+        if (capPlayer) {
+            await supaSync.updatePlayer(capPlayer._id, capPlayer);
+        }
         return state.users[idx];
     },
 
@@ -1167,6 +1144,7 @@ const db = {
             const current = state.teams[idx];
             const updated = { ...current, ...update };
 
+            let syncedCapPlayer = null;
             if (update.captainPhoto !== undefined || update.captainName !== undefined) {
                 if (update.captainPhoto !== undefined) {
                     updated.captainPhoto = (update.captainPhoto || '').trim();
@@ -1175,34 +1153,16 @@ const db = {
                     updated.captainName = update.captainName ? update.captainName.trim() : null;
                 }
 
-                // Also sync with the captain player and user
-                let capPlayer = (state.players || []).find(p => (p.soldToTeamId === id || p.teamId === id || p._id === updated.captainPlayerId) && p.isCaptain);
+                // Sync with existing captain player ONLY if one genuinely exists in state.players (never insert a duplicate player)
+                const capPlayer = (state.players || []).find(
+                    p => (p.soldToTeamId === id || p.teamId === id || p._id === updated.captainPlayerId) && (p.isCaptain || String(p._id || '').startsWith('pl_cap_'))
+                );
                 if (capPlayer) {
+                    capPlayer.isCaptain = true;
                     if (updated.captainPhoto !== undefined) capPlayer.image = updated.captainPhoto;
                     if (updated.captainName) capPlayer.name = updated.captainName;
-                } else if (updated.isOwnerCaptain) {
-                    capPlayer = {
-                        _id: 'pl_cap_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
-                        tournamentId: updated.tournamentId,
-                        teamId: id,
-                        name: updated.captainName || `${updated.name} Captain`,
-                        category: 'All-Rounder',
-                        battingStyle: 'Right-Hand Bat',
-                        bowlingStyle: 'Right-Arm Medium',
-                        basePrice: Number(updated.captainPrice) || 15,
-                        soldPrice: Number(updated.captainPrice) || 15,
-                        currentBid: Number(updated.captainPrice) || 15,
-                        status: 'sold',
-                        isCaptain: true,
-                        isOwner: true,
-                        soldToTeamId: id,
-                        currentLeadTeamId: id,
-                        image: updated.captainPhoto || '',
-                        stats: { matches: 0, runs: 0, wickets: 0, highestScore: '', bestBowling: '' }
-                    };
-                    if (!state.players) state.players = [];
-                    state.players.unshift(capPlayer);
                     updated.captainPlayerId = capPlayer._id;
+                    syncedCapPlayer = capPlayer;
                 }
 
                 const ownerUser = state.users.find(u => (u.teamId?._id || u.teamId) === id && u.role === 'team_owner');
@@ -1232,6 +1192,12 @@ const db = {
             state.teams[idx] = updated;
             writeData(state);
             await supaSync.updateTeam(id, updated);
+            if (syncedCapPlayer) {
+                await supaSync.updatePlayer(syncedCapPlayer._id, {
+                    name: syncedCapPlayer.name,
+                    image: syncedCapPlayer.image
+                });
+            }
             return state.teams[idx];
         }
         return null;
@@ -1248,7 +1214,9 @@ const db = {
     // --- PLAYERS (Admin Sets Base Price / Slot Sets Base Price) ---
     async getPlayersByTournament(tournamentId) {
         const state = readData();
-        const filtered = (state.players || []).filter(p => !tournamentId || p.tournamentId === tournamentId);
+        const filtered = (state.players || [])
+            .filter(p => !tournamentId || p.tournamentId === tournamentId)
+            .map(p => (String(p._id || '').startsWith('pl_cap_') && !p.isCaptain ? { ...p, isCaptain: true } : p));
         // Team Owner Captains appear FIRST in the player list!
         return filtered.sort((a, b) => {
             if (a.isCaptain && !b.isCaptain) return -1;
@@ -1306,52 +1274,72 @@ const db = {
         const state = readData();
         let idx = state.players.findIndex(p => p._id === id);
 
-        // If it's a virtual retained captain record not yet saved in players
+        // If it's a virtual retained captain record (`owner_cap_<teamId>`), update the existing captain/team/user directly WITHOUT adding a duplicate player row
         if (idx === -1 && id && id.startsWith('owner_cap_')) {
             const teamId = id.replace('owner_cap_', '');
             const team = (state.teams || []).find(t => t._id === teamId);
             const user = (state.users || []).find(u => (u.teamId?._id || u.teamId) === teamId && u.role === 'team_owner');
-            const newPrice = Number(update.basePrice ?? update.soldPrice ?? team?.captainPrice) || 15;
-            const newCap = {
-                _id: 'pl_cap_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
-                tournamentId: team?.tournamentId || user?.tournamentId,
-                teamId,
-                name: (update.name || team?.captainName || user?.captainName || 'Captain').trim(),
-                category: update.category || user?.category || 'All-Rounder',
-                battingStyle: update.battingStyle || user?.battingStyle || 'Right-Hand Bat',
-                bowlingStyle: update.bowlingStyle || user?.bowlingStyle || 'Right-Arm Medium',
-                basePrice: newPrice,
-                soldPrice: newPrice,
-                currentBid: newPrice,
-                status: 'sold',
-                isCaptain: true,
-                isOwner: true,
-                soldToTeamId: teamId,
-                currentLeadTeamId: teamId,
-                image: (update.image !== undefined ? update.image : (team?.captainPhoto || user?.captainPhoto)) || '',
-                age: Number(update.age || user?.age) || 28,
-                cricHeroesProfileUrl: update.cricHeroesProfileUrl || user?.cricHeroesProfileUrl || '',
-                stats: update.stats || { matches: 0, runs: 0, wickets: 0, highestScore: '', bestBowling: '' }
-            };
+            if (!team && !user) return null;
 
-            if (!state.players) state.players = [];
-            state.players.unshift(newCap);
+            const existingCapIdx = (state.players || []).findIndex(
+                p => (p.soldToTeamId === teamId || p.teamId === teamId || p._id === team?.captainPlayerId) && (p.isCaptain || String(p._id || '').startsWith('pl_cap_'))
+            );
+            if (existingCapIdx !== -1) {
+                idx = existingCapIdx;
+                id = state.players[existingCapIdx]._id;
+            } else {
+                const oldPrice = Number(team?.captainPrice ?? user?.captainPrice) || 0;
+                const hasNewPrice = update.basePrice !== undefined || update.soldPrice !== undefined;
+                const newPrice = hasNewPrice ? (Number(update.basePrice ?? update.soldPrice) || 0) : oldPrice;
 
-            if (team) {
-                team.captainPlayerId = newCap._id;
-                team.captainName = newCap.name;
-                team.captainPrice = newPrice;
-                if (update.image !== undefined) team.captainPhoto = update.image;
+                if (team) {
+                    if (update.name) team.captainName = update.name.trim();
+                    if (update.image !== undefined) team.captainPhoto = (update.image || '').trim();
+                    if (hasNewPrice) {
+                        const diff = newPrice - oldPrice;
+                        team.captainPrice = newPrice;
+                        team.spent = Math.max(0, Number(((team.spent || 0) + diff).toFixed(2)));
+                    }
+                }
+                if (user) {
+                    if (update.name) {
+                        user.name = update.name.trim();
+                        user.captainName = update.name.trim();
+                    }
+                    if (update.image !== undefined) user.captainPhoto = (update.image || '').trim();
+                    if (update.category !== undefined) user.category = update.category;
+                    if (update.battingStyle !== undefined) user.battingStyle = update.battingStyle;
+                    if (update.bowlingStyle !== undefined) user.bowlingStyle = update.bowlingStyle;
+                    if (update.age !== undefined) user.age = Number(update.age);
+                    if (update.cricHeroesProfileUrl !== undefined) user.cricHeroesProfileUrl = update.cricHeroesProfileUrl;
+                    if (hasNewPrice) user.captainPrice = newPrice;
+                }
+
+                writeData(state);
+                if (team) await supaSync.updateTeam(teamId, team);
+                if (user) await supaSync.updateUser(user._id, user);
+
+                return {
+                    _id: id,
+                    tournamentId: team?.tournamentId || user?.tournamentId,
+                    name: team?.captainName || user?.captainName || user?.name || `${team?.name || 'Team'} Captain`,
+                    category: user?.category || 'Captain (All-Rounder)',
+                    battingStyle: user?.battingStyle || 'Right-Hand Bat',
+                    bowlingStyle: user?.bowlingStyle || 'Right-Arm Medium',
+                    basePrice: newPrice,
+                    soldPrice: newPrice,
+                    currentBid: newPrice,
+                    status: 'sold',
+                    isCaptain: true,
+                    isDirectOwnerCaptain: true,
+                    soldToTeamId: teamId,
+                    soldToTeamName: team?.name,
+                    teamCode: team?.shortName,
+                    image: team?.captainPhoto || user?.captainPhoto || '',
+                    age: Number(user?.age) || 28,
+                    cricHeroesProfileUrl: user?.cricHeroesProfileUrl || ''
+                };
             }
-            if (user) {
-                user.captainPlayerId = newCap._id;
-                user.captainName = newCap.name;
-                user.captainPrice = newPrice;
-                if (update.image !== undefined) user.captainPhoto = update.image;
-            }
-
-            writeData(state);
-            return newCap;
         }
 
         if (idx !== -1) {

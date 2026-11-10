@@ -3,6 +3,7 @@ import axios from 'axios';
 import { X, Upload, FileText, Download, ChevronDown, ChevronUp, User, Trash2, Camera } from 'lucide-react';
 import ImageCropModal from './ImageCropModal';
 import toast from '../lib/toast';
+import SafeImage from './SafeImage';
 
 const AddPlayerModal = ({ isOpen, onClose, tournamentId, onAdded, initialData = null, isEdit = false }) => {
     const [mode, setMode] = useState('manual');
@@ -121,7 +122,7 @@ const AddPlayerModal = ({ isOpen, onClose, tournamentId, onAdded, initialData = 
                     wickets: Number(formData.wickets) || 0,
                     bestBowling: formData.bestBowling
                 },
-                image: formData.image || initialData?.image || '',
+                image: formData.image ?? '',
                 tournamentId
             };
 
@@ -313,14 +314,17 @@ const AddPlayerModal = ({ isOpen, onClose, tournamentId, onAdded, initialData = 
                                 </label>
                                 <div className="flex items-center gap-4 p-3.5 bg-slate-50 border border-slate-200 rounded-2xl">
                                     <div className="w-16 h-16 rounded-2xl bg-white border border-slate-200 flex items-center justify-center overflow-hidden shrink-0 shadow-2xs">
-                                        {formData.image ? (
-                                            <img src={formData.image} alt="Player" className="w-full h-full object-cover" />
-                                        ) : (
-                                            <div className="flex flex-col items-center justify-center text-slate-300">
-                                                <User className="w-6 h-6" />
-                                                <span className="text-[9px] font-bold text-slate-400 mt-0.5 uppercase">No Photo</span>
-                                            </div>
-                                        )}
+                                        <SafeImage
+                                            src={formData.image}
+                                            alt="Player"
+                                            className="w-full h-full object-cover"
+                                            fallback={
+                                                <div className="flex flex-col items-center justify-center text-slate-300">
+                                                    <User className="w-6 h-6" />
+                                                    <span className="text-[9px] font-bold text-slate-400 mt-0.5 uppercase">No Photo</span>
+                                                </div>
+                                            }
+                                        />
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2 flex-wrap">

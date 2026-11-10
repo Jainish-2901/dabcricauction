@@ -8,6 +8,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import socket from '../socket';
 import { getBudgetUnits } from '../utils/currency';
+import SafeImage from '../components/SafeImage';
 
 const getBidIncrement = (bid, rules) => {
     const list = Array.isArray(rules) && rules.length > 0 ? rules : [
@@ -1013,13 +1014,16 @@ const AdminAuctionConsole = () => {
                         {currentPlayer ? (
                             <>
                                 <div className="w-36 h-36 rounded-2xl border-2 border-slate-200 overflow-hidden mb-4 shadow-sm relative bg-slate-50">
-                                    {currentPlayer.image ? (
-                                        <img src={currentPlayer.image} alt={currentPlayer.name} className="w-full h-full object-cover" />
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center text-slate-400">
-                                            <User className="w-16 h-16" />
-                                        </div>
-                                    )}
+                                    <SafeImage
+                                        src={currentPlayer.image}
+                                        alt={currentPlayer.name}
+                                        className="w-full h-full object-cover"
+                                        fallback={
+                                            <div className="w-full h-full flex items-center justify-center text-slate-400">
+                                                <User className="w-16 h-16" />
+                                            </div>
+                                        }
+                                    />
                                 </div>
 
                                 <h2 className="text-3xl md:text-4xl font-black mb-2 text-slate-900">{currentPlayer.name}</h2>
@@ -1255,11 +1259,12 @@ const AdminAuctionConsole = () => {
                                     >
                                         <div className="flex items-center gap-3">
                                             <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center font-black text-xs uppercase border border-slate-200 text-slate-700 shadow-2xs overflow-hidden shrink-0">
-                                                {team.logo ? (
-                                                    <img src={team.logo} alt={team.name} className="w-full h-full object-cover" />
-                                                ) : (
-                                                    team.shortName || team.name?.substring(0, 2)
-                                                )}
+                                                <SafeImage
+                                                    src={team.logo}
+                                                    alt={team.name}
+                                                    className="w-full h-full object-cover"
+                                                    fallback={team.shortName || team.name?.substring(0, 2)}
+                                                />
                                             </div>
                                             <div>
                                                 <div className="font-bold text-xs text-slate-900 flex items-center gap-1.5">
@@ -1396,11 +1401,12 @@ const AdminAuctionConsole = () => {
                                             >
                                                 <div className="flex items-center gap-2.5 min-w-0 flex-1">
                                                     <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-600 border border-slate-200 shrink-0 overflow-hidden">
-                                                        {p.image ? (
-                                                            <img src={p.image} alt={p.name} className="w-full h-full object-cover" />
-                                                        ) : (
-                                                            p.name.substring(0, 1)
-                                                        )}
+                                                        <SafeImage
+                                                            src={p.image}
+                                                            alt={p.name}
+                                                            className="w-full h-full object-cover"
+                                                            fallback={p.name.substring(0, 1)}
+                                                        />
                                                     </div>
                                                     <div className="min-w-0">
                                                         <div className="text-xs font-bold text-slate-900 truncate">{p.name}</div>
@@ -1478,11 +1484,12 @@ const AdminAuctionConsole = () => {
                                         >
                                             <div className="flex items-center gap-2.5">
                                                 <div className="w-9 h-9 rounded-xl bg-white border border-slate-200 overflow-hidden flex items-center justify-center shrink-0">
-                                                    {p.image ? (
-                                                        <img src={p.image} alt={p.name} className="w-full h-full object-cover grayscale" />
-                                                    ) : (
-                                                        <User className="w-5 h-5 text-slate-400" />
-                                                    )}
+                                                    <SafeImage
+                                                        src={p.image}
+                                                        alt={p.name}
+                                                        className="w-full h-full object-cover grayscale"
+                                                        fallback={<User className="w-5 h-5 text-slate-400" />}
+                                                    />
                                                 </div>
                                                 <div>
                                                     <div className="text-xs font-bold text-slate-900">{p.name}</div>
@@ -1531,11 +1538,12 @@ const AdminAuctionConsole = () => {
                                         >
                                             <div className="flex items-center gap-2">
                                                 <div className="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-xs font-black text-slate-700 overflow-hidden shadow-2xs">
-                                                    {b.team?.logo ? (
-                                                        <img src={b.team.logo} className="w-full h-full object-cover" />
-                                                    ) : (
-                                                        b.team?.shortName || b.team?.name?.substring(0, 2) || 'TM'
-                                                    )}
+                                                    <SafeImage
+                                                        src={b.team?.logo}
+                                                        alt={b.team?.name || 'Team'}
+                                                        className="w-full h-full object-cover"
+                                                        fallback={b.team?.shortName || b.team?.name?.substring(0, 2) || 'TM'}
+                                                    />
                                                 </div>
                                                 <div>
                                                     <span className="font-extrabold text-slate-900 text-xs block leading-tight">
@@ -1823,11 +1831,12 @@ const AdminAuctionConsole = () => {
                         <div className="p-5 md:p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
                             <div className="flex items-center gap-3.5">
                                 <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white font-black flex items-center justify-center text-lg shadow-xs uppercase overflow-hidden">
-                                    {viewingTeam.logo ? (
-                                        <img src={viewingTeam.logo} alt={viewingTeam.name} className="w-full h-full object-cover" />
-                                    ) : (
-                                        viewingTeam.shortName || viewingTeam.name?.substring(0, 2)
-                                    )}
+                                    <SafeImage
+                                        src={viewingTeam.logo}
+                                        alt={viewingTeam.name}
+                                        className="w-full h-full object-cover"
+                                        fallback={viewingTeam.shortName || viewingTeam.name?.substring(0, 2)}
+                                    />
                                 </div>
                                 <div>
                                     <h3 className="text-lg md:text-xl font-black text-slate-900 flex items-center gap-2">
@@ -1875,11 +1884,12 @@ const AdminAuctionConsole = () => {
                                                     <div key={p._id || idx} className="p-3.5 hover:bg-slate-50/80 transition-colors flex items-center justify-between gap-3">
                                                         <div className="flex items-center gap-3">
                                                             <div className="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center shrink-0">
-                                                                {p.image ? (
-                                                                    <img src={p.image} alt={p.name} className="w-full h-full object-cover" />
-                                                                ) : (
-                                                                    <User className="w-5 h-5 text-slate-400" />
-                                                                )}
+                                                                <SafeImage
+                                                                    src={p.image}
+                                                                    alt={p.name}
+                                                                    className="w-full h-full object-cover"
+                                                                    fallback={<User className="w-5 h-5 text-slate-400" />}
+                                                                />
                                                             </div>
                                                             <div>
                                                                 <h4 className="text-sm font-bold text-slate-900 leading-snug">{p.name}</h4>
@@ -1963,13 +1973,16 @@ const AdminAuctionConsole = () => {
 
                                     {/* Player image */}
                                     <div className="w-28 h-28 mx-auto rounded-2xl border-4 border-emerald-200 overflow-hidden shadow-md bg-slate-100 mb-3">
-                                        {announcementModal.player?.image ? (
-                                            <img src={announcementModal.player.image} alt={announcementModal.player.name} className="w-full h-full object-cover" />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center text-slate-400">
-                                                <User className="w-12 h-12" />
-                                            </div>
-                                        )}
+                                        <SafeImage
+                                            src={announcementModal.player?.image}
+                                            alt={announcementModal.player?.name}
+                                            className="w-full h-full object-cover"
+                                            fallback={
+                                                <div className="w-full h-full flex items-center justify-center text-slate-400">
+                                                    <User className="w-12 h-12" />
+                                                </div>
+                                            }
+                                        />
                                     </div>
 
                                     <h3 className="text-2xl font-black text-slate-900">{announcementModal.player?.name}</h3>
@@ -1981,11 +1994,12 @@ const AdminAuctionConsole = () => {
                                     <div className="mt-5 p-4 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200 flex items-center justify-between">
                                         <div className="flex items-center gap-3 text-left">
                                             <div className="w-12 h-12 rounded-xl bg-white border border-emerald-200 flex items-center justify-center text-slate-800 font-black text-sm shadow-2xs overflow-hidden shrink-0">
-                                                {announcementModal.team?.logo ? (
-                                                    <img src={announcementModal.team.logo} alt={announcementModal.team.name} className="w-full h-full object-cover" />
-                                                ) : (
-                                                    announcementModal.team?.shortName || announcementModal.team?.name?.substring(0, 2)
-                                                )}
+                                                <SafeImage
+                                                    src={announcementModal.team?.logo}
+                                                    alt={announcementModal.team?.name}
+                                                    className="w-full h-full object-cover"
+                                                    fallback={announcementModal.team?.shortName || announcementModal.team?.name?.substring(0, 2)}
+                                                />
                                             </div>
                                             <div>
                                                 <span className="text-[10px] font-extrabold uppercase text-emerald-700 tracking-wider block">Sold To</span>
@@ -2009,13 +2023,16 @@ const AdminAuctionConsole = () => {
                                     </div>
 
                                     <div className="w-24 h-24 mx-auto rounded-2xl border-4 border-amber-200 overflow-hidden shadow-md bg-slate-100 mb-3">
-                                        {announcementModal.player?.image ? (
-                                            <img src={announcementModal.player.image} alt={announcementModal.player.name} className="w-full h-full object-cover grayscale" />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center text-slate-400">
-                                                <User className="w-10 h-10" />
-                                            </div>
-                                        )}
+                                        <SafeImage
+                                            src={announcementModal.player?.image}
+                                            alt={announcementModal.player?.name}
+                                            className="w-full h-full object-cover grayscale"
+                                            fallback={
+                                                <div className="w-full h-full flex items-center justify-center text-slate-400">
+                                                    <User className="w-10 h-10" />
+                                                </div>
+                                            }
+                                        />
                                     </div>
 
                                     <h3 className="text-2xl font-black text-slate-900">{announcementModal.player?.name}</h3>

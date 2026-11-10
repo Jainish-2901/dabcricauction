@@ -519,7 +519,8 @@ const mapPlayer = (r: any) => ({
     mobile: r.mobile || '',
     age: Number(r.age) || 24,
     stats: r.stats || { matches: 0, runs: 0, wickets: 0, highestScore: '0', bestBowling: '0/0' },
-    isReAuction: r.is_re_auction || false
+    isReAuction: r.is_re_auction || false,
+    isCaptain: Boolean(r.is_captain) || String(r._id || '').startsWith('pl_cap_')
 });
 
 export const directGetPlayers = async (tournamentId: string) => {
@@ -567,6 +568,36 @@ export const directCreatePlayer = async (payload: any) => {
 };
 
 export const directUpdatePlayer = async (id: string, payload: any) => {
+    if (id && id.startsWith('owner_cap_')) {
+        const teamId = id.replace('owner_cap_', '');
+        const teamUpdate: any = { updated_at: new Date().toISOString() };
+        if (payload.name !== undefined) teamUpdate.captain_name = payload.name;
+        if (payload.image !== undefined) teamUpdate.captain_photo = payload.image;
+        if (payload.basePrice !== undefined || payload.soldPrice !== undefined) {
+            teamUpdate.captain_price = Number(payload.soldPrice ?? payload.basePrice) || 0;
+        }
+        const { data: teamData, error: teamError } = await supabase
+            .from('teams')
+            .update(teamUpdate)
+            .eq('_id', teamId)
+            .select()
+            .single();
+        if (teamError) throw new Error(teamError.message);
+        return {
+            _id: id,
+            id,
+            tournamentId: teamData.tournament_id,
+            name: teamData.captain_name || `${teamData.name} Captain`,
+            image: teamData.captain_photo || '',
+            basePrice: Number(teamData.captain_price) || 0,
+            soldPrice: Number(teamData.captain_price) || 0,
+            status: 'sold',
+            isCaptain: true,
+            isDirectOwnerCaptain: true,
+            soldToTeamId: teamId
+        };
+    }
+
     const updateRecord: any = { updated_at: new Date().toISOString() };
 
     if (payload.name !== undefined) updateRecord.name = payload.name;

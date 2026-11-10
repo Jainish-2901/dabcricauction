@@ -17,6 +17,7 @@ import socket from '../lib/socket';
 import { apiFetch } from '../lib/api';
 import { getBudgetUnits } from '../lib/currency';
 import { toast } from '../lib/toast';
+import SafeImage from './SafeImage';
 
 const getBidIncrement = (bid: number, rules?: any[]) => {
     const list = Array.isArray(rules) && rules.length > 0 ? rules : [
@@ -447,11 +448,11 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
                         </TouchableOpacity>
                     )}
                     <View style={styles.teamLogoBadge}>
-                        {teamData.logo ? (
-                            <Image source={{ uri: teamData.logo }} style={{ width: '100%', height: '100%', resizeMode: 'contain' }} />
-                        ) : (
-                            <Text style={styles.teamLogoText}>{teamData.shortName || teamData.name.substring(0, 2)}</Text>
-                        )}
+                        <SafeImage
+                            uri={teamData.logo}
+                            style={{ width: '100%', height: '100%', resizeMode: 'contain' }}
+                            fallback={<Text style={styles.teamLogoText}>{teamData.shortName || teamData.name.substring(0, 2)}</Text>}
+                        />
                     </View>
                     <View>
                         <Text style={styles.teamName}>{teamData.name}</Text>
@@ -561,13 +562,15 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
                             {/* Player Header & Avatar */}
                             <View style={styles.playerHero}>
                                 <View style={styles.avatarContainer}>
-                                    {currentPlayer.image ? (
-                                        <Image source={{ uri: currentPlayer.image }} style={styles.avatar} />
-                                    ) : (
-                                        <View style={styles.avatarFallback}>
-                                            <Users size={36} color="#94a3b8" />
-                                        </View>
-                                    )}
+                                    <SafeImage
+                                        uri={currentPlayer.image}
+                                        style={styles.avatar}
+                                        fallback={
+                                            <View style={styles.avatarFallback}>
+                                                <Users size={36} color="#94a3b8" />
+                                            </View>
+                                        }
+                                    />
                                 </View>
                                 <Text style={styles.playerName}>{currentPlayer.name}</Text>
                                 <View style={styles.badgeRow}>
@@ -763,13 +766,15 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
                                         >
                                             <View style={styles.competitorLeft}>
                                                 <View style={styles.competitorLogoBadge}>
-                                                    {t.logo ? (
-                                                        <Image source={{ uri: t.logo }} style={{ width: '100%', height: '100%', resizeMode: 'contain' }} />
-                                                    ) : (
-                                                        <Text style={styles.competitorLogoText}>
-                                                            {t.shortName?.substring(0, 3) || t.name.substring(0, 2)}
-                                                        </Text>
-                                                    )}
+                                                    <SafeImage
+                                                        uri={t.logo}
+                                                        style={{ width: '100%', height: '100%', resizeMode: 'contain' }}
+                                                        fallback={
+                                                            <Text style={styles.competitorLogoText}>
+                                                                {t.shortName?.substring(0, 3) || t.name.substring(0, 2)}
+                                                            </Text>
+                                                        }
+                                                    />
                                                 </View>
                                                 <View>
                                                     <Text style={styles.competitorName}>{t.name}</Text>
@@ -923,13 +928,15 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
                                 <View style={styles.modalHeader}>
                                     <View style={styles.modalTeamRow}>
                                         <View style={styles.modalTeamLogo}>
-                                            {viewingTeam.logo ? (
-                                                <Image source={{ uri: viewingTeam.logo }} style={{ width: '100%', height: '100%', resizeMode: 'contain' }} />
-                                            ) : (
-                                                <Text style={styles.modalTeamLogoText}>
-                                                    {viewingTeam.shortName || viewingTeam.name.substring(0, 2)}
-                                                </Text>
-                                            )}
+                                            <SafeImage
+                                                uri={viewingTeam.logo}
+                                                style={{ width: '100%', height: '100%', resizeMode: 'contain' }}
+                                                fallback={
+                                                    <Text style={styles.modalTeamLogoText}>
+                                                        {viewingTeam.shortName || viewingTeam.name.substring(0, 2)}
+                                                    </Text>
+                                                }
+                                            />
                                         </View>
                                         <View style={{ flex: 1, marginLeft: 10 }}>
                                             <Text style={styles.modalTeamName}>{viewingTeam.name}</Text>
@@ -1034,16 +1041,15 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
                                     </Text>
                                 </View>
 
-                                {announcementModal.player?.image ? (
-                                    <Image
-                                        source={{ uri: announcementModal.player.image }}
-                                        style={{ width: 88, height: 88, borderRadius: 16, marginBottom: 12 }}
-                                    />
-                                ) : (
-                                    <View style={{ width: 88, height: 88, borderRadius: 16, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
-                                        <Users size={36} color="#94a3b8" />
-                                    </View>
-                                )}
+                                <SafeImage
+                                    uri={announcementModal.player?.image}
+                                    style={{ width: 88, height: 88, borderRadius: 16, marginBottom: 12 }}
+                                    fallback={
+                                        <View style={{ width: 88, height: 88, borderRadius: 16, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+                                            <Users size={36} color="#94a3b8" />
+                                        </View>
+                                    }
+                                />
 
                                 <Text style={{ fontSize: 20, fontWeight: '900', color: '#0f172a', textAlign: 'center', marginBottom: 4 }}>
                                     {announcementModal.player?.name}
@@ -1055,9 +1061,7 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
                                 {announcementModal.type === 'sold' ? (
                                     <View style={{ width: '100%', padding: 14, backgroundColor: '#f0fdf4', borderRadius: 16, borderWidth: 1, borderColor: '#bbf7d0', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, marginRight: 8 }}>
-                                            {announcementModal.team?.logo ? (
-                                                <Image source={{ uri: announcementModal.team.logo }} style={{ width: 34, height: 34, borderRadius: 8, resizeMode: 'contain', backgroundColor: '#ffffff' }} />
-                                            ) : null}
+                                            <SafeImage uri={announcementModal.team?.logo} style={{ width: 34, height: 34, borderRadius: 8, resizeMode: 'contain', backgroundColor: '#ffffff' }} />
                                             <View style={{ flex: 1 }}>
                                                 <Text style={{ fontSize: 10, fontWeight: '800', color: '#16a34a', textTransform: 'uppercase' }}>Sold To</Text>
                                                 <Text style={{ fontSize: 15, fontWeight: '900', color: '#0f172a' }} numberOfLines={1}>{announcementModal.team?.name || 'Winner'}</Text>

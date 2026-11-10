@@ -1,10 +1,10 @@
 const db = require('../services/dbService');
-const { uploadImage } = require('../services/cloudinaryService');
+const { uploadImage, deleteImage } = require('../services/cloudinaryService');
 
 const createTournament = async (req, res) => {
     try {
         if (req.body.logo && typeof req.body.logo === 'string' && req.body.logo.startsWith('data:image/')) {
-            const uploaded = await uploadImage(req.body.logo, 'dabcricauction/tournaments');
+            const uploaded = await uploadImage(req.body.logo, 'dabcricauction/tournaments', req.body.name || 'tournament');
             if (uploaded?.secure_url) {
                 req.body.logo = uploaded.secure_url;
             }
@@ -37,6 +37,21 @@ const getTournamentById = async (req, res) => {
 
 const updateTournament = async (req, res) => {
     try {
+        const existingTournament = await db.getTournamentById(req.params.id);
+        if (req.body.logo && typeof req.body.logo === 'string' && req.body.logo.startsWith('data:image/')) {
+            const uploaded = await uploadImage(
+                req.body.logo,
+                'dabcricauction/tournaments',
+                req.body.name || existingTournament?.name || req.params.id,
+                existingTournament?.logo
+            );
+            if (uploaded?.secure_url) {
+                req.body.logo = uploaded.secure_url;
+            }
+        } else if ((req.body.logo === '' || req.body.logo === null) && existingTournament?.logo) {
+            await deleteImage(existingTournament.logo);
+        }
+
         const tournament = await db.updateTournament(req.params.id, req.body);
         if (!tournament) return res.status(404).json({ message: 'Tournament not found' });
         res.json(tournament);
@@ -47,7 +62,22 @@ const updateTournament = async (req, res) => {
 
 const deleteTournament = async (req, res) => {
     try {
-        await db.deleteTournament(req.params.id);
+        const id = req.params.id;
+        const [existingTournament, teams, players] = await Promise.all([
+            db.getTournamentById(id),
+            db.getTeamsByTournament(id),
+            db.getPlayersByTournament(id)
+        ]);
+        const urlsToDelete = [
+            existingTournament?.logo,
+            ...(teams || []).flatMap(t => [t.logo, t.captainPhoto]),
+            ...(players || []).map(p => p.image)
+        ].filter(Boolean);
+        if (urlsToDelete.length > 0) {
+            await Promise.allSettled(urlsToDelete.map(u => deleteImage(u)));
+        }
+
+        await db.deleteTournament(id);
         res.json({ message: 'Tournament deleted successfully' });
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -78,9 +108,13 @@ const addTournamentCredential = async (req, res) => {
     try {
         const { id } = req.params;
 
-        // Auto Cloudinary upload for captain photo if provided
+        // Auto Cloudinary upload for captain photo if provided (stored by captain name)
         if (req.body.captainPhoto && typeof req.body.captainPhoto === 'string' && req.body.captainPhoto.startsWith('data:image/')) {
-            const uploaded = await uploadImage(req.body.captainPhoto, 'dabcricauction/captains');
+            const uploaded = await uploadImage(
+                req.body.captainPhoto,
+                'dabcricauction/captains',
+                req.body.captainName || req.body.username || 'captain'
+            );
             if (uploaded?.secure_url) {
                 req.body.captainPhoto = uploaded.secure_url;
             }
@@ -96,13 +130,17 @@ const addTournamentCredential = async (req, res) => {
 const updateTournamentCredential = async (req, res) => {
     try {
         const { id, userId } = req.params;
+        const existingUser = await db.findUserById(userId);
+        const capName = req.body.captainName || existingUser?.captainName || req.body.username || existingUser?.username || 'captain';
 
-        // Auto Cloudinary upload for captain photo if provided
+        // Auto Cloudinary upload / overwrite / delete for captain photo if provided
         if (req.body.captainPhoto && typeof req.body.captainPhoto === 'string' && req.body.captainPhoto.startsWith('data:image/')) {
-            const uploaded = await uploadImage(req.body.captainPhoto, 'dabcricauction/captains');
+            const uploaded = await uploadImage(req.body.captainPhoto, 'dabcricauction/captains', capName, existingUser?.captainPhoto);
             if (uploaded?.secure_url) {
                 req.body.captainPhoto = uploaded.secure_url;
             }
+        } else if ((req.body.captainPhoto === '' || req.body.captainPhoto === null) && existingUser?.captainPhoto) {
+            await deleteImage(existingUser.captainPhoto);
         }
 
         const updated = await db.updateTournamentCredential(id, userId, req.body);
@@ -115,6 +153,10 @@ const updateTournamentCredential = async (req, res) => {
 const deleteTournamentCredential = async (req, res) => {
     try {
         const { id, userId } = req.params;
+        const existingUser = await db.findUserById(userId);
+        if (existingUser?.captainPhoto) {
+            await deleteImage(existingUser.captainPhoto);
+        }
         await db.deleteTournamentCredential(id, userId);
         res.json({ message: 'Credential deleted successfully' });
     } catch (error) {
@@ -135,9 +177,9 @@ const registerPlayerSelf = async (req, res) => {
             });
         }
 
-        // Automatic Cloudinary Upload for Self Player Registration
+        // Automatic Cloudinary Upload for Self Player Registration (stored by player name)
         if (req.body.image && typeof req.body.image === 'string' && req.body.image.startsWith('data:image/')) {
-            const uploaded = await uploadImage(req.body.image, 'dabcricauction/players');
+            const uploaded = await uploadImage(req.body.image, 'dabcricauction/players', req.body.name || 'player');
             if (uploaded?.secure_url) {
                 req.body.image = uploaded.secure_url;
             }

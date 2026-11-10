@@ -1,6 +1,6 @@
 const db = require('../services/dbService');
 const { scrapeCricHeroesProfile } = require('../utils/scraper');
-const { uploadImage } = require('../services/cloudinaryService');
+const { uploadImage, deleteImage } = require('../services/cloudinaryService');
 
 const createPlayer = async (req, res) => {
     try {
@@ -8,9 +8,13 @@ const createPlayer = async (req, res) => {
             return res.status(400).json({ message: 'tournamentId is strictly required. Players cannot be added globally.' });
         }
 
-        // Automatic Cloudinary Upload for Player Photo
+        // Automatic Cloudinary Upload for Player Photo (stored by player name)
         if (req.body.image && typeof req.body.image === 'string' && req.body.image.startsWith('data:image/')) {
-            const uploaded = await uploadImage(req.body.image, 'dabcricauction/players');
+            const uploaded = await uploadImage(
+                req.body.image,
+                req.body.isCaptain ? 'dabcricauction/captains' : 'dabcricauction/players',
+                req.body.name || 'player'
+            );
             if (uploaded?.secure_url) {
                 req.body.image = uploaded.secure_url;
             }
@@ -40,7 +44,7 @@ const importCricHeroesPlayer = async (req, res) => {
 
         let finalImage = scrapedData.image;
         if (finalImage && typeof finalImage === 'string' && finalImage.startsWith('data:image/')) {
-            const uploaded = await uploadImage(finalImage, 'dabcricauction/players');
+            const uploaded = await uploadImage(finalImage, 'dabcricauction/players', scrapedData.name || 'player');
             if (uploaded?.secure_url) {
                 finalImage = uploaded.secure_url;
             }
@@ -65,19 +69,31 @@ const importCricHeroesPlayer = async (req, res) => {
 
 const updatePlayer = async (req, res) => {
     try {
-        // Automatic Cloudinary Upload for Player Photo
+        const id = req.params.id;
+        const isVirtualCap = id && id.startsWith('owner_cap_');
+        const existingPlayer = !isVirtualCap ? await db.getPlayerById(id) : null;
+        const existingTeam = isVirtualCap ? await db.getTeamById(id.replace('owner_cap_', '')) : null;
+        const existingImage = existingPlayer?.image || existingTeam?.captainPhoto || '';
+        const isCap = isVirtualCap || Boolean(existingPlayer?.isCaptain) || String(id).startsWith('pl_cap_');
+        const targetFolder = isCap ? 'dabcricauction/captains' : 'dabcricauction/players';
+        const entityName = req.body.name || existingPlayer?.name || existingTeam?.captainName || existingTeam?.name || id;
+
+        // Automatic Cloudinary Upload / Overwrite for Player or Captain Photo
         if (req.body.image && typeof req.body.image === 'string' && req.body.image.startsWith('data:image/')) {
             try {
-                const uploaded = await uploadImage(req.body.image, 'dabcricauction/players');
+                const uploaded = await uploadImage(req.body.image, targetFolder, entityName, existingImage);
                 if (uploaded?.secure_url) {
                     req.body.image = uploaded.secure_url;
                 }
             } catch (imgErr) {
                 console.warn('Cloudinary upload warning, keeping original image:', imgErr?.message);
             }
+        } else if ((req.body.image === '' || req.body.image === null) && existingImage) {
+            // Image cleared in UI -> delete from Cloudinary
+            await deleteImage(existingImage);
         }
 
-        const player = await db.updatePlayer(req.params.id, req.body);
+        const player = await db.updatePlayer(id, req.body);
         if (!player) return res.status(404).json({ message: 'Player not found' });
         res.json(player);
     } catch (error) {
@@ -88,7 +104,16 @@ const updatePlayer = async (req, res) => {
 
 const deletePlayer = async (req, res) => {
     try {
-        await db.deletePlayer(req.params.id);
+        const id = req.params.id;
+        const isVirtualCap = id && id.startsWith('owner_cap_');
+        const existingPlayer = !isVirtualCap ? await db.getPlayerById(id) : null;
+        const existingTeam = isVirtualCap ? await db.getTeamById(id.replace('owner_cap_', '')) : null;
+        const existingImage = existingPlayer?.image || existingTeam?.captainPhoto || '';
+        if (existingImage) {
+            await deleteImage(existingImage);
+        }
+
+        await db.deletePlayer(id);
         res.json({ message: 'Player deleted successfully' });
     } catch (error) {
         res.status(500).json({ message: error.message });

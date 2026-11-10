@@ -4,6 +4,7 @@ import { X, Shield, Award, Calculator, Upload, Trash2, Image as ImageIcon, Crop,
 import { getBudgetUnits } from '../utils/currency';
 import ImageCropModal from './ImageCropModal';
 import toast from '../lib/toast';
+import SafeImage from './SafeImage';
 
 const AddTeamModal = ({ isOpen, onClose, tournamentId, tournament = null, onAdded, initialData = null, isEdit = false }) => {
     const { largeUnit, smallUnit } = getBudgetUnits(tournament);
@@ -171,14 +172,17 @@ const AddTeamModal = ({ isOpen, onClose, tournamentId, tournament = null, onAdde
                         </label>
                         <div className="flex items-center gap-3.5 p-3.5 bg-slate-50 border border-slate-200 rounded-2xl">
                             <div className="w-16 h-16 rounded-2xl bg-white border border-slate-200 flex items-center justify-center overflow-hidden shrink-0 shadow-2xs">
-                                {formData.logo ? (
-                                    <img src={formData.logo} alt="Team Logo Preview" className="w-full h-full object-contain p-1" />
-                                ) : (
-                                    <div className="flex flex-col items-center justify-center text-slate-300">
-                                        <ImageIcon className="w-6 h-6" />
-                                        <span className="text-[9px] font-bold text-slate-400 mt-0.5 uppercase">No Logo</span>
-                                    </div>
-                                )}
+                                <SafeImage
+                                    src={formData.logo}
+                                    alt="Team Logo Preview"
+                                    className="w-full h-full object-contain p-1"
+                                    fallback={
+                                        <div className="flex flex-col items-center justify-center text-slate-300">
+                                            <ImageIcon className="w-6 h-6" />
+                                            <span className="text-[9px] font-bold text-slate-400 mt-0.5 uppercase">No Logo</span>
+                                        </div>
+                                    }
+                                />
                             </div>
                             <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 flex-wrap">
@@ -287,14 +291,17 @@ const AddTeamModal = ({ isOpen, onClose, tournamentId, tournament = null, onAdde
                                     </label>
                                     <div className="flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-2xl">
                                         <div className="w-14 h-14 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden shrink-0 shadow-2xs">
-                                            {formData.captainPhoto ? (
-                                                <img src={formData.captainPhoto} alt="Captain Photo" className="w-full h-full object-cover" />
-                                            ) : (
-                                                <div className="flex flex-col items-center justify-center text-slate-400">
-                                                    <User className="w-6 h-6" />
-                                                    <span className="text-[8px] font-bold text-slate-400 mt-0.5 uppercase">No Pic</span>
-                                                </div>
-                                            )}
+                                            <SafeImage
+                                                src={formData.captainPhoto}
+                                                alt="Captain Photo"
+                                                className="w-full h-full object-cover"
+                                                fallback={
+                                                    <div className="flex flex-col items-center justify-center text-slate-400">
+                                                        <User className="w-6 h-6" />
+                                                        <span className="text-[8px] font-bold text-slate-400 mt-0.5 uppercase">No Pic</span>
+                                                    </div>
+                                                }
+                                            />
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-2 flex-wrap">

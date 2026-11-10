@@ -16,6 +16,7 @@ import ManageCredentialsModal from '../components/ManageCredentialsModal';
 import { useAuth } from '../context/AuthContext';
 import { getBudgetUnits } from '../utils/currency';
 import toast from '../lib/toast';
+import SafeImage from '../components/SafeImage';
 
 const SuperAdminDashboard = () => {
     const { logout } = useAuth();
@@ -41,23 +42,47 @@ const SuperAdminDashboard = () => {
 
     const { largeUnit, smallUnit } = getBudgetUnits(selectedTournament);
 
+    const retainedCaptains = (teams || [])
+        .filter(t => t.isOwnerCaptain)
+        .map(t => {
+            const user = (users || []).find(u => ((u.teamId?._id || u.teamId) === (t._id || t.id)) && u.role === 'team_owner');
+            const alreadyInPlayers = (players || []).find(
+                p => (p.isCaptain || String(p._id || '').startsWith('pl_cap_')) && (p.soldToTeamId === t._id || p.soldToTeamId === t.id)
+            );
+            if (alreadyInPlayers) return null;
+
+            return {
+                _id: `owner_cap_${t._id}`,
+                name: t.captainName || user?.captainName || user?.name || user?.username || `${t.name} Captain`,
+                image: t.captainPhoto || user?.captainPhoto || '',
+                category: user?.category || 'Captain (All-Rounder)',
+                battingStyle: user?.battingStyle || 'Right-Hand Bat',
+                bowlingStyle: user?.bowlingStyle || 'Right-Arm Medium',
+                basePrice: t.captainPrice || 15,
+                soldPrice: t.captainPrice || 15,
+                status: 'retained',
+                isCaptain: true,
+                isDirectOwnerCaptain: true,
+                soldToTeamId: t._id,
+                soldToTeamName: t.name,
+                teamCode: t.shortName,
+                cricHeroesProfileUrl: user?.cricHeroesProfileUrl || '',
+                age: user?.age || ''
+            };
+        })
+        .filter(Boolean);
+
+    const allDisplayPlayers = [...retainedCaptains, ...(players || [])];
+
     useEffect(() => {
         fetchTournaments();
     }, []);
 
     useEffect(() => {
         if (selectedTournament) {
-            if (activeTab === 'players') {
-                fetchPlayers();
-                fetchTeams();
-                fetchUsers();
-            }
-            if (activeTab === 'teams') {
-                fetchTeams();
-                fetchPlayers();
-                fetchUsers();
-            }
-            if (activeTab === 'users') fetchUsers();
+            fetchPlayers();
+            fetchTeams();
+            fetchUsers();
         }
     }, [activeTab, selectedTournament]);
 
@@ -271,11 +296,12 @@ const SuperAdminDashboard = () => {
                         <div className="p-6 border-b border-slate-100 flex items-center justify-between">
                             <div className="flex items-center gap-3">
                                 <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-700 to-indigo-600 text-white flex items-center justify-center font-black text-lg shadow-sm overflow-hidden border border-slate-100 shrink-0">
-                                    {selectedTeamForRoster.logo ? (
-                                        <img src={selectedTeamForRoster.logo} alt={selectedTeamForRoster.name} className="w-full h-full object-contain bg-white p-1" />
-                                    ) : (
-                                        selectedTeamForRoster.shortName || selectedTeamForRoster.name.substring(0, 3).toUpperCase()
-                                    )}
+                                    <SafeImage
+                                        src={selectedTeamForRoster.logo}
+                                        alt={selectedTeamForRoster.name}
+                                        className="w-full h-full object-contain bg-white p-1"
+                                        fallback={selectedTeamForRoster.shortName || selectedTeamForRoster.name.substring(0, 3).toUpperCase()}
+                                    />
                                 </div>
                                 <div>
                                     <div className="flex items-center gap-2">
@@ -316,7 +342,7 @@ const SuperAdminDashboard = () => {
                             <div className="p-3 bg-white rounded-2xl border border-slate-200/80">
                                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Squad Size</span>
                                 <div className="text-base font-black text-blue-600 mt-0.5">
-                                    {players.filter(p => p.soldToTeamId === selectedTeamForRoster._id || p.soldToTeamId === selectedTeamForRoster.id).length + (selectedTeamForRoster.isOwnerCaptain ? 1 : 0)} / {selectedTournament?.squadSizeLimit || 25}
+                                    {players.filter(p => (p.soldToTeamId === selectedTeamForRoster._id || p.soldToTeamId === selectedTeamForRoster.id) && !p.isCaptain && !String(p._id || '').startsWith('pl_cap_')).length + (selectedTeamForRoster.isOwnerCaptain ? 1 : 0)} / {selectedTournament?.squadSizeLimit || 25}
                                 </div>
                             </div>
                         </div>
@@ -331,11 +357,12 @@ const SuperAdminDashboard = () => {
                                     <div className="p-4 bg-amber-50/80 border border-amber-300 rounded-2xl flex items-center justify-between">
                                         <div className="flex items-center gap-3">
                                             <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center font-black shadow-xs overflow-hidden shrink-0">
-                                                {selectedTeamForRoster.captainPhoto || ownerUser?.captainPhoto ? (
-                                                    <img src={selectedTeamForRoster.captainPhoto || ownerUser?.captainPhoto} alt={capName} className="w-full h-full object-cover" />
-                                                ) : (
-                                                    <Crown className="w-5 h-5" />
-                                                )}
+                                                <SafeImage
+                                                    src={selectedTeamForRoster.captainPhoto || ownerUser?.captainPhoto}
+                                                    alt={capName}
+                                                    className="w-full h-full object-cover"
+                                                    fallback={<Crown className="w-5 h-5" />}
+                                                />
                                             </div>
                                             <div>
                                                 <div className="flex items-center gap-1.5 flex-wrap">
@@ -381,11 +408,12 @@ const SuperAdminDashboard = () => {
                                     <div key={player._id || idx} className="p-3.5 bg-white border border-slate-200/90 rounded-2xl flex items-center justify-between shadow-2xs hover:border-blue-300 transition-all">
                                         <div className="flex items-center gap-3">
                                             <div className="w-10 h-10 rounded-xl bg-slate-100 overflow-hidden shrink-0 border border-slate-200 flex items-center justify-center">
-                                                {player.image ? (
-                                                    <img src={player.image} alt={player.name} className="w-full h-full object-cover" />
-                                                ) : (
-                                                    <User className="w-5 h-5 text-slate-400" />
-                                                )}
+                                                <SafeImage
+                                                    src={player.image}
+                                                    alt={player.name}
+                                                    className="w-full h-full object-cover"
+                                                    fallback={<User className="w-5 h-5 text-slate-400" />}
+                                                />
                                             </div>
                                             <div>
                                                 <h4 className="text-sm font-black text-slate-900">{player.name}</h4>
@@ -559,7 +587,7 @@ const SuperAdminDashboard = () => {
                                         <Users className="w-4 h-4 text-blue-600" />
                                         <span>Players Pool</span>
                                     </div>
-                                    <span className="text-[10px] font-extrabold text-slate-400">({players.length})</span>
+                                    <span className="text-[10px] font-extrabold text-slate-400">({allDisplayPlayers.length})</span>
                                 </button>
 
                                 <button
@@ -619,7 +647,7 @@ const SuperAdminDashboard = () => {
                         </div>
                         <h1 className="text-xl font-black text-slate-900 tracking-tight">
                             {activeTab === 'tournaments' ? 'Tournament Control Hub' :
-                                activeTab === 'players' ? `Auction Players Pool (${players.length})` :
+                                activeTab === 'players' ? `Auction Players Pool (${allDisplayPlayers.length})` :
                                     `Tournament Teams (${teams.length})`}
                         </h1>
                     </div>
@@ -696,8 +724,8 @@ const SuperAdminDashboard = () => {
                                         <Users className="w-4 h-4" />
                                     </span>
                                 </div>
-                                <div className="text-3xl font-black text-slate-900">{players.length}</div>
-                                <p className="text-[11px] text-slate-500 font-semibold mt-1">Nominated cricketers</p>
+                                <div className="text-3xl font-black text-slate-900">{allDisplayPlayers.length}</div>
+                                <p className="text-[11px] text-slate-500 font-semibold mt-1">Including retained captains</p>
                             </div>
                         </div>
                     )}
@@ -904,61 +932,28 @@ const SuperAdminDashboard = () => {
                             </div>
 
                             {/* Player Cards (Including Retained Owner-Captains) */}
-                            {(() => {
-                                const retainedCaptains = (teams || [])
-                                    .filter(t => t.isOwnerCaptain)
-                                    .map(t => {
-                                        const user = (users || []).find(u => ((u.teamId?._id || u.teamId) === (t._id || t.id)) && u.role === 'team_owner');
-                                        const alreadyInPlayers = players.find(p => p.isCaptain && (p.soldToTeamId === t._id || p.soldToTeamId === t.id));
-                                        if (alreadyInPlayers) return null;
-
-                                        return {
-                                            _id: `owner_cap_${t._id}`,
-                                            name: t.captainName || user?.captainName || user?.name || user?.username || `${t.name} Captain`,
-                                            image: t.captainPhoto || user?.captainPhoto || '',
-                                            category: user?.category || 'Captain (All-Rounder)',
-                                            battingStyle: user?.battingStyle || 'Right-Hand Bat',
-                                            bowlingStyle: user?.bowlingStyle || 'Right-Arm Medium',
-                                            basePrice: t.captainPrice || 15,
-                                            soldPrice: t.captainPrice || 15,
-                                            status: 'retained',
-                                            isCaptain: true,
-                                            isDirectOwnerCaptain: true,
-                                            soldToTeamId: t._id,
-                                            soldToTeamName: t.name,
-                                            teamCode: t.shortName,
-                                            cricHeroesProfileUrl: user?.cricHeroesProfileUrl || '',
-                                            age: user?.age || ''
-                                        };
-                                    })
-                                    .filter(Boolean);
-
-                                const allDisplayPlayers = [...retainedCaptains, ...players];
-
-                                return (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                        {allDisplayPlayers.length > 0 ? allDisplayPlayers.map(p => {
-                                            const isCap = p.isCaptain || p.isDirectOwnerCaptain;
-                                            return (
-                                                <div 
-                                                    key={p._id} 
-                                                    className={`p-4 rounded-2xl flex items-center gap-4 relative group shadow-xs transition-all ${
-                                                        isCap 
-                                                            ? 'bg-amber-50/50 border-2 border-amber-300 shadow-amber-500/5' 
-                                                            : 'bg-white border border-slate-200/90 hover:border-blue-300'
-                                                    }`}
-                                                >
-                                                    <div className={`w-16 h-16 rounded-xl overflow-hidden shrink-0 border flex items-center justify-center ${
-                                                        isCap ? 'bg-amber-100 border-amber-300' : 'bg-slate-100 border-slate-200'
-                                                    }`}>
-                                                        {p.image ? (
-                                                            <img src={p.image} className="w-full h-full object-cover" alt={p.name} />
-                                                        ) : isCap ? (
-                                                            <Crown className="w-8 h-8 text-amber-600" />
-                                                        ) : (
-                                                            <User size={24} className="text-slate-400" />
-                                                        )}
-                                                    </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {allDisplayPlayers.length > 0 ? allDisplayPlayers.map(p => {
+                                    const isCap = p.isCaptain || p.isDirectOwnerCaptain;
+                                    return (
+                                        <div 
+                                            key={p._id} 
+                                            className={`p-4 rounded-2xl flex items-center gap-4 relative group shadow-xs transition-all ${
+                                                isCap 
+                                                    ? 'bg-amber-50/50 border-2 border-amber-300 shadow-amber-500/5' 
+                                                    : 'bg-white border border-slate-200/90 hover:border-blue-300'
+                                            }`}
+                                        >
+                                            <div className={`w-16 h-16 rounded-xl overflow-hidden shrink-0 border flex items-center justify-center ${
+                                                isCap ? 'bg-amber-100 border-amber-300' : 'bg-slate-100 border-slate-200'
+                                            }`}>
+                                                <SafeImage
+                                                    src={p.image}
+                                                    className="w-full h-full object-cover"
+                                                    alt={p.name}
+                                                    fallback={isCap ? <Crown className="w-8 h-8 text-amber-600" /> : <User size={24} className="text-slate-400" />}
+                                                />
+                                            </div>
                                                     <div className="flex-1 pr-6">
                                                         <div className="flex items-center gap-1.5 flex-wrap">
                                                             <h3 className="font-black text-slate-900 text-sm">{p.name}</h3>
@@ -1028,8 +1023,6 @@ const SuperAdminDashboard = () => {
                                             </div>
                                         )}
                                     </div>
-                                );
-                            })()}
                         </div>
                     ) : (
                         /* TEAMS DIRECTORY & ROSTER - STRICTLY PER TOURNAMENT */
@@ -1081,7 +1074,7 @@ const SuperAdminDashboard = () => {
                             {/* Team Cards Grid */}
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                                 {teams.length > 0 ? teams.map(team => {
-                                    const teamAcquired = players.filter(p => p.soldToTeamId === team._id || p.soldToTeamId === team.id);
+                                    const teamAcquired = players.filter(p => (p.soldToTeamId === team._id || p.soldToTeamId === team.id) && !p.isCaptain && !String(p._id || '').startsWith('pl_cap_'));
                                     const remainingPurse = Math.max(0, (team.budget || 100) - (team.spent || 0)).toFixed(2);
                                     const squadCount = teamAcquired.length + (team.isOwnerCaptain ? 1 : 0);
                                     const ownerUser = users.find(u => ((u.teamId?._id || u.teamId) === (team._id || team.id)) && u.role === 'team_owner');
@@ -1097,11 +1090,12 @@ const SuperAdminDashboard = () => {
                                                 <div className="flex justify-between items-start mb-2">
                                                     <div className="flex items-center gap-3">
                                                         <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-700 to-indigo-600 text-white flex items-center justify-center font-black text-sm shrink-0 shadow-2xs overflow-hidden border border-slate-100">
-                                                            {team.logo ? (
-                                                                <img src={team.logo} alt={team.name} className="w-full h-full object-contain bg-white p-1" />
-                                                            ) : (
-                                                                team.shortName || team.name?.substring(0, 3).toUpperCase()
-                                                            )}
+                                                            <SafeImage
+                                                                src={team.logo}
+                                                                alt={team.name}
+                                                                className="w-full h-full object-contain bg-white p-1"
+                                                                fallback={team.shortName || team.name?.substring(0, 3).toUpperCase()}
+                                                            />
                                                         </div>
                                                         <div>
                                                             <h3 className="text-base font-black text-slate-900 group-hover:text-blue-600 transition-colors">
@@ -1143,11 +1137,12 @@ const SuperAdminDashboard = () => {
                                                 {team.isOwnerCaptain && (
                                                     <div className="mt-2.5 px-3 py-2 bg-amber-50/90 border border-amber-200 rounded-2xl flex items-center justify-between">
                                                         <div className="flex items-center gap-2 min-w-0">
-                                                            {team.captainPhoto || ownerUser?.captainPhoto ? (
-                                                                <img src={team.captainPhoto || ownerUser?.captainPhoto} alt="Captain" className="w-6 h-6 rounded-full object-cover border border-amber-300 shrink-0" />
-                                                            ) : (
-                                                                <Crown className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                                                            )}
+                                                            <SafeImage
+                                                                src={team.captainPhoto || ownerUser?.captainPhoto}
+                                                                alt="Captain"
+                                                                className="w-6 h-6 rounded-full object-cover border border-amber-300 shrink-0"
+                                                                fallback={<Crown className="w-3.5 h-3.5 text-amber-600 shrink-0" />}
+                                                            />
                                                             <span className="text-[11px] font-bold text-amber-700 shrink-0">Captain:</span>
                                                             <span className="text-xs font-black text-amber-950 truncate">{resolvedCapName || 'Captain'}</span>
                                                         </div>
@@ -1246,11 +1241,12 @@ const SuperAdminDashboard = () => {
                                             <div key={p._id} className="bg-white border border-rose-100 p-3.5 rounded-2xl flex items-center justify-between shadow-2xs hover:border-rose-300 transition-all">
                                                 <div className="flex items-center gap-3">
                                                     <div className="w-10 h-10 rounded-xl bg-rose-50 border border-rose-200 overflow-hidden shrink-0 flex items-center justify-center">
-                                                        {p.image ? (
-                                                            <img src={p.image} alt={p.name} className="w-full h-full object-cover" />
-                                                        ) : (
-                                                            <User className="w-4 h-4 text-rose-400" />
-                                                        )}
+                                                        <SafeImage
+                                                            src={p.image}
+                                                            alt={p.name}
+                                                            className="w-full h-full object-cover"
+                                                            fallback={<User className="w-4 h-4 text-rose-400" />}
+                                                        />
                                                     </div>
                                                     <div>
                                                         <h4 className="text-xs font-black text-slate-900">{p.name}</h4>

@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import socket from '../socket';
 import { getBudgetUnits } from '../utils/currency';
 import toast from '../lib/toast';
+import SafeImage from '../components/SafeImage';
 
 const getBidIncrement = (bid, rules) => {
     const list = Array.isArray(rules) && rules.length > 0 ? rules : [
@@ -400,11 +401,12 @@ const OwnerDashboard = () => {
             <header className="flex flex-col md:flex-row justify-between items-center mb-6 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm gap-4">
                 <div className="flex items-center gap-4 w-full md:w-auto">
                     <div className="w-14 h-14 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-xl flex items-center justify-center font-black text-xl text-white shadow-sm uppercase overflow-hidden">
-                        {teamData.logo ? (
-                            <img src={teamData.logo} alt={teamData.name} className="w-full h-full object-cover" />
-                        ) : (
-                            teamData.shortName || teamData.name?.substring(0, 2)
-                        )}
+                        <SafeImage
+                            src={teamData.logo}
+                            alt={teamData.name}
+                            className="w-full h-full object-cover"
+                            fallback={teamData.shortName || teamData.name?.substring(0, 2)}
+                        />
                     </div>
                     <div>
                         <h1 className="text-xl font-black text-slate-900">{teamData.name}</h1>
@@ -413,11 +415,12 @@ const OwnerDashboard = () => {
                         </p>
                         {teamData.isOwnerCaptain && (
                             <div className="flex items-center gap-1.5 mt-1">
-                                {teamData.captainPhoto ? (
-                                    <img src={teamData.captainPhoto} alt="Captain" className="w-5 h-5 rounded-full object-cover border border-amber-300" />
-                                ) : (
-                                    <Crown className="w-3.5 h-3.5 text-amber-600" />
-                                )}
+                                <SafeImage
+                                    src={teamData.captainPhoto}
+                                    alt="Captain"
+                                    className="w-5 h-5 rounded-full object-cover border border-amber-300"
+                                    fallback={<Crown className="w-3.5 h-3.5 text-amber-600" />}
+                                />
                                 <span className="text-[11px] font-black text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
                                     👑 Captain: {teamData.captainName || user.captainName || user.name || 'Owner & Captain'}
                                 </span>
@@ -456,11 +459,12 @@ const OwnerDashboard = () => {
                         {currentPlayer ? (
                             <div className="w-full max-w-xl flex flex-col items-center">
                                 <div className="w-36 h-36 rounded-2xl border-2 border-slate-200 overflow-hidden mb-4 shadow-sm bg-slate-50 relative">
-                                    {currentPlayer.image ? (
-                                        <img src={currentPlayer.image} className="w-full h-full object-cover" />
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center text-slate-400"><User className="w-16 h-16" /></div>
-                                    )}
+                                    <SafeImage
+                                        src={currentPlayer.image}
+                                        alt={currentPlayer.name}
+                                        className="w-full h-full object-cover"
+                                        fallback={<div className="w-full h-full flex items-center justify-center text-slate-400"><User className="w-16 h-16" /></div>}
+                                    />
                                 </div>
                                 <h2 className="text-3xl font-black mb-1.5 text-slate-900">{currentPlayer.name}</h2>
                                 <div className="flex gap-2 mb-3 flex-wrap justify-center">
@@ -670,7 +674,7 @@ const OwnerDashboard = () => {
                                             <tr key={p._id} className="hover:bg-slate-50 transition-colors">
                                                 <td className="p-3.5 font-bold text-slate-900 flex items-center gap-2.5">
                                                     <div className="w-7 h-7 rounded-lg bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center">
-                                                        {p.image ? <img src={p.image} className="w-full h-full object-cover" /> : <User size={14} className="text-slate-400" />}
+                                                        <SafeImage src={p.image} alt={p.name} className="w-full h-full object-cover" fallback={<User size={14} className="text-slate-400" />} />
                                                     </div>
                                                     <span>{p.name}</span>
                                                 </td>
@@ -701,7 +705,7 @@ const OwnerDashboard = () => {
                                             <tr key={p._id} className="hover:bg-slate-50 transition-colors">
                                                 <td className="p-3.5 font-bold text-slate-900 flex items-center gap-2.5">
                                                     <div className="w-7 h-7 rounded-lg bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center">
-                                                        {p.image ? <img src={p.image} className="w-full h-full object-cover" /> : <User size={14} className="text-slate-400" />}
+                                                        <SafeImage src={p.image} alt={p.name} className="w-full h-full object-cover" fallback={<User size={14} className="text-slate-400" />} />
                                                     </div>
                                                     <div>
                                                         <span className="block">{p.name}</span>
@@ -755,11 +759,12 @@ const OwnerDashboard = () => {
                                         >
                                             <div className="flex items-center gap-2">
                                                 <div className="w-7 h-7 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-[10px] font-black text-slate-700 overflow-hidden shadow-2xs shrink-0">
-                                                    {b.team?.logo ? (
-                                                        <img src={b.team.logo} className="w-full h-full object-cover" />
-                                                    ) : (
-                                                        b.team?.shortName || b.team?.name?.substring(0, 2) || 'TM'
-                                                    )}
+                                                    <SafeImage
+                                                        src={b.team?.logo}
+                                                        alt={b.team?.name || 'Team'}
+                                                        className="w-full h-full object-cover"
+                                                        fallback={b.team?.shortName || b.team?.name?.substring(0, 2) || 'TM'}
+                                                    />
                                                 </div>
                                                 <div>
                                                     <span className="font-extrabold block text-xs leading-tight">
@@ -805,11 +810,12 @@ const OwnerDashboard = () => {
                                     >
                                         <div className="flex items-center gap-3">
                                             <div className="w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold text-slate-700 bg-white border border-slate-200 uppercase group-hover:border-blue-400 transition-colors shadow-2xs shrink-0 overflow-hidden">
-                                                {t.logo ? (
-                                                    <img src={t.logo} alt={t.name} className="w-full h-full object-cover" />
-                                                ) : (
-                                                    t.shortName?.substring(0, 3) || t.name.substring(0, 2)
-                                                )}
+                                                <SafeImage
+                                                    src={t.logo}
+                                                    alt={t.name}
+                                                    className="w-full h-full object-cover"
+                                                    fallback={t.shortName?.substring(0, 3) || t.name.substring(0, 2)}
+                                                />
                                             </div>
                                             <div>
                                                 <span className="font-bold text-xs text-slate-800 group-hover:text-blue-700 transition-colors block">
@@ -851,11 +857,12 @@ const OwnerDashboard = () => {
                         <div className="p-5 md:p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
                             <div className="flex items-center gap-3.5">
                                 <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white font-black flex items-center justify-center text-lg shadow-xs uppercase overflow-hidden">
-                                    {viewingTeam.logo ? (
-                                        <img src={viewingTeam.logo} alt={viewingTeam.name} className="w-full h-full object-cover" />
-                                    ) : (
-                                        viewingTeam.shortName || viewingTeam.name?.substring(0, 2)
-                                    )}
+                                    <SafeImage
+                                        src={viewingTeam.logo}
+                                        alt={viewingTeam.name}
+                                        className="w-full h-full object-cover"
+                                        fallback={viewingTeam.shortName || viewingTeam.name?.substring(0, 2)}
+                                    />
                                 </div>
                                 <div>
                                     <h3 className="text-lg md:text-xl font-black text-slate-900 flex items-center gap-2">
@@ -903,11 +910,12 @@ const OwnerDashboard = () => {
                                                     <div key={p._id || idx} className="p-3.5 hover:bg-slate-50/80 transition-colors flex items-center justify-between gap-3">
                                                         <div className="flex items-center gap-3">
                                                             <div className="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center shrink-0">
-                                                                {p.image ? (
-                                                                    <img src={p.image} alt={p.name} className="w-full h-full object-cover" />
-                                                                ) : (
-                                                                    <User className="w-5 h-5 text-slate-400" />
-                                                                )}
+                                                                <SafeImage
+                                                                    src={p.image}
+                                                                    alt={p.name}
+                                                                    className="w-full h-full object-cover"
+                                                                    fallback={<User className="w-5 h-5 text-slate-400" />}
+                                                                />
                                                             </div>
                                                             <div>
                                                                 <h4 className="text-sm font-bold text-slate-900 leading-snug">{p.name}</h4>
@@ -991,13 +999,16 @@ const OwnerDashboard = () => {
 
                                     {/* Player image */}
                                     <div className="w-28 h-28 mx-auto rounded-2xl border-4 border-emerald-200 overflow-hidden shadow-md bg-slate-100 mb-3">
-                                        {announcementModal.player?.image ? (
-                                            <img src={announcementModal.player.image} alt={announcementModal.player.name} className="w-full h-full object-cover" />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center text-slate-400">
-                                                <User className="w-12 h-12" />
-                                            </div>
-                                        )}
+                                        <SafeImage
+                                            src={announcementModal.player?.image}
+                                            alt={announcementModal.player?.name}
+                                            className="w-full h-full object-cover"
+                                            fallback={
+                                                <div className="w-full h-full flex items-center justify-center text-slate-400">
+                                                    <User className="w-12 h-12" />
+                                                </div>
+                                            }
+                                        />
                                     </div>
 
                                     <h3 className="text-2xl font-black text-slate-900">{announcementModal.player?.name}</h3>
@@ -1009,11 +1020,12 @@ const OwnerDashboard = () => {
                                     <div className="mt-5 p-4 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200 flex items-center justify-between">
                                         <div className="flex items-center gap-3 text-left">
                                             <div className="w-12 h-12 rounded-xl bg-white border border-emerald-200 flex items-center justify-center text-slate-800 font-black text-sm shadow-2xs overflow-hidden shrink-0">
-                                                {announcementModal.team?.logo ? (
-                                                    <img src={announcementModal.team.logo} alt={announcementModal.team.name} className="w-full h-full object-cover" />
-                                                ) : (
-                                                    announcementModal.team?.shortName || announcementModal.team?.name?.substring(0, 2)
-                                                )}
+                                                <SafeImage
+                                                    src={announcementModal.team?.logo}
+                                                    alt={announcementModal.team?.name}
+                                                    className="w-full h-full object-cover"
+                                                    fallback={announcementModal.team?.shortName || announcementModal.team?.name?.substring(0, 2)}
+                                                />
                                             </div>
                                             <div>
                                                 <span className="text-[10px] font-extrabold uppercase text-emerald-700 tracking-wider block">Sold To</span>
@@ -1037,13 +1049,16 @@ const OwnerDashboard = () => {
                                     </div>
 
                                     <div className="w-24 h-24 mx-auto rounded-2xl border-4 border-amber-200 overflow-hidden shadow-md bg-slate-100 mb-3">
-                                        {announcementModal.player?.image ? (
-                                            <img src={announcementModal.player.image} alt={announcementModal.player.name} className="w-full h-full object-cover grayscale" />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center text-slate-400">
-                                                <User className="w-10 h-10" />
-                                            </div>
-                                        )}
+                                        <SafeImage
+                                            src={announcementModal.player?.image}
+                                            alt={announcementModal.player?.name}
+                                            className="w-full h-full object-cover grayscale"
+                                            fallback={
+                                                <div className="w-full h-full flex items-center justify-center text-slate-400">
+                                                    <User className="w-10 h-10" />
+                                                </div>
+                                            }
+                                        />
                                     </div>
 
                                     <h3 className="text-2xl font-black text-slate-900">{announcementModal.player?.name}</h3>

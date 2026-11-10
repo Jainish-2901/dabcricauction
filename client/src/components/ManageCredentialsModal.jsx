@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import ImageCropModal from './ImageCropModal';
 import toast from '../lib/toast';
+import SafeImage from './SafeImage';
 
 const ManageCredentialsModal = ({ 
     isOpen, 
@@ -425,19 +426,18 @@ const ManageCredentialsModal = ({
                                         <div>
                                             <div className="flex items-start justify-between gap-2 mb-3">
                                                 <div className="flex items-center gap-2">
-                                                    {cred.captainPhoto ? (
-                                                        <img 
-                                                            src={cred.captainPhoto} 
-                                                            alt={cred.captainName || 'Captain'} 
-                                                            className="w-8 h-8 rounded-xl object-cover border border-amber-300 shadow-2xs shrink-0" 
-                                                        />
-                                                    ) : (
-                                                        <span className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
-                                                            isAuc ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'
-                                                        }`}>
-                                                            {isAuc ? <Award className="w-4 h-4" /> : <Users className="w-4 h-4" />}
-                                                        </span>
-                                                    )}
+                                                    <SafeImage
+                                                        src={cred.captainPhoto}
+                                                        alt={cred.captainName || 'Captain'}
+                                                        className="w-8 h-8 rounded-xl object-cover border border-amber-300 shadow-2xs shrink-0"
+                                                        fallback={
+                                                            <span className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                                                                isAuc ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'
+                                                            }`}>
+                                                                {isAuc ? <Award className="w-4 h-4" /> : <Users className="w-4 h-4" />}
+                                                            </span>
+                                                        }
+                                                    />
                                                     <div>
                                                         <h4 className="font-black text-sm text-slate-900 leading-tight">
                                                             {cred.teamName || (isAuc ? 'Official Auctioneer' : 'Team Owner')}
@@ -621,11 +621,12 @@ const ManageCredentialsModal = ({
                                             <label className="block text-[10px] font-extrabold uppercase text-slate-600 mb-1">Captain Photo</label>
                                             <div className="flex items-center gap-2.5 p-2 bg-white border border-slate-200 rounded-xl">
                                                 <div className="w-12 h-12 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center shrink-0">
-                                                    {captainPhoto ? (
-                                                        <img src={captainPhoto} alt="Captain" className="w-full h-full object-cover" />
-                                                    ) : (
-                                                        <User className="w-5 h-5 text-slate-400" />
-                                                    )}
+                                                    <SafeImage
+                                                        src={captainPhoto}
+                                                        alt="Captain"
+                                                        className="w-full h-full object-cover"
+                                                        fallback={<User className="w-5 h-5 text-slate-400" />}
+                                                    />
                                                 </div>
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex items-center gap-1.5 flex-wrap">

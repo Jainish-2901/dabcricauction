@@ -17,6 +17,7 @@ import {
     Share
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
+import SafeImage from './SafeImage';
 import {
     Trophy,
     Users,
@@ -49,7 +50,8 @@ import {
     RefreshCw,
     Camera,
     Upload,
-    User
+    User,
+    TrendingUp
 } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import TournamentHubModal from './TournamentHubModal';
@@ -58,6 +60,20 @@ import { apiFetch, getApiUrl } from '../lib/api';
 import { getBudgetUnits } from '../lib/currency';
 import { checkForAppUpdates } from '../lib/updateManager';
 import { toast, ToastOverlay } from '../lib/toast';
+
+const DEFAULT_SLABS_L_CR = [
+    { upTo: 100, increment: 10, label: 'Up to ₹1 Cr (100 L)' },
+    { upTo: 500, increment: 25, label: '₹1 Cr - ₹5 Cr (500 L)' },
+    { upTo: 1000, increment: 50, label: '₹5 Cr - ₹10 Cr (1000 L)' },
+    { upTo: 999999, increment: 100, label: 'Above ₹10 Cr (> 1000 L)' }
+];
+
+const DEFAULT_SLABS_K_L = [
+    { upTo: 100, increment: 10, label: 'Up to ₹1 L (100 K)' },
+    { upTo: 500, increment: 25, label: '₹1 L - ₹5 L (500 K)' },
+    { upTo: 1000, increment: 50, label: '₹5 L - ₹10 L (1000 K)' },
+    { upTo: 999999, increment: 100, label: 'Above ₹10 L (> 1000 K)' }
+];
 
 export type SuperAdminTab = 'tournaments' | 'teams' | 'players' | 'slots' | 'credentials';
 
@@ -137,11 +153,9 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
     const [editTourneySquadLimit, setEditTourneySquadLimit] = useState('25');
     const [editTourneyScale, setEditTourneyScale] = useState<'L_TO_CR' | 'K_TO_L'>('L_TO_CR');
     const [editTourneyAuctionType, setEditTourneyAuctionType] = useState<'owner_driven' | 'admin_driven'>('owner_driven');
-    const [editTourneyStatus, setEditTourneyStatus] = useState<'upcoming' | 'live' | 'paused' | 'completed'>('upcoming');
     const [editTourneyStartDate, setEditTourneyStartDate] = useState('');
     const [editTourneyTime, setEditTourneyTime] = useState('');
-    const [editTourneyDescription, setEditTourneyDescription] = useState('');
-    const [editTourneyLogo, setEditTourneyLogo] = useState('');
+    const [editTourneyBidRules, setEditTourneyBidRules] = useState<any[]>(DEFAULT_SLABS_L_CR);
     const [savingTourney, setSavingTourney] = useState(false);
 
     // Edit Player Modal States
@@ -380,19 +394,42 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
         setEditingTourney(t);
         setEditTourneyName(t.name || '');
         setEditTourneySquadLimit(String(t.squadSizeLimit || 25));
-        setEditTourneyScale(t.budgetScale === 'K_TO_L' ? 'K_TO_L' : 'L_TO_CR');
+
+        const scale = t.budgetScale === 'K_TO_L' ? 'K_TO_L' : 'L_TO_CR';
+        setEditTourneyScale(scale);
         setEditTourneyAuctionType(t.auctionType === 'admin_driven' ? 'admin_driven' : 'owner_driven');
-        setEditTourneyStatus(t.status || 'upcoming');
-        setEditTourneyStartDate(t.startDate || '');
+
+        let dateStr = '';
+        if (t.startDate) {
+            try {
+                const d = new Date(t.startDate);
+                dateStr = isNaN(d.getTime()) ? String(t.startDate) : d.toISOString().split('T')[0];
+            } catch {
+                dateStr = String(t.startDate);
+            }
+        }
+        setEditTourneyStartDate(dateStr);
         setEditTourneyTime(t.time || '');
-        setEditTourneyDescription(t.description || '');
-        setEditTourneyLogo(t.logo || '');
+
+        const defaultSlabs = scale === 'K_TO_L' ? DEFAULT_SLABS_K_L : DEFAULT_SLABS_L_CR;
+        const slabs = (t.bidIncrementRules && t.bidIncrementRules.length > 0)
+            ? t.bidIncrementRules.map((r: any, i: number) => ({
+                upTo: Number(r.upTo) || 100,
+                increment: Number(r.increment) || 10,
+                label: r.label || defaultSlabs[i]?.label || `Up to ₹${r.upTo} ${scale === 'K_TO_L' ? 'K' : 'L'}`
+            }))
+            : defaultSlabs;
+        setEditTourneyBidRules(slabs);
         setEditTourneyModalVisible(true);
     };
 
-    const handlePickEditTourneyLogo = async () => {
-        const cropped = await pickImageWith1to1Crop();
-        if (cropped) setEditTourneyLogo(cropped);
+    const handleSwitchEditScale = (newScale: 'L_TO_CR' | 'K_TO_L') => {
+        setEditTourneyScale(newScale);
+        const defaultSlabs = newScale === 'K_TO_L' ? DEFAULT_SLABS_K_L : DEFAULT_SLABS_L_CR;
+        setEditTourneyBidRules(prev => prev.map((r, i) => ({
+            ...r,
+            label: defaultSlabs[i]?.label || `Up to ₹${r.upTo} ${newScale === 'K_TO_L' ? 'K' : 'L'}`
+        })));
     };
 
     const handleSaveEditTournament = async () => {
@@ -404,14 +441,16 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
         try {
             const payload = {
                 name: editTourneyName.trim(),
+                startDate: editTourneyStartDate.trim() || null,
+                time: editTourneyTime.trim() || null,
                 squadSizeLimit: parseInt(editTourneySquadLimit) || 25,
                 budgetScale: editTourneyScale,
                 auctionType: editTourneyAuctionType,
-                status: editTourneyStatus,
-                startDate: editTourneyStartDate.trim() || null,
-                time: editTourneyTime.trim() || null,
-                description: editTourneyDescription.trim() || null,
-                logo: editTourneyLogo || null
+                bidIncrementRules: editTourneyBidRules.map(s => ({
+                    upTo: Number(s.upTo) || 100,
+                    increment: Number(s.increment) || 10,
+                    label: s.label
+                }))
             };
 
             const res = await apiFetch(`/api/tournaments/${editingTourney._id}`, {
@@ -427,13 +466,13 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                     setSelectedTournament(updatedObj);
                 }
                 setEditTourneyModalVisible(false);
-                toast.success('Saved', 'Tournament details updated successfully!');
+                toast.success('Updated', 'Tournament updated successfully!');
             } else {
                 const errData = await res.json().catch(() => ({}));
-                toast.error('Update Error', errData.message || 'Failed to update tournament details.');
+                toast.error('Update Error', errData.message || 'Failed to save tournament.');
             }
         } catch (err: any) {
-            toast.error('Network Error', err.message || 'Failed to update tournament.');
+            toast.error('Network Error', err.message || 'Failed to save tournament.');
         } finally {
             setSavingTourney(false);
         }
@@ -456,18 +495,22 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
             spent: capPrice,
             isOwnerCaptain,
             captainName: isOwnerCaptain ? (captainName.trim() || undefined) : undefined,
-            captainPhoto: isOwnerCaptain ? (captainPhoto.trim() || undefined) : undefined,
+            captainPhoto: isOwnerCaptain ? captainPhoto.trim() : undefined,
             captainPrice: capPrice,
             logo: newTeamLogo.trim()
         };
+        let createdTeam = newTm;
         try {
-            await apiFetch('/api/teams', {
+            const res = await apiFetch('/api/teams', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(newTm)
             });
+            if (res.ok) {
+                createdTeam = await res.json();
+            }
         } catch {}
-        setTeams(prev => [...prev, newTm]);
+        setTeams(prev => [...prev, createdTeam]);
         setNewTeamName('');
         setNewTeamShort('');
         setNewTeamLogo('');
@@ -514,14 +557,18 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
             image: newPlayerImage.trim(),
             status: 'pending'
         };
+        let createdPlayer = newP;
         try {
-            await apiFetch('/api/players', {
+            const res = await apiFetch('/api/players', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(newP)
             });
+            if (res.ok) {
+                createdPlayer = await res.json();
+            }
         } catch {}
-        setPlayers(prev => [...prev, newP]);
+        setPlayers(prev => [...prev, createdPlayer]);
         setNewPlayerName('');
         setNewPlayerImage('');
         toast.success('Player Added', `${newP.name} added to ${selectedTournament.name}`);
@@ -600,7 +647,7 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
 
             if (res.ok) {
                 const updated = await res.json();
-                setPlayers(prev => prev.map(p => p._id === editingPlayer._id ? { ...p, ...updated, image: editPlayerImage.trim() } : p));
+                setPlayers(prev => prev.map(p => p._id === editingPlayer._id ? { ...p, ...updated, image: updated.image ?? editPlayerImage.trim() } : p));
                 setEditPlayerModalVisible(false);
                 toast.success('Updated', `Player "${editPlayerName}" updated successfully`);
                 if (selectedTournament?._id) {
@@ -805,11 +852,14 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
     const retainedCaptains = (teams || [])
         .filter(t => t.isOwnerCaptain)
         .map(t => {
-            const alreadyInPlayers = players.find(p => p.isCaptain && (p.soldToTeamId === t._id || p.soldToTeamId === t.id));
+            const alreadyInPlayers = players.find(
+                p => (p.isCaptain || String(p._id || '').startsWith('pl_cap_')) && (p.soldToTeamId === t._id || p.soldToTeamId === t.id)
+            );
             if (alreadyInPlayers) return null;
             return {
                 _id: `owner_cap_${t._id}`,
                 name: t.captainName || `${t.name} Captain`,
+                image: t.captainPhoto || '',
                 category: 'Captain (All-Rounder)',
                 battingStyle: 'Right-Hand Bat',
                 bowlingStyle: 'Right-Arm Medium',
@@ -944,7 +994,7 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                     >
                         <Users size={14} color={activeTab === 'players' ? '#2563eb' : '#64748b'} />
                         <Text style={[styles.tabText, activeTab === 'players' && styles.tabTextActive]} numberOfLines={1}>
-                            Players ({players.length})
+                            Players ({allDisplayPlayers.length})
                         </Text>
                     </TouchableOpacity>
 
@@ -1020,8 +1070,8 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                                         <Text style={styles.kpiLabel}>PLAYERS</Text>
                                         <Users size={14} color="#d97706" />
                                     </View>
-                                    <Text style={styles.kpiValue}>{players.length}</Text>
-                                    <Text style={styles.kpiSub}>In selected</Text>
+                                    <Text style={styles.kpiValue}>{allDisplayPlayers.length}</Text>
+                                    <Text style={styles.kpiSub}>Incl. captains</Text>
                                 </View>
                             </View>
 
@@ -1361,7 +1411,7 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                             <Text style={styles.listHint}>Tap any team card to inspect full Squad Roster & Sold Prices</Text>
 
                             {teams.map(tm => {
-                                const teamAcquired = players.filter(p => p.soldToTeamId === tm._id || p.soldToTeamId === tm.id);
+                                const teamAcquired = players.filter(p => (p.soldToTeamId === tm._id || p.soldToTeamId === tm.id) && !p.isCaptain && !String(p._id || '').startsWith('pl_cap_'));
                                 const squadCount = teamAcquired.length + (tm.isOwnerCaptain ? 1 : 0);
                                 const remainingPurse = Math.max(0, (tm.budget || 100) - (tm.spent || 0)).toFixed(2);
 
@@ -1375,11 +1425,11 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                                         <View style={styles.cardHeader}>
                                             <View style={styles.teamHeaderRow}>
                                                 <View style={styles.teamLogoBox}>
-                                                    {tm.logo ? (
-                                                        <Image source={{ uri: tm.logo }} style={styles.teamLogoImg} />
-                                                    ) : (
-                                                        <Text style={styles.teamLogoFallbackText}>{tm.shortName || tm.name?.substring(0, 3)}</Text>
-                                                    )}
+                                                    <SafeImage
+                                                        uri={tm.logo}
+                                                        style={styles.teamLogoImg}
+                                                        fallback={<Text style={styles.teamLogoFallbackText}>{tm.shortName || tm.name?.substring(0, 3)}</Text>}
+                                                    />
                                                 </View>
                                                 <View style={{ flex: 1 }}>
                                                     <Text style={styles.cardTitle}>{tm.name}</Text>
@@ -1399,11 +1449,11 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                                         {/* Captain Banner */}
                                         {tm.isOwnerCaptain && (
                                             <View style={styles.captainBanner}>
-                                                {tm.captainPhoto ? (
-                                                    <Image source={{ uri: tm.captainPhoto }} style={{ width: 20, height: 20, borderRadius: 10, marginRight: 6 }} />
-                                                ) : (
-                                                    <Crown size={12} color="#b45309" />
-                                                )}
+                                                <SafeImage
+                                                    uri={tm.captainPhoto}
+                                                    style={{ width: 20, height: 20, borderRadius: 10, marginRight: 6 }}
+                                                    fallback={<Crown size={12} color="#b45309" />}
+                                                />
                                                 <Text style={styles.captainBannerText}>
                                                     Captain: <Text style={{ fontWeight: '900' }}>{tm.captainName || `${tm.name} Captain`}</Text> (₹{tm.captainPrice || (isKtoL ? 3 : 15)} {smallUnit} Retained)
                                                 </Text>
@@ -1615,13 +1665,11 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                                         <View style={styles.cardHeader}>
                                             <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, flex: 1, paddingRight: 8 }}>
                                                 <View style={styles.playerAvatarBox}>
-                                                    {p.image ? (
-                                                        <Image source={{ uri: p.image }} style={styles.playerAvatarImg} />
-                                                    ) : isCap ? (
-                                                        <Crown size={20} color="#b45309" />
-                                                    ) : (
-                                                        <User size={20} color="#94a3b8" />
-                                                    )}
+                                                    <SafeImage
+                                                        uri={p.image}
+                                                        style={styles.playerAvatarImg}
+                                                        fallback={isCap ? <Crown size={20} color="#b45309" /> : <User size={20} color="#94a3b8" />}
+                                                    />
                                                 </View>
                                                 <View style={{ flex: 1 }}>
                                                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
@@ -2067,11 +2115,11 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                             <View style={{ flex: 1 }}>
                                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                                     <View style={styles.teamLogoBoxSmall}>
-                                        {viewingSquadTeam?.logo ? (
-                                            <Image source={{ uri: viewingSquadTeam.logo }} style={styles.teamLogoImg} />
-                                        ) : (
-                                            <Text style={styles.teamLogoFallbackTextSmall}>{viewingSquadTeam?.shortName}</Text>
-                                        )}
+                                        <SafeImage
+                                            uri={viewingSquadTeam?.logo}
+                                            style={styles.teamLogoImg}
+                                            fallback={<Text style={styles.teamLogoFallbackTextSmall}>{viewingSquadTeam?.shortName}</Text>}
+                                        />
                                     </View>
                                     <View>
                                         <Text style={styles.modalTitle}>{viewingSquadTeam?.name}</Text>
@@ -2099,11 +2147,11 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                             {/* Retained Captain if applicable */}
                             {viewingSquadTeam?.isOwnerCaptain && (
                                 <View style={[styles.captainBanner, { marginVertical: 12 }]}>
-                                    {viewingSquadTeam?.captainPhoto ? (
-                                        <Image source={{ uri: viewingSquadTeam.captainPhoto }} style={{ width: 28, height: 28, borderRadius: 14, marginRight: 8 }} />
-                                    ) : (
-                                        <Crown size={14} color="#b45309" />
-                                    )}
+                                    <SafeImage
+                                        uri={viewingSquadTeam?.captainPhoto}
+                                        style={{ width: 28, height: 28, borderRadius: 14, marginRight: 8 }}
+                                        fallback={<Crown size={14} color="#b45309" />}
+                                    />
                                     <View style={{ flex: 1, marginLeft: 6 }}>
                                         <Text style={{ fontSize: 11, fontWeight: '900', color: '#92400e' }}>
                                             RETAINED CAPTAIN: {viewingSquadTeam?.captainName || `${viewingSquadTeam?.name} Captain`}
@@ -2175,7 +2223,7 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                 }}
             />
 
-            {/* Edit Tournament Modal */}
+            {/* Edit Tournament Modal (1:1 Web Parity) */}
             <Modal
                 visible={editTourneyModalVisible}
                 animationType="slide"
@@ -2188,71 +2236,43 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                 >
                     <ToastOverlay isModal />
                     <View style={styles.modalContainer}>
+                        {/* Fixed Header */}
                         <View style={styles.modalHeader}>
-                            <View style={{ flex: 1 }}>
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+                                <View style={styles.editTourneyIconBox}>
                                     <Trophy size={16} color="#2563eb" />
-                                    <Text style={styles.modalTitle}>Edit Tournament Info</Text>
                                 </View>
-                                <Text style={styles.modalSub} numberOfLines={1}>{editingTourney?.name}</Text>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.modalTitle}>Edit Tournament</Text>
+                                    <Text style={styles.modalSub} numberOfLines={1}>
+                                        Set tournament rules and bidding format
+                                    </Text>
+                                </View>
                             </View>
                             <TouchableOpacity onPress={() => setEditTourneyModalVisible(false)} style={styles.modalCloseBtn}>
                                 <X size={18} color="#475569" />
                             </TouchableOpacity>
                         </View>
 
+                        {/* Smooth Scrollable Body */}
                         <ScrollView
                             style={styles.modalBody}
-                            contentContainerStyle={{ paddingBottom: 160 }}
+                            contentContainerStyle={{ paddingBottom: 24 }}
                             showsVerticalScrollIndicator={false}
                             keyboardShouldPersistTaps="handled"
                         >
-                            {/* Logo Upload Preview */}
-                            <Text style={styles.fieldLabel}>TOURNAMENT LOGO (1:1 CROP & UPLOAD)</Text>
-                            <View style={[styles.logoInputRow, { marginBottom: 12 }]}>
-                                <View style={styles.playerAvatarBox}>
-                                    {editTourneyLogo ? (
-                                        <Image source={{ uri: editTourneyLogo }} style={styles.playerAvatarImg} />
-                                    ) : (
-                                        <Trophy size={22} color="#94a3b8" />
-                                    )}
-                                </View>
-                                <View style={{ flex: 1, gap: 6 }}>
-                                    <TouchableOpacity style={styles.uploadBtnSmall} onPress={handlePickEditTourneyLogo}>
-                                        <Camera size={13} color="#2563eb" />
-                                        <Text style={styles.uploadBtnSmallText}>
-                                            {editTourneyLogo ? 'Change Logo (1:1)' : 'Upload Logo (1:1 Crop)'}
-                                        </Text>
-                                    </TouchableOpacity>
-                                    {editTourneyLogo ? (
-                                        <TouchableOpacity onPress={() => setEditTourneyLogo('')}>
-                                            <Text style={styles.clearLogoText}>✕ Remove Logo</Text>
-                                        </TouchableOpacity>
-                                    ) : null}
-                                </View>
-                            </View>
-
+                            {/* 1. Tournament Name */}
                             <Text style={styles.fieldLabel}>TOURNAMENT NAME *</Text>
                             <TextInput
                                 style={styles.modalInput}
                                 value={editTourneyName}
                                 onChangeText={setEditTourneyName}
-                                placeholder="e.g. World Cricket League 2026"
+                                placeholder="e.g. IPL Season 2026"
                                 placeholderTextColor="#94a3b8"
                             />
 
+                            {/* 2. Start Date & Time */}
                             <View style={{ flexDirection: 'row', gap: 10 }}>
-                                <View style={{ flex: 1 }}>
-                                    <Text style={styles.fieldLabel}>SQUAD LIMIT *</Text>
-                                    <TextInput
-                                        style={styles.modalInput}
-                                        value={editTourneySquadLimit}
-                                        onChangeText={setEditTourneySquadLimit}
-                                        keyboardType="numeric"
-                                        placeholder="25"
-                                        placeholderTextColor="#94a3b8"
-                                    />
-                                </View>
                                 <View style={{ flex: 1 }}>
                                     <Text style={styles.fieldLabel}>START DATE</Text>
                                     <TextInput
@@ -2263,125 +2283,187 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                                         placeholderTextColor="#94a3b8"
                                     />
                                 </View>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.fieldLabel}>TIME</Text>
+                                    <TextInput
+                                        style={styles.modalInput}
+                                        value={editTourneyTime}
+                                        onChangeText={setEditTourneyTime}
+                                        placeholder="09:00 AM"
+                                        placeholderTextColor="#94a3b8"
+                                    />
+                                </View>
                             </View>
 
-                            <Text style={styles.fieldLabel}>TIME (OPTIONAL)</Text>
+                            {/* 3. Squad Size Limit per Team */}
+                            <View style={styles.fieldHeaderRow}>
+                                <Text style={[styles.fieldLabel, { marginBottom: 0 }]}>SQUAD SIZE LIMIT PER TEAM *</Text>
+                                <View style={styles.fixedAdminBadge}>
+                                    <Text style={styles.fixedAdminText}>Fixed by Admin</Text>
+                                </View>
+                            </View>
                             <TextInput
-                                style={styles.modalInput}
-                                value={editTourneyTime}
-                                onChangeText={setEditTourneyTime}
-                                placeholder="e.g. 09:00 AM"
+                                style={[styles.modalInput, { fontWeight: '900', marginBottom: 3 }]}
+                                value={editTourneySquadLimit}
+                                onChangeText={setEditTourneySquadLimit}
+                                keyboardType="numeric"
+                                placeholder="e.g. 15, 18 or 25"
                                 placeholderTextColor="#94a3b8"
                             />
+                            <Text style={styles.fieldHelperNote}>
+                                Strict roster capacity. Teams cannot buy players once limit is reached.
+                            </Text>
 
-                            <Text style={styles.fieldLabel}>CURRENCY / BUDGET SCALE</Text>
-                            <View style={styles.pickerRow}>
+                            {/* 4. Auction Scale & Currency Unit */}
+                            <View style={[styles.fieldHeaderRow, { marginTop: 10 }]}>
+                                <Text style={[styles.fieldLabel, { marginBottom: 0 }]}>AUCTION SCALE & CURRENCY UNIT *</Text>
+                                <View style={styles.scaleTagBadge}>
+                                    <Text style={styles.scaleTagText}>
+                                        {editTourneyScale === 'K_TO_L' ? 'Thousands → Lakhs' : 'Lakhs → Crores'}
+                                    </Text>
+                                </View>
+                            </View>
+                            <View style={styles.richCardRow}>
                                 <TouchableOpacity
                                     style={[
-                                        styles.catPick,
-                                        editTourneyScale === 'L_TO_CR' && styles.catPickActive
+                                        styles.richSelectCard,
+                                        editTourneyScale === 'K_TO_L' && styles.richSelectCardPurple
                                     ]}
-                                    onPress={() => setEditTourneyScale('L_TO_CR')}
+                                    onPress={() => handleSwitchEditScale('K_TO_L')}
+                                    activeOpacity={0.8}
                                 >
-                                    <Text style={[
-                                        styles.catPickText,
-                                        editTourneyScale === 'L_TO_CR' && styles.catPickTextActive
-                                    ]}>L → Cr (IPL Scale)</Text>
+                                    <View style={styles.richCardTop}>
+                                        <Text style={styles.richCardTitle}>Thousands to Lakhs</Text>
+                                        <View style={[styles.unitPill, { backgroundColor: '#ede9fe' }]}>
+                                            <Text style={[styles.unitPillText, { color: '#5b21b6' }]}>K → L</Text>
+                                        </View>
+                                    </View>
+                                    <Text style={styles.richCardDesc}>
+                                        Bids in <Text style={{ fontWeight: '800', color: '#7c3aed' }}>Thousands (K)</Text>, Purse in{' '}
+                                        <Text style={{ fontWeight: '800', color: '#7c3aed' }}>Lakhs (L)</Text>. (Club scale)
+                                    </Text>
                                 </TouchableOpacity>
+
                                 <TouchableOpacity
                                     style={[
-                                        styles.catPick,
-                                        editTourneyScale === 'K_TO_L' && styles.catPickActive
+                                        styles.richSelectCard,
+                                        editTourneyScale === 'L_TO_CR' && styles.richSelectCardBlue
                                     ]}
-                                    onPress={() => setEditTourneyScale('K_TO_L')}
+                                    onPress={() => handleSwitchEditScale('L_TO_CR')}
+                                    activeOpacity={0.8}
                                 >
-                                    <Text style={[
-                                        styles.catPickText,
-                                        editTourneyScale === 'K_TO_L' && styles.catPickTextActive
-                                    ]}>K → L (Club Scale)</Text>
+                                    <View style={styles.richCardTop}>
+                                        <Text style={styles.richCardTitle}>Lakhs to Crores</Text>
+                                        <View style={[styles.unitPill, { backgroundColor: '#dbeafe' }]}>
+                                            <Text style={[styles.unitPillText, { color: '#1e40af' }]}>L → Cr</Text>
+                                        </View>
+                                    </View>
+                                    <Text style={styles.richCardDesc}>
+                                        Bids in <Text style={{ fontWeight: '800', color: '#2563eb' }}>Lakhs (L)</Text>, Purse in{' '}
+                                        <Text style={{ fontWeight: '800', color: '#2563eb' }}>Crores (Cr)</Text>. (IPL scale)
+                                    </Text>
                                 </TouchableOpacity>
                             </View>
 
-                            <Text style={styles.fieldLabel}>AUCTION DRIVING MODE</Text>
-                            <View style={styles.pickerRow}>
+                            {/* 5. Bidding Mode */}
+                            <Text style={[styles.fieldLabel, { marginTop: 12 }]}>BIDDING MODE</Text>
+                            <View style={styles.richCardRow}>
                                 <TouchableOpacity
                                     style={[
-                                        styles.catPick,
-                                        editTourneyAuctionType === 'owner_driven' && styles.catPickActive
+                                        styles.richSelectCard,
+                                        editTourneyAuctionType === 'owner_driven' && styles.richSelectCardBlue
                                     ]}
                                     onPress={() => setEditTourneyAuctionType('owner_driven')}
+                                    activeOpacity={0.8}
                                 >
-                                    <Text style={[
-                                        styles.catPickText,
-                                        editTourneyAuctionType === 'owner_driven' && styles.catPickTextActive
-                                    ]}>Team Owner Driven</Text>
+                                    <Text style={styles.richCardTitle}>Team Owners Bid</Text>
+                                    <Text style={[styles.richCardDesc, { marginTop: 3 }]}>
+                                        Real-time mobile & web bids.
+                                    </Text>
                                 </TouchableOpacity>
+
                                 <TouchableOpacity
                                     style={[
-                                        styles.catPick,
-                                        editTourneyAuctionType === 'admin_driven' && styles.catPickActive
+                                        styles.richSelectCard,
+                                        editTourneyAuctionType === 'admin_driven' && styles.richSelectCardBlue
                                     ]}
                                     onPress={() => setEditTourneyAuctionType('admin_driven')}
+                                    activeOpacity={0.8}
                                 >
-                                    <Text style={[
-                                        styles.catPickText,
-                                        editTourneyAuctionType === 'admin_driven' && styles.catPickTextActive
-                                    ]}>Admin Driven</Text>
+                                    <Text style={styles.richCardTitle}>Admin Bids</Text>
+                                    <Text style={[styles.richCardDesc, { marginTop: 3 }]}>
+                                        Auctioneer enters bids manually.
+                                    </Text>
                                 </TouchableOpacity>
                             </View>
 
-                            <Text style={styles.fieldLabel}>TOURNAMENT STATUS</Text>
-                            <View style={styles.pickerRow}>
-                                {(['upcoming', 'live', 'paused', 'completed'] as const).map(st => (
-                                    <TouchableOpacity
-                                        key={st}
-                                        style={[
-                                            styles.catPick,
-                                            editTourneyStatus === st && styles.catPickActive
-                                        ]}
-                                        onPress={() => setEditTourneyStatus(st)}
-                                    >
-                                        <Text style={[
-                                            styles.catPickText,
-                                            editTourneyStatus === st && styles.catPickTextActive
-                                        ]}>{st.toUpperCase()}</Text>
-                                    </TouchableOpacity>
-                                ))}
+                            {/* 6. Bid Increment Slabs Section */}
+                            <View style={styles.slabsBox}>
+                                <View style={styles.slabsHeader}>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                        <TrendingUp size={14} color="#2563eb" />
+                                        <Text style={styles.slabsTitle}>BID INCREMENT SLABS</Text>
+                                    </View>
+                                    <View style={styles.dynamicRulesBadge}>
+                                        <Text style={styles.dynamicRulesText}>Dynamic Rules</Text>
+                                    </View>
+                                </View>
+                                <Text style={styles.slabsSub}>
+                                    Configure how much bid increases at each price tier:
+                                </Text>
+
+                                <View style={styles.slabsGrid}>
+                                    {editTourneyBidRules.map((slab, idx) => (
+                                        <View key={idx} style={styles.slabItemCard}>
+                                            <Text style={styles.slabItemLabel} numberOfLines={1}>
+                                                {slab.label}
+                                            </Text>
+                                            <View style={styles.slabInputRow}>
+                                                <Text style={styles.slabCurrencyPrefix}>+₹</Text>
+                                                <TextInput
+                                                    style={styles.slabInput}
+                                                    keyboardType="numeric"
+                                                    value={String(slab.increment)}
+                                                    onChangeText={(txt) => {
+                                                        const val = parseInt(txt) || 0;
+                                                        setEditTourneyBidRules(prev => {
+                                                            const next = [...prev];
+                                                            next[idx] = { ...next[idx], increment: val };
+                                                            return next;
+                                                        });
+                                                    }}
+                                                />
+                                                <Text style={styles.slabUnitSuffix}>
+                                                    {editTourneyScale === 'K_TO_L' ? 'K' : 'L'}
+                                                </Text>
+                                            </View>
+                                        </View>
+                                    ))}
+                                </View>
                             </View>
+                        </ScrollView>
 
-                            <Text style={styles.fieldLabel}>DESCRIPTION / RULES</Text>
-                            <TextInput
-                                style={[styles.modalInput, { height: 75, textAlignVertical: 'top' }]}
-                                value={editTourneyDescription}
-                                onChangeText={setEditTourneyDescription}
-                                placeholder="Auction rules, venue, notes..."
-                                placeholderTextColor="#94a3b8"
-                                multiline
-                            />
-
+                        {/* Fixed Footer */}
+                        <View style={styles.editModalFooter}>
                             <TouchableOpacity
-                                style={[styles.modalSaveBtn, savingTourney && { opacity: 0.6 }]}
+                                style={styles.editModalCancelBtn}
+                                onPress={() => setEditTourneyModalVisible(false)}
+                                disabled={savingTourney}
+                            >
+                                <Text style={styles.editModalCancelText}>Cancel</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.editModalSubmitBtn, savingTourney && { opacity: 0.6 }]}
                                 onPress={handleSaveEditTournament}
                                 disabled={savingTourney}
                             >
                                 {savingTourney ? (
                                     <ActivityIndicator size="small" color="#ffffff" />
                                 ) : (
-                                    <>
-                                        <Save size={15} color="#ffffff" />
-                                        <Text style={styles.modalSaveBtnText}>Save Tournament Info</Text>
-                                    </>
+                                    <Text style={styles.editModalSubmitText}>Update Tournament</Text>
                                 )}
                             </TouchableOpacity>
-
-                            <TouchableOpacity
-                                style={styles.modalCancelBtn}
-                                onPress={() => setEditTourneyModalVisible(false)}
-                                disabled={savingTourney}
-                            >
-                                <Text style={styles.modalCancelBtnText}>Cancel</Text>
-                            </TouchableOpacity>
-                        </ScrollView>
+                        </View>
                     </View>
                 </KeyboardAvoidingView>
             </Modal>
@@ -2427,11 +2509,11 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                             <Text style={styles.fieldLabel}>PLAYER PHOTO (1:1 CROP & UPLOAD)</Text>
                             <View style={[styles.logoInputRow, { marginBottom: 12 }]}>
                                 <View style={styles.playerAvatarBox}>
-                                    {editPlayerImage ? (
-                                        <Image source={{ uri: editPlayerImage }} style={styles.playerAvatarImg} />
-                                    ) : (
-                                        <User size={22} color="#94a3b8" />
-                                    )}
+                                    <SafeImage
+                                        uri={editPlayerImage}
+                                        style={styles.playerAvatarImg}
+                                        fallback={<User size={22} color="#94a3b8" />}
+                                    />
                                 </View>
                                 <View style={{ flex: 1, gap: 6 }}>
                                     <TouchableOpacity style={styles.uploadBtnSmall} onPress={handlePickEditPlayerImage}>
@@ -3996,6 +4078,215 @@ const styles = StyleSheet.create({
         color: '#64748b',
         fontSize: 12,
         fontWeight: '700',
+    },
+    editTourneyIconBox: {
+        width: 34,
+        height: 34,
+        borderRadius: 10,
+        backgroundColor: '#eff6ff',
+        borderWidth: 1,
+        borderColor: '#dbeafe',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    fieldHeaderRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 4,
+    },
+    fixedAdminBadge: {
+        backgroundColor: '#eff6ff',
+        borderWidth: 1,
+        borderColor: '#dbeafe',
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 5,
+    },
+    fixedAdminText: {
+        fontSize: 9,
+        fontWeight: '800',
+        color: '#2563eb',
+    },
+    fieldHelperNote: {
+        fontSize: 10,
+        color: '#94a3b8',
+        fontWeight: '500',
+        marginBottom: 4,
+    },
+    scaleTagBadge: {
+        backgroundColor: '#faf5ff',
+        borderWidth: 1,
+        borderColor: '#e9d5ff',
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 5,
+    },
+    scaleTagText: {
+        fontSize: 9,
+        fontWeight: '800',
+        color: '#7e22ce',
+    },
+    richCardRow: {
+        flexDirection: 'row',
+        gap: 8,
+    },
+    richSelectCard: {
+        flex: 1,
+        padding: 10,
+        borderRadius: 12,
+        borderWidth: 1.5,
+        borderColor: '#e2e8f0',
+        backgroundColor: '#f8fafc',
+    },
+    richSelectCardPurple: {
+        backgroundColor: '#faf5ff',
+        borderColor: '#a855f7',
+    },
+    richSelectCardBlue: {
+        backgroundColor: '#eff6ff',
+        borderColor: '#3b82f6',
+    },
+    richCardTop: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 4,
+    },
+    richCardTitle: {
+        fontSize: 11,
+        fontWeight: '900',
+        color: '#0f172a',
+        flex: 1,
+    },
+    unitPill: {
+        paddingHorizontal: 5,
+        paddingVertical: 2,
+        borderRadius: 5,
+    },
+    unitPillText: {
+        fontSize: 9,
+        fontWeight: '900',
+    },
+    richCardDesc: {
+        fontSize: 9.5,
+        color: '#64748b',
+        lineHeight: 13,
+    },
+    slabsBox: {
+        marginTop: 14,
+        padding: 12,
+        backgroundColor: '#f8fafc',
+        borderWidth: 1,
+        borderColor: '#e2e8f0',
+        borderRadius: 14,
+    },
+    slabsHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 4,
+    },
+    slabsTitle: {
+        fontSize: 10,
+        fontWeight: '900',
+        color: '#0f172a',
+        letterSpacing: 0.5,
+    },
+    dynamicRulesBadge: {
+        backgroundColor: '#dbeafe',
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 5,
+    },
+    dynamicRulesText: {
+        fontSize: 9,
+        fontWeight: '800',
+        color: '#1d4ed8',
+    },
+    slabsSub: {
+        fontSize: 10,
+        color: '#64748b',
+        fontWeight: '500',
+        marginBottom: 10,
+    },
+    slabsGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+    },
+    slabItemCard: {
+        width: '48%',
+        backgroundColor: '#ffffff',
+        borderWidth: 1,
+        borderColor: '#e2e8f0',
+        borderRadius: 10,
+        padding: 8,
+    },
+    slabItemLabel: {
+        fontSize: 9.5,
+        fontWeight: '800',
+        color: '#475569',
+        marginBottom: 5,
+    },
+    slabInputRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+    },
+    slabCurrencyPrefix: {
+        fontSize: 11,
+        fontWeight: '800',
+        color: '#94a3b8',
+    },
+    slabInput: {
+        flex: 1,
+        backgroundColor: '#f8fafc',
+        borderWidth: 1,
+        borderColor: '#e2e8f0',
+        borderRadius: 6,
+        paddingHorizontal: 6,
+        paddingVertical: 4,
+        fontSize: 12,
+        fontWeight: '900',
+        color: '#0f172a',
+    },
+    slabUnitSuffix: {
+        fontSize: 10,
+        fontWeight: '800',
+        color: '#64748b',
+    },
+    editModalFooter: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        backgroundColor: '#f8fafc',
+        borderTopWidth: 1,
+        borderTopColor: '#f1f5f9',
+    },
+    editModalCancelBtn: {
+        paddingHorizontal: 14,
+        paddingVertical: 9,
+    },
+    editModalCancelText: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: '#64748b',
+    },
+    editModalSubmitBtn: {
+        backgroundColor: '#2563eb',
+        paddingHorizontal: 18,
+        paddingVertical: 10,
+        borderRadius: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    editModalSubmitText: {
+        color: '#ffffff',
+        fontSize: 12,
+        fontWeight: '900',
     },
 });
 

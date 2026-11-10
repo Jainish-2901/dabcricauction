@@ -15,6 +15,7 @@ import {
     Share
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
+import SafeImage from './SafeImage';
 import {
     KeyRound,
     Users,
@@ -221,7 +222,7 @@ export const ManageCredentialsModal: React.FC<ManageCredentialsModalProps> = ({
             username: formUsername.trim(),
             password: formPassword.trim(),
             captainName: formRole === 'team_owner' ? (captainName || formUsername).trim() : undefined,
-            captainPhoto: formRole === 'team_owner' ? (captainPhoto.trim() || undefined) : undefined,
+            captainPhoto: formRole === 'team_owner' ? captainPhoto.trim() : undefined,
             category: formRole === 'team_owner' ? category : undefined,
             battingStyle: formRole === 'team_owner' ? battingStyle : undefined,
             bowlingStyle: formRole === 'team_owner' ? bowlingStyle : undefined,
@@ -548,11 +549,11 @@ export const ManageCredentialsModal: React.FC<ManageCredentialsModalProps> = ({
                                                 <Text style={styles.inputLabel}>CAPTAIN PROFILE PHOTO (1:1 CROP)</Text>
                                                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#ffffff', padding: 10, borderRadius: 14, borderWidth: 1, borderColor: '#e2e8f0', marginBottom: 12 }}>
                                                     <View style={{ width: 54, height: 54, borderRadius: 16, backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#cbd5e1', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                                                        {captainPhoto ? (
-                                                            <Image source={{ uri: captainPhoto }} style={{ width: '100%', height: '100%' }} />
-                                                        ) : (
-                                                            <User size={24} color="#94a3b8" />
-                                                        )}
+                                                        <SafeImage
+                                                            uri={captainPhoto}
+                                                            style={{ width: '100%', height: '100%' }}
+                                                            fallback={<User size={24} color="#94a3b8" />}
+                                                        />
                                                     </View>
                                                     <View style={{ flex: 1, gap: 6 }}>
                                                         <TouchableOpacity

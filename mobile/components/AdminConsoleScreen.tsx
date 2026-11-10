@@ -13,6 +13,7 @@ import {
     Modal,
     TextInput
 } from 'react-native';
+import SafeImage from './SafeImage';
 import {
     Play,
     Pause,
@@ -1007,11 +1008,11 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                                         ]}
                                     >
                                         <View style={styles.poolPlayerAvatar}>
-                                            {p.image ? (
-                                                <Image source={{ uri: p.image }} style={styles.poolPlayerAvatarImg} />
-                                            ) : (
-                                                <Text style={styles.poolPlayerInitial}>{p.name?.substring(0, 1) || 'P'}</Text>
-                                            )}
+                                            <SafeImage
+                                                uri={p.image}
+                                                style={styles.poolPlayerAvatarImg}
+                                                fallback={<Text style={styles.poolPlayerInitial}>{p.name?.substring(0, 1) || 'P'}</Text>}
+                                            />
                                         </View>
 
                                         <View style={{ flex: 1 }}>
@@ -1164,11 +1165,11 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                     <View style={styles.card}>
                         <View style={styles.playerStage}>
                             <View style={styles.avatarBox}>
-                                {currentPlayer.image ? (
-                                    <Image source={{ uri: currentPlayer.image }} style={styles.avatar} />
-                                ) : (
-                                    <Users size={32} color="#94a3b8" />
-                                )}
+                                <SafeImage
+                                    uri={currentPlayer.image}
+                                    style={styles.avatar}
+                                    fallback={<Users size={32} color="#94a3b8" />}
+                                />
                             </View>
                             <Text style={styles.playerName}>{currentPlayer.name}</Text>
                             <View style={styles.badgeRow}>
@@ -1239,9 +1240,7 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                             <Text style={styles.bidBoxAmount}>₹ {currentBid} <Text style={styles.bidBoxUnit}>{smallUnit}</Text></Text>
                             {leadTeam ? (
                                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 4 }}>
-                                    {leadTeam.logo ? (
-                                        <Image source={{ uri: leadTeam.logo }} style={{ width: 18, height: 18, borderRadius: 4, resizeMode: 'contain' }} />
-                                    ) : null}
+                                    <SafeImage uri={leadTeam.logo} style={{ width: 18, height: 18, borderRadius: 4, resizeMode: 'contain' }} />
                                     <Text style={styles.leaderHighlight}>
                                         Leader: <Text style={styles.leaderName}>{leadTeam.name}</Text>
                                     </Text>
@@ -1419,11 +1418,11 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                             >
                                 <View style={styles.teamLeft}>
                                     <View style={styles.teamTag}>
-                                        {t.logo ? (
-                                            <Image source={{ uri: t.logo }} style={{ width: '100%', height: '100%', resizeMode: 'contain' }} />
-                                        ) : (
-                                            <Text style={styles.teamTagText}>{t.shortName || t.name.substring(0, 2)}</Text>
-                                        )}
+                                        <SafeImage
+                                            uri={t.logo}
+                                            style={{ width: '100%', height: '100%', resizeMode: 'contain' }}
+                                            fallback={<Text style={styles.teamTagText}>{t.shortName || t.name.substring(0, 2)}</Text>}
+                                        />
                                     </View>
                                     <View style={{ flex: 1 }}>
                                         <Text style={styles.teamRowName}>{t.name}</Text>
@@ -1732,13 +1731,15 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                                 <View style={styles.squadModalHeader}>
                                     <View style={styles.squadModalTeamRow}>
                                         <View style={styles.squadModalLogo}>
-                                            {viewingTeam.logo ? (
-                                                <Image source={{ uri: viewingTeam.logo }} style={{ width: '100%', height: '100%', resizeMode: 'contain' }} />
-                                            ) : (
-                                                <Text style={styles.squadModalLogoText}>
-                                                    {viewingTeam.shortName || viewingTeam.name.substring(0, 2)}
-                                                </Text>
-                                            )}
+                                            <SafeImage
+                                                uri={viewingTeam.logo}
+                                                style={{ width: '100%', height: '100%', resizeMode: 'contain' }}
+                                                fallback={
+                                                    <Text style={styles.squadModalLogoText}>
+                                                        {viewingTeam.shortName || viewingTeam.name.substring(0, 2)}
+                                                    </Text>
+                                                }
+                                            />
                                         </View>
                                         <View style={{ flex: 1, marginLeft: 10 }}>
                                             <Text style={styles.squadModalTitle}>{viewingTeam.name}</Text>
@@ -1843,16 +1844,15 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                                     </Text>
                                 </View>
 
-                                {announcementModal.player?.image ? (
-                                    <Image
-                                        source={{ uri: announcementModal.player.image }}
-                                        style={{ width: 88, height: 88, borderRadius: 16, marginBottom: 12 }}
-                                    />
-                                ) : (
-                                    <View style={{ width: 88, height: 88, borderRadius: 16, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
-                                        <Users size={36} color="#94a3b8" />
-                                    </View>
-                                )}
+                                <SafeImage
+                                    uri={announcementModal.player?.image}
+                                    style={{ width: 88, height: 88, borderRadius: 16, marginBottom: 12 }}
+                                    fallback={
+                                        <View style={{ width: 88, height: 88, borderRadius: 16, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+                                            <Users size={36} color="#94a3b8" />
+                                        </View>
+                                    }
+                                />
 
                                 <Text style={{ fontSize: 20, fontWeight: '900', color: '#0f172a', textAlign: 'center', marginBottom: 4 }}>
                                     {announcementModal.player?.name}
@@ -1864,9 +1864,7 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                                 {announcementModal.type === 'sold' ? (
                                     <View style={{ width: '100%', padding: 14, backgroundColor: '#f0fdf4', borderRadius: 16, borderWidth: 1, borderColor: '#bbf7d0', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, marginRight: 8 }}>
-                                            {announcementModal.team?.logo ? (
-                                                <Image source={{ uri: announcementModal.team.logo }} style={{ width: 34, height: 34, borderRadius: 8, resizeMode: 'contain', backgroundColor: '#ffffff' }} />
-                                            ) : null}
+                                            <SafeImage uri={announcementModal.team?.logo} style={{ width: 34, height: 34, borderRadius: 8, resizeMode: 'contain', backgroundColor: '#ffffff' }} />
                                             <View style={{ flex: 1 }}>
                                                 <Text style={{ fontSize: 10, fontWeight: '800', color: '#16a34a', textTransform: 'uppercase' }}>Sold To</Text>
                                                 <Text style={{ fontSize: 15, fontWeight: '900', color: '#0f172a' }} numberOfLines={1}>{announcementModal.team?.name || 'Winner'}</Text>

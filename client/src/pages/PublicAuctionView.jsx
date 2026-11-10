@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import socket from '../socket';
 import { getBudgetUnits } from '../utils/currency';
+import SafeImage from '../components/SafeImage';
 
 const PublicAuctionView = () => {
     const { tournamentId } = useParams();
@@ -470,11 +471,12 @@ const PublicAuctionView = () => {
 
                                     <div className="relative z-10 flex flex-col md:flex-row gap-8 items-center md:items-start">
                                         <div className="w-44 h-44 md:w-56 md:h-56 rounded-2xl border-2 border-slate-200 p-2 shadow-sm bg-slate-50 overflow-hidden shrink-0">
-                                            {currentPlayer.image ? (
-                                                <img src={currentPlayer.image} alt={currentPlayer.name} className="w-full h-full rounded-xl object-cover" />
-                                            ) : (
-                                                <div className="w-full h-full flex items-center justify-center text-slate-400"><User className="w-20 h-20" /></div>
-                                            )}
+                                            <SafeImage
+                                                src={currentPlayer.image}
+                                                alt={currentPlayer.name}
+                                                className="w-full h-full rounded-xl object-cover"
+                                                fallback={<div className="w-full h-full flex items-center justify-center text-slate-400"><User className="w-20 h-20" /></div>}
+                                            />
                                         </div>
 
                                         <div className="flex-1 text-center md:text-left pt-2">
@@ -554,7 +556,7 @@ const PublicAuctionView = () => {
                                                         <p className="text-lg font-black text-slate-900 leading-none">{currentLeadTeam.name}</p>
                                                     </div>
                                                     <div className="w-14 h-14 bg-white rounded-xl flex items-center justify-center font-black text-base text-blue-700 shadow-sm border border-slate-200 uppercase overflow-hidden">
-                                                        {currentLeadTeam.logo ? <img src={currentLeadTeam.logo} className="w-full h-full object-cover" /> : (currentLeadTeam.shortName || 'TM')}
+                                                        <SafeImage src={currentLeadTeam.logo} alt={currentLeadTeam.name || 'Team'} className="w-full h-full object-cover" fallback={currentLeadTeam.shortName || 'TM'} />
                                                     </div>
                                                 </div>
                                             ) : (
@@ -605,7 +607,7 @@ const PublicAuctionView = () => {
                                         <div key={i} className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-xl">
                                             <div className="flex items-center gap-2.5">
                                                 <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold text-slate-700 shadow-2xs bg-white border border-slate-200 overflow-hidden">
-                                                    {bid.team?.logo ? <img src={bid.team.logo} className="w-full h-full object-cover" /> : (bid.team?.shortName || 'TM')}
+                                                    <SafeImage src={bid.team?.logo} alt={bid.team?.name || 'Team'} className="w-full h-full object-cover" fallback={bid.team?.shortName || 'TM'} />
                                                 </div>
                                                 <div>
                                                     <span className="font-bold text-slate-900 block text-xs">{bid.team?.name || 'Unknown Team'}</span>
@@ -642,11 +644,12 @@ const PublicAuctionView = () => {
                                     <div>
                                         <div className="flex items-center gap-3.5 mb-4">
                                             <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white font-black flex items-center justify-center text-xl shadow-xs uppercase overflow-hidden shrink-0">
-                                                {t.logo ? (
-                                                    <img src={t.logo} alt={t.name} className="w-full h-full object-cover" />
-                                                ) : (
-                                                    t.shortName || t.name?.substring(0, 2)
-                                                )}
+                                                <SafeImage
+                                                    src={t.logo}
+                                                    alt={t.name}
+                                                    className="w-full h-full object-cover"
+                                                    fallback={t.shortName || t.name?.substring(0, 2)}
+                                                />
                                             </div>
                                             <div>
                                                 <h3 className="font-black text-base text-slate-900 leading-snug">{t.name}</h3>
@@ -715,7 +718,7 @@ const PublicAuctionView = () => {
                                         <tr key={p._id} className="hover:bg-slate-50 transition-colors">
                                             <td className="p-3.5 font-bold text-slate-900 flex items-center gap-3">
                                                 <div className="w-9 h-9 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center shrink-0">
-                                                    {p.image ? <img src={p.image} className="w-full h-full object-cover" /> : <User size={16} className="text-slate-400" />}
+                                                    <SafeImage src={p.image} alt={p.name} className="w-full h-full object-cover" fallback={<User size={16} className="text-slate-400" />} />
                                                 </div>
                                                 <span className="font-black text-sm">{p.name}</span>
                                             </td>
@@ -727,7 +730,7 @@ const PublicAuctionView = () => {
                                             <td className="p-3.5 font-bold text-blue-700">
                                                 <div className="flex items-center gap-2">
                                                     <div className="w-6 h-6 rounded-md bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center text-[10px] font-black text-slate-700">
-                                                        {buyerTeam?.logo ? <img src={buyerTeam.logo} className="w-full h-full object-cover" /> : (buyerTeam?.shortName || 'TM')}
+                                                        <SafeImage src={buyerTeam?.logo} alt={buyerTeam?.name || 'Team'} className="w-full h-full object-cover" fallback={buyerTeam?.shortName || 'TM'} />
                                                     </div>
                                                     <span>{buyerTeam?.name || 'Assigned Team'}</span>
                                                 </div>
@@ -773,7 +776,7 @@ const PublicAuctionView = () => {
                                     <tr key={p._id} className="hover:bg-slate-50 transition-colors">
                                         <td className="p-3.5 font-bold text-slate-900 flex items-center gap-3">
                                             <div className="w-9 h-9 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center shrink-0">
-                                                {p.image ? <img src={p.image} className="w-full h-full object-cover grayscale" /> : <User size={16} className="text-slate-400" />}
+                                                <SafeImage src={p.image} alt={p.name} className="w-full h-full object-cover grayscale" fallback={<User size={16} className="text-slate-400" />} />
                                             </div>
                                             <div>
                                                 <span className="font-black text-sm block">{p.name}</span>
@@ -811,11 +814,12 @@ const PublicAuctionView = () => {
                         <div className="p-5 md:p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
                             <div className="flex items-center gap-3.5">
                                 <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white font-black flex items-center justify-center text-lg shadow-xs uppercase overflow-hidden">
-                                    {viewingTeam.logo ? (
-                                        <img src={viewingTeam.logo} alt={viewingTeam.name} className="w-full h-full object-cover" />
-                                    ) : (
-                                        viewingTeam.shortName || viewingTeam.name?.substring(0, 2)
-                                    )}
+                                    <SafeImage
+                                        src={viewingTeam.logo}
+                                        alt={viewingTeam.name}
+                                        className="w-full h-full object-cover"
+                                        fallback={viewingTeam.shortName || viewingTeam.name?.substring(0, 2)}
+                                    />
                                 </div>
                                 <div>
                                     <h3 className="text-lg md:text-xl font-black text-slate-900 flex items-center gap-2">
@@ -863,11 +867,12 @@ const PublicAuctionView = () => {
                                                     <div className="p-3.5 bg-amber-50/80 border-b border-amber-200/90 flex items-center justify-between gap-3">
                                                         <div className="flex items-center gap-3">
                                                             <div className="w-10 h-10 rounded-xl bg-amber-100 border border-amber-300 overflow-hidden flex items-center justify-center shrink-0">
-                                                                {viewingTeam.captainPhoto ? (
-                                                                    <img src={viewingTeam.captainPhoto} alt="Captain" className="w-full h-full object-cover" />
-                                                                ) : (
-                                                                    <Crown className="w-5 h-5 text-amber-600" />
-                                                                )}
+                                                                <SafeImage
+                                                                    src={viewingTeam.captainPhoto}
+                                                                    alt="Captain"
+                                                                    className="w-full h-full object-cover"
+                                                                    fallback={<Crown className="w-5 h-5 text-amber-600" />}
+                                                                />
                                                             </div>
                                                             <div>
                                                                 <div className="flex items-center gap-1.5">
@@ -889,11 +894,12 @@ const PublicAuctionView = () => {
                                                     <div key={p._id || idx} className="p-3.5 hover:bg-slate-50/80 transition-colors flex items-center justify-between gap-3">
                                                         <div className="flex items-center gap-3">
                                                             <div className="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center shrink-0">
-                                                                {p.image ? (
-                                                                    <img src={p.image} alt={p.name} className="w-full h-full object-cover" />
-                                                                ) : (
-                                                                    <User className="w-5 h-5 text-slate-400" />
-                                                                )}
+                                                                <SafeImage
+                                                                    src={p.image}
+                                                                    alt={p.name}
+                                                                    className="w-full h-full object-cover"
+                                                                    fallback={<User className="w-5 h-5 text-slate-400" />}
+                                                                />
                                                             </div>
                                                             <div>
                                                                 <h4 className="text-sm font-bold text-slate-900 leading-snug">{p.name}</h4>
@@ -977,13 +983,16 @@ const PublicAuctionView = () => {
 
                                     {/* Player image */}
                                     <div className="w-28 h-28 mx-auto rounded-2xl border-4 border-emerald-200 overflow-hidden shadow-md bg-slate-100 mb-3">
-                                        {announcementModal.player?.image ? (
-                                            <img src={announcementModal.player.image} alt={announcementModal.player.name} className="w-full h-full object-cover" />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center text-slate-400">
-                                                <User className="w-12 h-12" />
-                                            </div>
-                                        )}
+                                        <SafeImage
+                                            src={announcementModal.player?.image}
+                                            alt={announcementModal.player?.name}
+                                            className="w-full h-full object-cover"
+                                            fallback={
+                                                <div className="w-full h-full flex items-center justify-center text-slate-400">
+                                                    <User className="w-12 h-12" />
+                                                </div>
+                                            }
+                                        />
                                     </div>
 
                                     <h3 className="text-2xl font-black text-slate-900">{announcementModal.player?.name}</h3>
@@ -995,11 +1004,12 @@ const PublicAuctionView = () => {
                                     <div className="mt-5 p-4 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200 flex items-center justify-between">
                                         <div className="flex items-center gap-3 text-left">
                                             <div className="w-12 h-12 rounded-xl bg-white border border-emerald-200 flex items-center justify-center text-slate-800 font-black text-sm shadow-2xs overflow-hidden shrink-0">
-                                                {announcementModal.team?.logo ? (
-                                                    <img src={announcementModal.team.logo} alt={announcementModal.team.name} className="w-full h-full object-cover" />
-                                                ) : (
-                                                    announcementModal.team?.shortName || announcementModal.team?.name?.substring(0, 2)
-                                                )}
+                                                <SafeImage
+                                                    src={announcementModal.team?.logo}
+                                                    alt={announcementModal.team?.name}
+                                                    className="w-full h-full object-cover"
+                                                    fallback={announcementModal.team?.shortName || announcementModal.team?.name?.substring(0, 2)}
+                                                />
                                             </div>
                                             <div>
                                                 <span className="text-[10px] font-extrabold uppercase text-emerald-700 tracking-wider block">Sold To</span>
@@ -1023,13 +1033,16 @@ const PublicAuctionView = () => {
                                     </div>
 
                                     <div className="w-24 h-24 mx-auto rounded-2xl border-4 border-amber-200 overflow-hidden shadow-md bg-slate-100 mb-3">
-                                        {announcementModal.player?.image ? (
-                                            <img src={announcementModal.player.image} alt={announcementModal.player.name} className="w-full h-full object-cover grayscale" />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center text-slate-400">
-                                                <User className="w-10 h-10" />
-                                            </div>
-                                        )}
+                                        <SafeImage
+                                            src={announcementModal.player?.image}
+                                            alt={announcementModal.player?.name}
+                                            className="w-full h-full object-cover grayscale"
+                                            fallback={
+                                                <div className="w-full h-full flex items-center justify-center text-slate-400">
+                                                    <User className="w-10 h-10" />
+                                                </div>
+                                            }
+                                        />
                                     </div>
 
                                     <h3 className="text-2xl font-black text-slate-900">{announcementModal.player?.name}</h3>

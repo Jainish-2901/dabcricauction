@@ -28,6 +28,7 @@ import {
 } from 'lucide-react-native';
 import socket from '../lib/socket';
 import { apiFetch } from '../lib/api';
+import SafeImage from './SafeImage';
 import { getBudgetUnits } from '../lib/currency';
 
 export interface SpectatorScreenProps {
@@ -392,11 +393,11 @@ export const SpectatorScreen: React.FC<SpectatorScreenProps> = ({
 
                             <View style={styles.playerSection}>
                                 <View style={styles.avatar}>
-                                    {currentPlayer.image ? (
-                                        <Image source={{ uri: currentPlayer.image }} style={styles.avatarImg} />
-                                    ) : (
-                                        <Users size={36} color="#94a3b8" />
-                                    )}
+                                    <SafeImage
+                                        uri={currentPlayer.image}
+                                        style={styles.avatarImg}
+                                        fallback={<Users size={36} color="#94a3b8" />}
+                                    />
                                 </View>
 
                                 <Text style={styles.playerName}>{currentPlayer.name}</Text>
@@ -460,11 +461,11 @@ export const SpectatorScreen: React.FC<SpectatorScreenProps> = ({
                             bidHistory.map((b, i) => (
                                 <View key={i} style={styles.streamRow}>
                                     <View style={styles.streamTeamBadge}>
-                                        {b.team?.logo ? (
-                                            <Image source={{ uri: b.team.logo }} style={{ width: '100%', height: '100%', resizeMode: 'contain' }} />
-                                        ) : (
-                                            <Text style={styles.streamTeamBadgeTxt}>{b.team?.shortName || b.team?.name?.substring(0, 2) || 'TM'}</Text>
-                                        )}
+                                        <SafeImage
+                                            uri={b.team?.logo}
+                                            style={{ width: '100%', height: '100%', resizeMode: 'contain' }}
+                                            fallback={<Text style={styles.streamTeamBadgeTxt}>{b.team?.shortName || b.team?.name?.substring(0, 2) || 'TM'}</Text>}
+                                        />
                                     </View>
                                     <View style={styles.streamInfo}>
                                         <Text style={styles.streamTeamName}>{b.team?.name || 'Competitor'}</Text>
@@ -497,11 +498,11 @@ export const SpectatorScreen: React.FC<SpectatorScreenProps> = ({
                                     >
                                         <View style={styles.teamCardLeft}>
                                             <View style={styles.teamCardLogo}>
-                                                {t.logo ? (
-                                                    <Image source={{ uri: t.logo }} style={{ width: '100%', height: '100%', resizeMode: 'contain' }} />
-                                                ) : (
-                                                    <Text style={styles.teamCardLogoTxt}>{t.shortName || t.name.substring(0, 2)}</Text>
-                                                )}
+                                                <SafeImage
+                                                    uri={t.logo}
+                                                    style={{ width: '100%', height: '100%', resizeMode: 'contain' }}
+                                                    fallback={<Text style={styles.teamCardLogoTxt}>{t.shortName || t.name.substring(0, 2)}</Text>}
+                                                />
                                             </View>
                                             <View>
                                                 <Text style={styles.teamCardName}>{t.name}</Text>
@@ -608,13 +609,15 @@ export const SpectatorScreen: React.FC<SpectatorScreenProps> = ({
                                 <View style={styles.modalHeader}>
                                     <View style={styles.modalTeamRow}>
                                         <View style={styles.modalTeamLogo}>
-                                            {viewingTeam.logo ? (
-                                                <Image source={{ uri: viewingTeam.logo }} style={{ width: '100%', height: '100%', resizeMode: 'contain' }} />
-                                            ) : (
-                                                <Text style={styles.modalTeamLogoText}>
-                                                    {viewingTeam.shortName || viewingTeam.name.substring(0, 2)}
-                                                </Text>
-                                            )}
+                                            <SafeImage
+                                                uri={viewingTeam.logo}
+                                                style={{ width: '100%', height: '100%', resizeMode: 'contain' }}
+                                                fallback={
+                                                    <Text style={styles.modalTeamLogoText}>
+                                                        {viewingTeam.shortName || viewingTeam.name.substring(0, 2)}
+                                                    </Text>
+                                                }
+                                            />
                                         </View>
                                         <View style={{ flex: 1, marginLeft: 10 }}>
                                             <Text style={styles.modalTeamName}>{viewingTeam.name}</Text>
@@ -647,11 +650,11 @@ export const SpectatorScreen: React.FC<SpectatorScreenProps> = ({
                                             {viewingTeam.isOwnerCaptain && (
                                                 <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#fef3c7', padding: 10, borderRadius: 12, marginBottom: 10, borderWidth: 1, borderColor: '#fde68a' }}>
                                                     <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: '#fde68a', overflow: 'hidden', alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
-                                                        {viewingTeam.captainPhoto ? (
-                                                            <Image source={{ uri: viewingTeam.captainPhoto }} style={{ width: 34, height: 34, borderRadius: 10 }} />
-                                                        ) : (
-                                                            <Crown size={16} color="#b45309" />
-                                                        )}
+                                                        <SafeImage
+                                                            uri={viewingTeam.captainPhoto}
+                                                            style={{ width: 34, height: 34, borderRadius: 10 }}
+                                                            fallback={<Crown size={16} color="#b45309" />}
+                                                        />
                                                     </View>
                                                     <View style={{ flex: 1 }}>
                                                         <Text style={{ fontSize: 13, fontWeight: '900', color: '#78350f' }}>
@@ -676,11 +679,11 @@ export const SpectatorScreen: React.FC<SpectatorScreenProps> = ({
                                                 teamPlayers.map((p, idx) => (
                                                     <View key={p._id || idx} style={styles.modalPlayerRow}>
                                                         <View style={styles.modalPlayerAvatar}>
-                                                            {p.image ? (
-                                                                <Image source={{ uri: p.image }} style={{ width: 32, height: 32, borderRadius: 8 }} />
-                                                            ) : (
-                                                                <Users size={16} color="#94a3b8" />
-                                                            )}
+                                                            <SafeImage
+                                                                uri={p.image}
+                                                                style={{ width: 32, height: 32, borderRadius: 8 }}
+                                                                fallback={<Users size={16} color="#94a3b8" />}
+                                                            />
                                                         </View>
                                                         <View style={{ flex: 1 }}>
                                                             <Text style={styles.modalPlayerName}>{p.name}</Text>
@@ -743,16 +746,15 @@ export const SpectatorScreen: React.FC<SpectatorScreenProps> = ({
                                     </Text>
                                 </View>
 
-                                {announcementModal.player?.image ? (
-                                    <Image
-                                        source={{ uri: announcementModal.player.image }}
-                                        style={{ width: 88, height: 88, borderRadius: 16, marginBottom: 12 }}
-                                    />
-                                ) : (
-                                    <View style={{ width: 88, height: 88, borderRadius: 16, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
-                                        <Users size={36} color="#94a3b8" />
-                                    </View>
-                                )}
+                                <SafeImage
+                                    uri={announcementModal.player?.image}
+                                    style={{ width: 88, height: 88, borderRadius: 16, marginBottom: 12 }}
+                                    fallback={
+                                        <View style={{ width: 88, height: 88, borderRadius: 16, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+                                            <Users size={36} color="#94a3b8" />
+                                        </View>
+                                    }
+                                />
 
                                 <Text style={{ fontSize: 20, fontWeight: '900', color: '#0f172a', textAlign: 'center', marginBottom: 4 }}>
                                     {announcementModal.player?.name}
@@ -764,9 +766,7 @@ export const SpectatorScreen: React.FC<SpectatorScreenProps> = ({
                                 {announcementModal.type === 'sold' ? (
                                     <View style={{ width: '100%', padding: 14, backgroundColor: '#f0fdf4', borderRadius: 16, borderWidth: 1, borderColor: '#bbf7d0', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, marginRight: 8 }}>
-                                            {announcementModal.team?.logo ? (
-                                                <Image source={{ uri: announcementModal.team.logo }} style={{ width: 34, height: 34, borderRadius: 8, resizeMode: 'contain', backgroundColor: '#ffffff' }} />
-                                            ) : null}
+                                            <SafeImage uri={announcementModal.team?.logo} style={{ width: 34, height: 34, borderRadius: 8, resizeMode: 'contain', backgroundColor: '#ffffff' }} />
                                             <View style={{ flex: 1 }}>
                                                 <Text style={{ fontSize: 10, fontWeight: '800', color: '#16a34a', textTransform: 'uppercase' }}>Sold To</Text>
                                                 <Text style={{ fontSize: 15, fontWeight: '900', color: '#0f172a' }} numberOfLines={1}>{announcementModal.team?.name || 'Winner'}</Text>
