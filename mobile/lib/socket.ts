@@ -27,7 +27,8 @@ setInterval(async () => {
 // Auto Reconnect when App comes back to foreground
 AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
     if (nextAppState === 'active') {
-        if (!socket.connected) {
+        const url = getApiUrl();
+        if (url && !socket.connected) {
             console.log('[Socket] App became active, reconnecting...');
             socket.connect();
         }

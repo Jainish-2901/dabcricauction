@@ -1,7 +1,7 @@
 import socket from './socket';
 import { supabase } from './supabase';
 
-const USE_SUPABASE = process.env.EXPO_PUBLIC_USE_SUPABASE === 'true';
+const USE_SUPABASE = process.env.EXPO_PUBLIC_USE_SUPABASE !== 'false'; // Default to Supabase Realtime
 
 export interface AuctionHandlers {
     onNewPlayer?: (player: any) => void;

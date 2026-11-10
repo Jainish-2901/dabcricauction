@@ -29,6 +29,7 @@ import {
     Zap,
     Maximize2,
     X,
+    Menu,
     Code2
 } from 'lucide-react';
 
@@ -36,6 +37,7 @@ const LandingPage = () => {
     const navigate = useNavigate();
     const [spectatorCode, setSpectatorCode] = useState('');
     const [imageModalOpen, setImageModalOpen] = useState(false);
+    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
     const handleJoinSpectator = (e) => {
         e.preventDefault();
@@ -56,63 +58,140 @@ const LandingPage = () => {
             </div>
 
             {/* Top Navigation Bar */}
-            <nav className="relative z-50 flex items-center justify-between px-5 md:px-8 py-3.5 max-w-7xl mx-auto backdrop-blur-md bg-white/85 rounded-2xl border border-slate-200/80 sticky top-4 shadow-sm mt-4">
-                <div className="flex items-center gap-3">
-                    <img
-                        src="/logo.png"
-                        alt="Dab Cric Auction"
-                        className="w-10 h-10 rounded-xl object-contain bg-white border border-slate-200/80 p-0.5 shadow-sm"
-                    />
-                    <div>
-                        <span className="text-xl font-black tracking-tight text-slate-900">
-                            Dab Cric <span className="text-blue-600">Auction</span>
-                        </span>
-                        <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-semibold">
-                            <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                            Live Auction Cloud Platform
+            <nav className="relative z-50 px-3.5 sm:px-6 py-2.5 sm:py-3.5 max-w-7xl mx-3 sm:mx-auto backdrop-blur-md bg-white/90 rounded-2xl border border-slate-200 shadow-xs sticky top-3 sm:top-4 mt-3 sm:mt-4 transition-all">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5 sm:gap-3">
+                        <img
+                            src="/logo.png"
+                            alt="Dab Cric Auction"
+                            className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl object-contain bg-white border border-slate-200 p-0.5 shadow-2xs"
+                        />
+                        <div>
+                            <span className="text-base sm:text-xl font-black tracking-tight text-slate-900">
+                                Dab Cric <span className="text-blue-600">Auction</span>
+                            </span>
+                            <div className="hidden sm:flex items-center gap-1.5 text-[11px] text-slate-500 font-semibold">
+                                <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                                Live Auction Cloud Platform
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                <div className="hidden lg:flex items-center gap-6 text-sm font-semibold text-slate-600">
-                    <a href="#services" className="hover:text-blue-600 transition-colors">Our Services</a>
-                    <a href="#how-it-works" className="hover:text-blue-600 transition-colors">How It Works</a>
-                    <a href="#cross-platform" className="hover:text-blue-600 transition-colors">Cross-Platform</a>
-                    <a href="#developer" className="hover:text-blue-600 transition-colors">Developer</a>
-                </div>
-
-                <div className="flex items-center gap-2.5">
-                    <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 rounded-lg text-xs font-bold text-slate-600">
-                        <Monitor className="w-3.5 h-3.5 text-blue-600" />
-                        <span>Web</span>
-                        <span className="text-slate-300">|</span>
-                        <Smartphone className="w-3.5 h-3.5 text-indigo-600" />
-                        <span>Mobile App</span>
+                    {/* Desktop Navigation Links */}
+                    <div className="hidden lg:flex items-center gap-6 text-sm font-semibold text-slate-600">
+                        <a href="#services" className="hover:text-blue-600 transition-colors">Our Services</a>
+                        <a href="#how-it-works" className="hover:text-blue-600 transition-colors">How It Works</a>
+                        <a href="#cross-platform" className="hover:text-blue-600 transition-colors">Cross-Platform</a>
+                        <a href="#developer" className="hover:text-blue-600 transition-colors">Developer</a>
                     </div>
-                    <Link
-                        to="/register"
-                        className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs border border-slate-200 transition-all"
-                    >
-                        Host Register
-                    </Link>
-                    <Link
-                        to="/login"
-                        className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-sm hover:shadow-md transition-all flex items-center gap-1"
-                    >
-                        Sign In
-                    </Link>
+
+                    {/* Right Action Buttons */}
+                    <div className="flex items-center gap-1.5 sm:gap-2.5">
+                        <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 rounded-lg text-xs font-bold text-slate-600">
+                            <Monitor className="w-3.5 h-3.5 text-blue-600" />
+                            <span>Web</span>
+                            <span className="text-slate-300">|</span>
+                            <Smartphone className="w-3.5 h-3.5 text-indigo-600" />
+                            <span>Mobile App</span>
+                        </div>
+                        <Link
+                            to="/register"
+                            className="hidden sm:inline-flex px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs border border-slate-200 transition-all"
+                        >
+                            Host Register
+                        </Link>
+                        <Link
+                            to="/login"
+                            className="px-3.5 sm:px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs hover:shadow-md transition-all flex items-center gap-1.5"
+                        >
+                            <span>Sign In</span>
+                            <ArrowRight className="w-3.5 h-3.5 hidden sm:inline" />
+                        </Link>
+
+                        {/* Mobile Hamburger Menu Toggle */}
+                        <button
+                            type="button"
+                            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                            className="lg:hidden p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition-all ml-0.5"
+                            aria-label="Toggle navigation menu"
+                        >
+                            {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+                        </button>
+                    </div>
                 </div>
+
+                {/* Mobile Dropdown Navigation Drawer */}
+                <AnimatePresence>
+                    {mobileMenuOpen && (
+                        <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            transition={{ duration: 0.2 }}
+                            className="lg:hidden overflow-hidden pt-3 mt-3 border-t border-slate-200/90"
+                        >
+                            <div className="flex flex-col gap-1 pb-3 text-sm font-semibold text-slate-700">
+                                <a
+                                    href="#services"
+                                    onClick={() => setMobileMenuOpen(false)}
+                                    className="px-3 py-2 rounded-xl hover:bg-slate-100 transition-colors flex items-center justify-between"
+                                >
+                                    <span>⚡ Our Services</span>
+                                    <ChevronRight className="w-4 h-4 text-slate-400" />
+                                </a>
+                                <a
+                                    href="#how-it-works"
+                                    onClick={() => setMobileMenuOpen(false)}
+                                    className="px-3 py-2 rounded-xl hover:bg-slate-100 transition-colors flex items-center justify-between"
+                                >
+                                    <span>🔄 How It Works</span>
+                                    <ChevronRight className="w-4 h-4 text-slate-400" />
+                                </a>
+                                <a
+                                    href="#cross-platform"
+                                    onClick={() => setMobileMenuOpen(false)}
+                                    className="px-3 py-2 rounded-xl hover:bg-slate-100 transition-colors flex items-center justify-between"
+                                >
+                                    <span>📱 Cross-Platform Cloud</span>
+                                    <ChevronRight className="w-4 h-4 text-slate-400" />
+                                </a>
+                                <a
+                                    href="#developer"
+                                    onClick={() => setMobileMenuOpen(false)}
+                                    className="px-3 py-2 rounded-xl hover:bg-slate-100 transition-colors flex items-center justify-between"
+                                >
+                                    <span>👨‍💻 Developer Profile & Contact</span>
+                                    <ChevronRight className="w-4 h-4 text-slate-400" />
+                                </a>
+                            </div>
+
+                            <div className="pt-2 pb-1 border-t border-slate-100 flex flex-col gap-2">
+                                <Link
+                                    to="/register"
+                                    onClick={() => setMobileMenuOpen(false)}
+                                    className="w-full text-center py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl border border-slate-200 transition-all"
+                                >
+                                    Create Tournament Host Account
+                                </Link>
+                                <div className="flex items-center justify-center gap-2 py-1 text-[11px] text-slate-500 font-medium">
+                                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                    <span>Expo Mobile App & Web Cloud Parity Active</span>
+                                </div>
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </nav>
 
             {/* Hero Section */}
-            <main className="relative z-10 container mx-auto px-4 pt-12 md:pt-20 pb-20 flex flex-col items-center text-center">
+            <main className="relative z-10 container mx-auto px-4 pt-8 sm:pt-16 md:pt-20 pb-16 sm:pb-20 flex flex-col items-center text-center">
                 <motion.div
                     initial={{ opacity: 0, y: 15 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.5 }}
                 >
-                    <span className="inline-flex items-center gap-2 px-4 py-1.5 mb-6 rounded-full bg-blue-50 border border-blue-200/80 text-blue-700 text-xs font-extrabold uppercase tracking-wider shadow-sm">
-                        <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+                    <span className="inline-flex items-center gap-1.5 px-3 sm:px-4 py-1 sm:py-1.5 mb-4 sm:mb-6 rounded-full bg-blue-50 border border-blue-200/80 text-blue-700 text-[10px] sm:text-xs font-extrabold uppercase tracking-wider shadow-2xs">
+                        <Sparkles className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                         Enterprise Cricket Auction Management
                     </span>
                 </motion.div>
@@ -121,7 +200,7 @@ const LandingPage = () => {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.1, duration: 0.6 }}
-                    className="text-4xl sm:text-6xl md:text-7xl font-black tracking-tight mb-6 leading-[1.1] text-slate-900 max-w-4xl"
+                    className="text-3xl sm:text-5xl md:text-7xl font-black tracking-tight mb-4 sm:mb-6 leading-[1.12] text-slate-900 max-w-4xl px-2"
                 >
                     Host IPL-Style Cricket Auctions <br className="hidden sm:inline" />
                     <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600">
@@ -133,7 +212,7 @@ const LandingPage = () => {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.2, duration: 0.6 }}
-                    className="text-base sm:text-lg md:text-xl text-slate-600 max-w-2xl mb-10 leading-relaxed font-normal"
+                    className="text-xs sm:text-base md:text-xl text-slate-600 max-w-2xl mb-8 sm:mb-10 leading-relaxed font-normal px-2"
                 >
                     Complete gavel hammer controls, live team owner bidding keypads, automatic purse validation, public broadcast stream, and instant audit-safe rollbacks across Web & Mobile.
                 </motion.p>
@@ -143,18 +222,18 @@ const LandingPage = () => {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.3, duration: 0.6 }}
-                    className="flex flex-col sm:flex-row gap-3.5 justify-center w-full sm:w-auto"
+                    className="flex flex-col sm:flex-row gap-3 sm:gap-3.5 justify-center w-full sm:w-auto px-3 sm:px-0"
                 >
                     <Link
                         to="/login"
-                        className="px-7 py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-lg shadow-blue-500/25 transition-all flex items-center justify-center gap-2 hover:scale-[1.02]"
+                        className="w-full sm:w-auto px-6 sm:px-7 py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-lg shadow-blue-500/25 transition-all flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-98 text-sm sm:text-base"
                     >
                         <span>Enter Auctioneer / Owner Portal</span>
-                        <ArrowRight className="w-4 h-4" />
+                        <ArrowRight className="w-4 h-4 shrink-0" />
                     </Link>
                     <Link
                         to="/register"
-                        className="px-7 py-3.5 bg-white hover:bg-slate-50 text-slate-800 rounded-xl font-bold border border-slate-300 shadow-sm transition-all hover:scale-[1.02]"
+                        className="w-full sm:w-auto px-6 sm:px-7 py-3.5 bg-white hover:bg-slate-50 text-slate-800 rounded-xl font-bold border border-slate-300 shadow-2xs transition-all hover:scale-[1.02] active:scale-98 text-sm sm:text-base text-center"
                     >
                         Create Tournament Host Account
                     </Link>
@@ -165,22 +244,22 @@ const LandingPage = () => {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.4, duration: 0.6 }}
-                    className="mt-10 w-full max-w-lg bg-white/90 backdrop-blur border border-slate-200/90 p-2.5 rounded-2xl shadow-sm"
+                    className="mt-8 sm:mt-10 w-full max-w-lg bg-white/95 backdrop-blur border border-slate-200 p-2 sm:p-2.5 rounded-2xl shadow-xs mx-3 sm:mx-0"
                 >
-                    <form onSubmit={handleJoinSpectator} className="flex items-center gap-2">
-                        <div className="flex items-center gap-2 pl-3 flex-1">
+                    <form onSubmit={handleJoinSpectator} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                        <div className="flex items-center gap-2 px-3 py-1.5 sm:py-0 flex-1 bg-slate-50 sm:bg-transparent rounded-xl sm:rounded-none">
                             <Radio className="w-4 h-4 text-emerald-600 animate-pulse shrink-0" />
                             <input
                                 type="text"
-                                placeholder="Enter Tournament ID or Live Link to Spectate..."
+                                placeholder="Enter Tournament ID or Live Link..."
                                 value={spectatorCode}
                                 onChange={(e) => setSpectatorCode(e.target.value)}
-                                className="w-full bg-transparent text-xs sm:text-sm font-semibold text-slate-800 placeholder-slate-400 focus:outline-none"
+                                className="w-full bg-transparent text-xs sm:text-sm font-semibold text-slate-800 placeholder-slate-400 focus:outline-none py-1"
                             />
                         </div>
                         <button
                             type="submit"
-                            className="px-4 py-2 bg-slate-900 hover:bg-blue-600 text-white text-xs font-bold rounded-xl transition-all shrink-0"
+                            className="w-full sm:w-auto px-5 py-2.5 bg-slate-900 hover:bg-blue-600 text-white text-xs font-bold rounded-xl transition-all shrink-0 active:scale-98 text-center"
                         >
                             Spectate Live
                         </button>
@@ -192,23 +271,23 @@ const LandingPage = () => {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.5, duration: 0.7 }}
-                    className="flex flex-wrap items-center justify-center gap-4 sm:gap-8 mt-12 text-xs font-bold text-slate-500"
+                    className="grid grid-cols-2 sm:flex sm:flex-wrap items-center justify-center gap-2 sm:gap-6 mt-10 sm:mt-12 text-[11px] sm:text-xs font-bold text-slate-600 px-2 w-full max-w-3xl"
                 >
-                    <div className="flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                        <span>Supabase Realtime Engine</span>
+                    <div className="flex items-center gap-2 p-2 sm:p-0 bg-white/80 sm:bg-transparent border border-slate-200/70 sm:border-transparent rounded-xl justify-center">
+                        <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-500 shrink-0" />
+                        <span className="truncate">Supabase Realtime</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                        <span>Instant Rollback & Undo</span>
+                    <div className="flex items-center gap-2 p-2 sm:p-0 bg-white/80 sm:bg-transparent border border-slate-200/70 sm:border-transparent rounded-xl justify-center">
+                        <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-500 shrink-0" />
+                        <span className="truncate">Instant Undo & Rollback</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                        <span>CricHeroes Profile Integration</span>
+                    <div className="flex items-center gap-2 p-2 sm:p-0 bg-white/80 sm:bg-transparent border border-slate-200/70 sm:border-transparent rounded-xl justify-center">
+                        <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-500 shrink-0" />
+                        <span className="truncate">CricHeroes Profile Sync</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                        <span>Mobile Expo & Web Parity</span>
+                    <div className="flex items-center gap-2 p-2 sm:p-0 bg-white/80 sm:bg-transparent border border-slate-200/70 sm:border-transparent rounded-xl justify-center">
+                        <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-500 shrink-0" />
+                        <span className="truncate">Mobile Expo & Web Parity</span>
                     </div>
                 </motion.div>
             </main>
@@ -363,23 +442,23 @@ const LandingPage = () => {
                         <p className="text-slate-300 text-xs sm:text-sm leading-relaxed mb-6 font-normal">
                             Auctioneers can command the gavel from their laptop browser while franchise owners tap bids comfortably from their mobile smartphones. Everything syncs instantaneously via Supabase.
                         </p>
-                        <div className="flex flex-wrap gap-3">
+                        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
                             <Link
                                 to="/login"
-                                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl transition-all shadow-md"
+                                className="px-5 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl transition-all shadow-md text-center"
                             >
                                 Launch Web Console
                             </Link>
                             <Link
                                 to="/register"
-                                className="px-5 py-2.5 bg-white/10 hover:bg-white/20 text-white font-bold text-xs rounded-xl transition-all border border-white/20"
+                                className="px-5 py-3 bg-white/10 hover:bg-white/20 text-white font-bold text-xs rounded-xl transition-all border border-white/20 text-center"
                             >
                                 Register Host
                             </Link>
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4 w-full md:w-auto">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 w-full md:w-auto">
                         <div className="bg-white/10 backdrop-blur p-5 rounded-2xl border border-white/10 text-center">
                             <Monitor className="w-8 h-8 text-blue-400 mx-auto mb-2" />
                             <h4 className="text-sm font-bold">Web Platform</h4>
@@ -402,11 +481,11 @@ const LandingPage = () => {
 
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
                     {/* Main Footer Grid */}
-                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-start">
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 sm:gap-10 lg:gap-12 items-start">
                         {/* Left Column: Developer Profile (5 cols) */}
-                        <div className="lg:col-span-5 flex flex-col items-start">
+                        <div className="lg:col-span-5 flex flex-col items-center sm:items-start text-center sm:text-left w-full">
                             {/* Profile Header */}
-                            <div className="flex items-center gap-4 sm:gap-5 mb-5">
+                            <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-5 mb-5 text-center sm:text-left">
                                 {/* Interactive Avatar with Zoom Lightbox */}
                                 <div
                                     className="relative group cursor-pointer shrink-0"
@@ -425,7 +504,7 @@ const LandingPage = () => {
                                     </div>
                                 </div>
 
-                                <div>
+                                <div className="flex flex-col items-center sm:items-start">
                                     <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-500/10 border border-blue-400/20 text-blue-400 text-[11px] font-bold uppercase tracking-wider mb-1.5">
                                         <Sparkles className="w-3 h-3 text-blue-400" />
                                         Designed & Crafted by
@@ -440,7 +519,7 @@ const LandingPage = () => {
                             </div>
 
                             {/* Tech Stack Badges */}
-                            <div className="flex flex-wrap gap-1.5 mb-5">
+                            <div className="flex flex-wrap justify-center sm:justify-start gap-1.5 mb-5">
                                 {['React', 'React Native (Expo)', 'Node.js', 'Supabase', 'Socket.io', 'Tailwind CSS'].map((tech) => (
                                     <span
                                         key={tech}

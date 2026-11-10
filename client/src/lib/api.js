@@ -8,7 +8,10 @@ const getApiBaseUrl = () => {
     if (envUrl) {
         // Strip trailing slash
         const clean = envUrl.replace(/\/$/, '');
-        // If it's a valid remote URL or different from frontend origin, use it
+        // If it accidentally points to frontend vercel domain, ignore it so it doesn't hit static vercel routes
+        if (typeof window !== 'undefined' && (clean === window.location.origin || clean.includes('vercel.app'))) {
+            return '';
+        }
         if (!clean.includes('localhost') || typeof window !== 'undefined') {
             return clean;
         }

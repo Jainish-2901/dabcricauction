@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { Lock, ArrowLeft, Shield, User, LogIn, Trophy, Eye, EyeOff, AlertCircle, Sparkles, Key } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../lib/api';
+import { supabase } from '../lib/supabase';
 
 const LoginPage = () => {
     const navigate = useNavigate();
@@ -35,20 +36,65 @@ const LoginPage = () => {
                 })
             });
 
-            const data = await response.json();
-
             if (response.ok) {
+                const data = await response.json();
                 login(data.user, data.token);
                 if (data.user.role === 'superadmin') navigate('/admin');
                 else if (data.user.role === 'team_owner') navigate('/owner/dashboard');
                 else if (data.user.role === 'auctioneer') navigate('/auctioneer/dashboard');
                 else navigate('/');
-            } else {
+                return;
+            } else if (response.status === 400 || response.status === 401 || response.status === 404) {
+                const data = await response.json().catch(() => ({}));
                 setErrorMsg(data.message || 'Invalid username or password.');
+                return;
             }
         } catch (err) {
-            console.error(err);
-            setErrorMsg('Unable to connect to backend server. Please verify your Render server is live and VITE_API_URL / VITE_SOCKET_URL is set in Vercel settings.');
+            console.warn('Backend server unreachable, trying direct Supabase fallback...', err);
+        }
+
+        // Direct Supabase Cloud Authentication Fallback
+        try {
+            const { data: users, error: supaErr } = await supabase
+                .from('users')
+                .select('*')
+                .ilike('username', username.trim());
+
+            if (!supaErr && users && users.length > 0) {
+                const user = users[0];
+                const cleanPass = password.trim();
+                const passwordMatch =
+                    user.plain_password === cleanPass ||
+                    user.password_hash === cleanPass ||
+                    (user.plain_password && user.plain_password.toLowerCase() === cleanPass.toLowerCase());
+
+                if (passwordMatch) {
+                    const fallbackToken = `direct_token_${user._id || Date.now()}`;
+                    const userData = {
+                        _id: user._id,
+                        id: user._id,
+                        username: user.username,
+                        role: user.role,
+                        tournamentId: user.tournament_id,
+                        teamId: user.team_id
+                    };
+                    login(userData, fallbackToken);
+                    if (userData.role === 'superadmin') navigate('/admin');
+                    else if (userData.role === 'team_owner') navigate('/owner/dashboard');
+                    else if (userData.role === 'auctioneer') navigate('/auctioneer/dashboard');
+                    else navigate('/');
+                    return;
+                } else {
+                    setErrorMsg('Invalid password. Please check your credentials.');
+                    return;
+                }
+            } else {
+                setErrorMsg('User not found. Please verify your username.');
+                return;
+            }
+        } catch (fallbackErr) {
+            console.error('Direct Supabase login error:', fallbackErr);
+            setErrorMsg('Unable to connect to database or server. Please check your internet connection.');
         } finally {
             setLoading(false);
         }
