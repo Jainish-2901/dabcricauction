@@ -11,8 +11,10 @@ import {
     ActivityIndicator,
     Platform,
     KeyboardAvoidingView,
-    Image
+    Image,
+    Share
 } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import {
     KeyRound,
     Users,
@@ -33,6 +35,7 @@ import {
 } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { apiFetch, getApiUrl } from '../lib/api';
+import { toast, ToastOverlay } from '../lib/toast';
 
 interface ManageCredentialsModalProps {
     visible: boolean;
@@ -136,7 +139,7 @@ export const ManageCredentialsModal: React.FC<ManageCredentialsModalProps> = ({
         try {
             const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
             if (status !== 'granted') {
-                Alert.alert('Permission Denied', 'Gallery access permission is needed to pick captain photo.');
+                toast.warning('Permission Denied', 'Gallery access permission is needed to pick captain photo.');
                 return;
             }
 
@@ -154,7 +157,7 @@ export const ManageCredentialsModal: React.FC<ManageCredentialsModalProps> = ({
                 setCaptainPhoto(base64Uri);
             }
         } catch (err: any) {
-            Alert.alert('Error', err.message || 'Failed to select image');
+            toast.error('Image Error', err.message || 'Failed to select image');
         }
     };
 
@@ -190,6 +193,7 @@ export const ManageCredentialsModal: React.FC<ManageCredentialsModalProps> = ({
                             await apiFetch(`/api/tournaments/${currentTournament._id}/credentials/${userId}`, {
                                 method: 'DELETE'
                             });
+                            toast.success('Deleted', `Removed credentials for ${username}`);
                         } catch {}
                         setCredentialsList(prev => prev.filter(c => c._id !== userId));
                     }
@@ -200,12 +204,12 @@ export const ManageCredentialsModal: React.FC<ManageCredentialsModalProps> = ({
 
     const handleSaveForm = async () => {
         if (!formUsername.trim() || !formPassword.trim()) {
-            Alert.alert('Required', 'Username and password are required.');
+            toast.warning('Required Fields', 'Username and password are required.');
             return;
         }
 
         if (formRole === 'team_owner' && !formTeamId) {
-            Alert.alert('Required', 'Please select a team for this owner & captain.');
+            toast.warning('Team Required', 'Please select a team for this owner & captain.');
             return;
         }
 
@@ -264,14 +268,15 @@ export const ManageCredentialsModal: React.FC<ManageCredentialsModalProps> = ({
             }
             setFormVisible(false);
             fetchCredentials();
+            toast.success('Saved', `Credentials for ${formUsername.trim()} saved!`);
         } catch (error: any) {
-            Alert.alert('Error', error.message || 'Operation failed');
+            toast.error('Save Failed', error.message || 'Operation failed');
         } finally {
             setSaving(false);
         }
     };
 
-    const handleCopyAll = () => {
+    const handleCopyAll = async () => {
         let text = `🏏 Dab Cric Auction Credentials - ${currentTournament?.name || 'Tournament'}\n`;
         text += `====================================\n\n`;
         
@@ -280,14 +285,25 @@ export const ManageCredentialsModal: React.FC<ManageCredentialsModalProps> = ({
             text += `• ${role}:\n`;
             text += `  User: ${c.username} | Pass: ${c.plainPassword || '••••••••'}\n\n`;
         });
-        const webUrl = process.env.EXPO_PUBLIC_WEB_URL || 'https://dabcricauction.vercel.app';
+        const webUrl = (process.env.EXPO_PUBLIC_WEB_URL || 'https://dabcricauction.vercel.app').replace(/\/$/, '');
         text += `====================================\n`;
         text += `🌐 Web Login: ${webUrl}/login\n`;
         text += `📱 Mobile App: Enter same credentials`;
 
+        try {
+            await Clipboard.setStringAsync(text);
+        } catch {}
+
         setCopied(true);
         setTimeout(() => setCopied(false), 3000);
-        Alert.alert('Credentials Summary', text);
+        toast.success(
+            'Credentials Copied!',
+            `${credentialsList.length} accounts copied to clipboard`,
+            {
+                actionLabel: 'Share',
+                onAction: () => Share.share({ title: 'Tournament Credentials', message: text }).catch(() => {})
+            }
+        );
     };
 
     return (
@@ -302,6 +318,7 @@ export const ManageCredentialsModal: React.FC<ManageCredentialsModalProps> = ({
                 style={styles.modalOverlay}
                 keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
             >
+                <ToastOverlay isModal />
                 <View style={styles.modalContainer}>
                     {/* Header */}
                     <View style={styles.header}>

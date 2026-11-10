@@ -392,6 +392,37 @@ io.on('connection', (socket) => {
         }
     });
 
+    socket.on('pass_player', async ({ tournamentId, playerId }) => {
+        try {
+            if (tournamentId && finalBidTimers[tournamentId]) {
+                clearInterval(finalBidTimers[tournamentId].interval);
+                delete finalBidTimers[tournamentId];
+            }
+            const player = await db.getPlayerById(playerId);
+            if (!player || player.status === 'sold' || player.status === 'unsold') return;
+
+            player.status = 'passed';
+            player.currentLeadTeamId = null;
+            player.currentBid = player.basePrice || 0;
+            await db.updatePlayer(playerId, player);
+
+            io.to(tournamentId).emit('player_passed', { player });
+        } catch (e) {
+            console.error('pass_player error:', e);
+        }
+    });
+
+    socket.on('reopen_passed_to_auction', async ({ tournamentId }, callback) => {
+        try {
+            const result = await db.reopenPassedPlayers(tournamentId);
+            io.to(tournamentId).emit('passed_reopened', result);
+            if (typeof callback === 'function') callback({ success: true, ...result });
+        } catch (e) {
+            console.error('reopen_passed_to_auction error:', e);
+            if (typeof callback === 'function') callback({ success: false, error: e.message });
+        }
+    });
+
     socket.on('set_bidding_state', async ({ tournamentId, state, activeSlotId }) => {
         try {
             // state can be: 'active', 'paused', 'break', 'stopped'

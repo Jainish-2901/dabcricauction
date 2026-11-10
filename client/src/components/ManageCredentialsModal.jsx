@@ -6,6 +6,7 @@ import {
     Upload, User, Image as ImageIcon
 } from 'lucide-react';
 import ImageCropModal from './ImageCropModal';
+import toast from '../lib/toast';
 
 const ManageCredentialsModal = ({ 
     isOpen, 
@@ -169,7 +170,7 @@ const ManageCredentialsModal = ({
         if (!file) return;
 
         if (file.size > 8 * 1024 * 1024) {
-            alert('Captain photo size must be less than 8MB');
+            toast.warning('Captain photo size must be less than 8MB');
             return;
         }
 
@@ -203,7 +204,7 @@ const ManageCredentialsModal = ({
             showNotice('Credential and captain profile removed');
             if (onUpdated) onUpdated();
         } catch (err) {
-            alert('Failed to delete credential: ' + (err.response?.data?.message || err.message));
+            toast.error('Failed to delete credential: ' + (err.response?.data?.message || err.message));
         }
     };
 

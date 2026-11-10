@@ -7,8 +7,10 @@ import {
     Modal,
     ScrollView,
     Alert,
-    Platform
+    Platform,
+    Share
 } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import {
     Play,
     Users,
@@ -22,9 +24,11 @@ import {
     Copy,
     Check,
     Layers,
-    Trash2
+    Trash2,
+    Settings
 } from 'lucide-react-native';
 import { apiFetch } from '../lib/api';
+import { toast, ToastOverlay } from '../lib/toast';
 
 interface TournamentHubModalProps {
     visible: boolean;
@@ -36,6 +40,7 @@ interface TournamentHubModalProps {
     onOpenPlayerRegistration: (tournamentId: string) => void;
     onOpenManageCredentials: (tournament: any) => void;
     onOpenRoster?: (tournament: any) => void;
+    onEditTournament?: (tournament: any) => void;
     onDeleteTournament?: (tournamentId: string, name: string) => void;
 }
 
@@ -49,6 +54,7 @@ export const TournamentHubModal: React.FC<TournamentHubModalProps> = ({
     onOpenPlayerRegistration,
     onOpenManageCredentials,
     onOpenRoster,
+    onEditTournament,
     onDeleteTournament
 }) => {
     const [copiedLink, setCopiedLink] = useState<'spectator' | 'player' | null>(null);
@@ -63,8 +69,9 @@ export const TournamentHubModal: React.FC<TournamentHubModalProps> = ({
 
     if (!tournament) return null;
 
-    const spectatorUrl = `http://localhost:5173/auction/${tournament._id}`;
-    const playerRegUrl = `http://localhost:5173/register-player/${tournament._id}`;
+    const webBaseUrl = (process.env.EXPO_PUBLIC_WEB_URL || 'https://dabcricauction.vercel.app').replace(/\/$/, '');
+    const spectatorUrl = `${webBaseUrl}/auction/${tournament._id}`;
+    const playerRegUrl = `${webBaseUrl}/register-player/${tournament._id}`;
 
     const handleToggleRegistration = async () => {
         try {
@@ -78,27 +85,42 @@ export const TournamentHubModal: React.FC<TournamentHubModalProps> = ({
             if (res.ok) {
                 setIsRegOpen(nextState);
                 tournament.registrationOpen = nextState;
-                Alert.alert(
-                    'Registration Status',
+                toast.success(
+                    'Registration Updated',
                     `Player entry form is now ${nextState ? 'OPEN' : 'CLOSED'}`
                 );
             } else {
-                Alert.alert('Error', 'Failed to update registration status');
+                toast.error('Update Failed', 'Failed to update registration status');
             }
         } catch (e: any) {
-            Alert.alert('Error', e?.message || 'Network error');
+            toast.error('Network Error', e?.message || 'Could not update status');
         } finally {
             setTogglingReg(false);
         }
     };
 
-    const handleCopy = (type: 'spectator' | 'player', url: string) => {
+    const handleCopy = async (type: 'spectator' | 'player', url: string) => {
+        try {
+            await Clipboard.setStringAsync(url);
+        } catch (err) {
+            console.warn('Clipboard error:', err);
+        }
         setCopiedLink(type);
         setTimeout(() => setCopiedLink(null), 3000);
-        Alert.alert(
-            'Link Ready to Share',
-            `${type === 'spectator' ? 'Public Broadcast View' : 'Player Self-Registration'} Link:\n\n${url}`,
-            [{ text: 'OK' }]
+
+        const label = type === 'spectator' ? 'Public Broadcast View Link' : 'Player Self-Registration Link';
+        toast.success(
+            `${label} Copied!`,
+            url,
+            {
+                actionLabel: 'Share',
+                onAction: () => {
+                    Share.share({
+                        title: tournament.name,
+                        message: `${tournament.name} - ${label}:\n${url}`
+                    }).catch(() => {});
+                }
+            }
         );
     };
 
@@ -110,6 +132,7 @@ export const TournamentHubModal: React.FC<TournamentHubModalProps> = ({
             onRequestClose={onClose}
         >
             <View style={styles.modalOverlay}>
+                <ToastOverlay isModal />
                 <View style={styles.modalContainer}>
                     {/* Header */}
                     <View style={styles.header}>
@@ -279,7 +302,26 @@ export const TournamentHubModal: React.FC<TournamentHubModalProps> = ({
                             </View>
                         </View>
 
-                        {/* 6. Teams & Players Quick Roster */}
+                        {/* 6. Edit Tournament Info */}
+                        {onEditTournament && (
+                            <TouchableOpacity
+                                style={styles.actionCard}
+                                onPress={() => {
+                                    onClose();
+                                    onEditTournament(tournament);
+                                }}
+                            >
+                                <View style={[styles.iconCircle, { backgroundColor: '#eff6ff' }]}>
+                                    <Edit3 size={18} color="#2563eb" />
+                                </View>
+                                <View style={styles.actionTextWrap}>
+                                    <Text style={styles.actionTitle}>Edit Tournament Info</Text>
+                                    <Text style={styles.actionSub}>Modify name, logo, squad limit, scale, date & details</Text>
+                                </View>
+                            </TouchableOpacity>
+                        )}
+
+                        {/* 7. Teams & Players Quick Roster */}
                         {onOpenRoster && (
                             <TouchableOpacity
                                 style={styles.actionCard}

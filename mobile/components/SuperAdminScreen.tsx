@@ -13,8 +13,10 @@ import {
     Modal,
     ActivityIndicator,
     KeyboardAvoidingView,
-    Image
+    Image,
+    Share
 } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import {
     Trophy,
     Users,
@@ -55,6 +57,7 @@ import ManageCredentialsModal from './ManageCredentialsModal';
 import { apiFetch, getApiUrl } from '../lib/api';
 import { getBudgetUnits } from '../lib/currency';
 import { checkForAppUpdates } from '../lib/updateManager';
+import { toast, ToastOverlay } from '../lib/toast';
 
 export type SuperAdminTab = 'tournaments' | 'teams' | 'players' | 'slots' | 'credentials';
 
@@ -127,6 +130,20 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
     const [showPasswords, setShowPasswords] = useState<{ [key: string]: boolean }>({});
     const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
+    // Edit Tournament Modal States
+    const [editTourneyModalVisible, setEditTourneyModalVisible] = useState(false);
+    const [editingTourney, setEditingTourney] = useState<any>(null);
+    const [editTourneyName, setEditTourneyName] = useState('');
+    const [editTourneySquadLimit, setEditTourneySquadLimit] = useState('25');
+    const [editTourneyScale, setEditTourneyScale] = useState<'L_TO_CR' | 'K_TO_L'>('L_TO_CR');
+    const [editTourneyAuctionType, setEditTourneyAuctionType] = useState<'owner_driven' | 'admin_driven'>('owner_driven');
+    const [editTourneyStatus, setEditTourneyStatus] = useState<'upcoming' | 'live' | 'paused' | 'completed'>('upcoming');
+    const [editTourneyStartDate, setEditTourneyStartDate] = useState('');
+    const [editTourneyTime, setEditTourneyTime] = useState('');
+    const [editTourneyDescription, setEditTourneyDescription] = useState('');
+    const [editTourneyLogo, setEditTourneyLogo] = useState('');
+    const [savingTourney, setSavingTourney] = useState(false);
+
     // Edit Player Modal States
     const [editPlayerModalVisible, setEditPlayerModalVisible] = useState(false);
     const [editingPlayer, setEditingPlayer] = useState<any>(null);
@@ -148,7 +165,7 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
         try {
             const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
             if (status !== 'granted') {
-                Alert.alert('Permission Denied', 'Gallery access permission is needed to pick and crop photos.');
+                toast.warning('Permission Denied', 'Gallery access permission is needed to pick and crop photos.');
                 return null;
             }
 
@@ -166,7 +183,7 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
             }
             return null;
         } catch (err: any) {
-            Alert.alert('Image Picker Error', err.message || 'Failed to select image');
+            toast.error('Image Picker Error', err.message || 'Failed to select image');
             return null;
         }
     };
@@ -267,7 +284,7 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
     // --- TOURNAMENTS HANDLERS ---
     const handleCreateTournament = async () => {
         if (!newTourneyName.trim()) {
-            Alert.alert('Required', 'Please enter a tournament name.');
+            toast.warning('Required Field', 'Please enter a tournament name.');
             return;
         }
         const squadLimit = parseInt(newTourneySquadLimit) || 25;
@@ -305,7 +322,7 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
         setSelectedTournament(newT);
         setNewTourneyName('');
         setNewTourneySquadLimit('25');
-        Alert.alert('Tournament Created', `"${newT.name}" created (${newTourneyScale === 'K_TO_L' ? 'K → L Scale' : 'L → Cr Scale'}) with Squad Limit: ${squadLimit}!`);
+        toast.success('Tournament Created', `"${newT.name}" (${newTourneyScale === 'K_TO_L' ? 'K → L' : 'L → Cr'} Scale) • Limit: ${squadLimit}`);
     };
 
     const handleToggleTournamentStatus = async (t: any) => {
@@ -329,6 +346,7 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
         if (selectedTournament?._id === t._id) {
             setSelectedTournament((prev: any) => ({ ...prev, status: newStatus }));
         }
+        toast.info('Status Updated', `${t.name} is now ${newStatus.toUpperCase()}`);
     };
 
     const handleDeleteTournament = (tournamentId: string, name: string) => {
@@ -347,9 +365,9 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                             if (selectedTournament?._id === tournamentId) {
                                 setSelectedTournament(null);
                             }
-                            Alert.alert('Deleted', 'Tournament deleted permanently.');
+                            toast.success('Deleted', `"${name}" deleted permanently.`);
                         } catch (e: any) {
-                            Alert.alert('Error', e.message || 'Failed to delete tournament');
+                            toast.error('Delete Failed', e.message || 'Failed to delete tournament');
                         }
                     }
                 }
@@ -357,10 +375,74 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
         );
     };
 
+    const handleOpenEditTournament = (t: any) => {
+        if (!t) return;
+        setEditingTourney(t);
+        setEditTourneyName(t.name || '');
+        setEditTourneySquadLimit(String(t.squadSizeLimit || 25));
+        setEditTourneyScale(t.budgetScale === 'K_TO_L' ? 'K_TO_L' : 'L_TO_CR');
+        setEditTourneyAuctionType(t.auctionType === 'admin_driven' ? 'admin_driven' : 'owner_driven');
+        setEditTourneyStatus(t.status || 'upcoming');
+        setEditTourneyStartDate(t.startDate || '');
+        setEditTourneyTime(t.time || '');
+        setEditTourneyDescription(t.description || '');
+        setEditTourneyLogo(t.logo || '');
+        setEditTourneyModalVisible(true);
+    };
+
+    const handlePickEditTourneyLogo = async () => {
+        const cropped = await pickImageWith1to1Crop();
+        if (cropped) setEditTourneyLogo(cropped);
+    };
+
+    const handleSaveEditTournament = async () => {
+        if (!editingTourney || !editTourneyName.trim()) {
+            toast.warning('Required Field', 'Tournament name is required.');
+            return;
+        }
+        setSavingTourney(true);
+        try {
+            const payload = {
+                name: editTourneyName.trim(),
+                squadSizeLimit: parseInt(editTourneySquadLimit) || 25,
+                budgetScale: editTourneyScale,
+                auctionType: editTourneyAuctionType,
+                status: editTourneyStatus,
+                startDate: editTourneyStartDate.trim() || null,
+                time: editTourneyTime.trim() || null,
+                description: editTourneyDescription.trim() || null,
+                logo: editTourneyLogo || null
+            };
+
+            const res = await apiFetch(`/api/tournaments/${editingTourney._id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (res.ok) {
+                const updatedObj = { ...editingTourney, ...payload };
+                setTournaments(prev => prev.map(item => item._id === editingTourney._id ? updatedObj : item));
+                if (selectedTournament?._id === editingTourney._id) {
+                    setSelectedTournament(updatedObj);
+                }
+                setEditTourneyModalVisible(false);
+                toast.success('Saved', 'Tournament details updated successfully!');
+            } else {
+                const errData = await res.json().catch(() => ({}));
+                toast.error('Update Error', errData.message || 'Failed to update tournament details.');
+            }
+        } catch (err: any) {
+            toast.error('Network Error', err.message || 'Failed to update tournament.');
+        } finally {
+            setSavingTourney(false);
+        }
+    };
+
     // --- TEAMS HANDLERS ---
     const handleCreateTeam = async () => {
         if (!newTeamName.trim() || !newTeamShort.trim() || !selectedTournament?._id) {
-            Alert.alert('Required Fields', 'Team Name and Short Code are required.');
+            toast.warning('Required Fields', 'Team Name and Short Code are required.');
             return;
         }
         const budget = Number(newTeamBudget) || 100;
@@ -392,7 +474,7 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
         setIsOwnerCaptain(false);
         setCaptainName('');
         setCaptainPhoto('');
-        Alert.alert('Team Added', `"${newTm.name}" registered to ${selectedTournament.name}. Purse: ₹${budget} ${largeUnit}.`);
+        toast.success('Team Added', `"${newTm.name}" registered • Purse: ₹${budget} ${largeUnit}`);
     };
 
     const handleDeleteTeam = async (id: string, name: string) => {
@@ -404,6 +486,7 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                 onPress: async () => {
                     try {
                         await apiFetch(`/api/teams/${id}`, { method: 'DELETE' });
+                        toast.success('Team Deleted', `Removed ${name}`);
                     } catch {}
                     setTeams(prev => prev.filter(t => t._id !== id));
                 }
@@ -419,7 +502,7 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
     // --- PLAYERS HANDLERS ---
     const handleCreatePlayer = async () => {
         if (!newPlayerName.trim() || !selectedTournament?._id) {
-            Alert.alert('Required', 'Please enter player name.');
+            toast.warning('Required Field', 'Please enter player name.');
             return;
         }
         const newP = {
@@ -441,7 +524,7 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
         setPlayers(prev => [...prev, newP]);
         setNewPlayerName('');
         setNewPlayerImage('');
-        Alert.alert('Player Added', `${newP.name} added to ${selectedTournament.name}.`);
+        toast.success('Player Added', `${newP.name} added to ${selectedTournament.name}`);
     };
 
     const handleDeletePlayer = async (id: string, name: string) => {
@@ -454,6 +537,7 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                     try {
                         await apiFetch(`/api/players/${id}`, { method: 'DELETE' });
                         if (selectedTournament?._id) fetchTournamentDetails(selectedTournament._id);
+                        toast.success('Player Removed', `Removed ${name}`);
                     } catch {}
                     setPlayers(prev => prev.filter(p => p._id !== id));
                 }
@@ -479,7 +563,7 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
 
     const handleSaveEditPlayer = async () => {
         if (!editingPlayer || !editPlayerName.trim()) {
-            Alert.alert('Required', 'Player name is required');
+            toast.warning('Required Field', 'Player name is required');
             return;
         }
 
@@ -518,16 +602,16 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                 const updated = await res.json();
                 setPlayers(prev => prev.map(p => p._id === editingPlayer._id ? { ...p, ...updated, image: editPlayerImage.trim() } : p));
                 setEditPlayerModalVisible(false);
-                Alert.alert('Success', `Player "${editPlayerName}" updated successfully`);
+                toast.success('Updated', `Player "${editPlayerName}" updated successfully`);
                 if (selectedTournament?._id) {
                     fetchTournamentDetails(selectedTournament._id);
                 }
             } else {
                 const errData = await res.json().catch(() => ({}));
-                Alert.alert('Error', errData?.message || 'Failed to update player');
+                toast.error('Update Error', errData?.message || 'Failed to update player');
             }
         } catch (err: any) {
-            Alert.alert('Error', err?.message || 'Network error while updating player');
+            toast.error('Network Error', err?.message || 'Error while updating player');
         } finally {
             setSavingPlayer(false);
         }
@@ -536,7 +620,7 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
     // --- SLOTS HANDLERS ---
     const handleCreateSlot = async () => {
         if (!newSlotName.trim()) {
-            Alert.alert('Required', 'Slot name is required');
+            toast.warning('Required Field', 'Slot name is required');
             return;
         }
         if (!selectedTournament?._id) return;
@@ -562,12 +646,12 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                 setSlots(prev => [...prev, created]);
                 setSelectedSlot(created);
                 setNewSlotName('');
-                Alert.alert('Slot Created', `Slot "${created.name}" created with base price ₹${created.basePrice} ${smallUnit}`);
+                toast.success('Slot Created', `"${created.name}" created • Base ₹${created.basePrice} ${smallUnit}`);
             } else {
-                Alert.alert('Error', 'Failed to create slot');
+                toast.error('Error', 'Failed to create slot');
             }
         } catch {
-            Alert.alert('Error', 'Network error while creating slot');
+            toast.error('Network Error', 'Failed to create slot');
         } finally {
             setSavingSlot(false);
         }
@@ -592,8 +676,9 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                                 setSelectedSlot((prevSel: any) => (prevSel?._id === slotId ? (remaining[0] || null) : prevSel));
                                 return remaining;
                             });
+                            toast.success('Slot Deleted', `Removed "${slotName}"`);
                         } catch {
-                            Alert.alert('Error', 'Failed to delete slot');
+                            toast.error('Error', 'Failed to delete slot');
                         }
                     }
                 }
@@ -603,7 +688,7 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
 
     const handleShiftPlayerToSlot = async (player: any, slot: any) => {
         if (!slot) {
-            Alert.alert('Select Slot', 'Please select a target slot first.');
+            toast.warning('Select Slot', 'Please select a target slot first.');
             return;
         }
         try {
@@ -620,12 +705,12 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                     }
                     return p;
                 }));
-                Alert.alert('Player Shifted', `"${player.name}" assigned to "${slot.name}". Base price auto-set to ₹${slot.basePrice} ${smallUnit}!`);
+                toast.success('Player Shifted', `"${player.name}" assigned to "${slot.name}" (Base ₹${slot.basePrice} ${smallUnit})`);
             } else {
-                Alert.alert('Error', 'Failed to assign player to slot');
+                toast.error('Error', 'Failed to assign player to slot');
             }
         } catch {
-            Alert.alert('Error', 'Network error while assigning player');
+            toast.error('Network Error', 'Error while assigning player');
         }
     };
 
@@ -639,12 +724,12 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
 
             if (res.ok) {
                 setPlayers(prev => prev.map(p => p._id === player._id ? { ...p, slotId: null } : p));
-                Alert.alert('Unslotted', `Removed "${player.name}" from slot.`);
+                toast.info('Unslotted', `Removed "${player.name}" from slot.`);
             } else {
-                Alert.alert('Error', 'Failed to unslot player');
+                toast.error('Error', 'Failed to unslot player');
             }
         } catch {
-            Alert.alert('Error', 'Network error while removing player');
+            toast.error('Network Error', 'Error while removing player');
         }
     };
 
@@ -663,13 +748,13 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                                 method: 'POST'
                             });
                             if (res.ok) {
-                                Alert.alert('Success', 'Unsold players brought to re-auction successfully!');
+                                toast.success('Re-Auction Ready', 'Unsold players brought to re-auction slot!');
                                 fetchTournamentDetails(selectedTournament._id);
                             } else {
-                                Alert.alert('Notice', 'No unsold players or default re-auction slot ready.');
+                                toast.info('Notice', 'No unsold players or default re-auction slot ready.');
                             }
                         } catch {
-                            Alert.alert('Error', 'Network error while processing re-auction.');
+                            toast.error('Network Error', 'Failed while processing re-auction.');
                         }
                     }
                 }
@@ -682,10 +767,22 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
         setShowPasswords(prev => ({ ...prev, [userId]: !prev[userId] }));
     };
 
-    const handleCopyDetails = (label: string, text: string, key: string) => {
+    const handleCopyDetails = async (label: string, text: string, key: string) => {
+        try {
+            await Clipboard.setStringAsync(text);
+        } catch (err) {
+            console.warn('Clipboard copy failed:', err);
+        }
         setCopiedKey(key);
         setTimeout(() => setCopiedKey(null), 3000);
-        Alert.alert(label, text);
+        toast.success(
+            `${label} Copied!`,
+            text,
+            {
+                actionLabel: 'Share',
+                onAction: () => Share.share({ title: label, message: `${label}:\n${text}` }).catch(() => {})
+            }
+        );
     };
 
     const handleOpenHub = (tournament: any) => {
@@ -1043,6 +1140,12 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                                                     ]}>
                                                         {t.status === 'completed' ? '🏆 COMPLETED' : (t.status === 'live' || t.status === 'active') ? '● ACTIVE' : '○ INACTIVE'}
                                                     </Text>
+                                                </TouchableOpacity>
+                                                <TouchableOpacity
+                                                    style={[styles.deleteTourneyBtn, { backgroundColor: '#eff6ff', borderColor: '#bfdbfe' }]}
+                                                    onPress={() => handleOpenEditTournament(t)}
+                                                >
+                                                    <Edit2 size={13} color="#2563eb" />
                                                 </TouchableOpacity>
                                                 <TouchableOpacity
                                                     style={styles.deleteTourneyBtn}
@@ -2053,6 +2156,7 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                     setCredentialsModalVisible(true);
                 }}
                 onOpenRoster={() => setActiveTab('teams')}
+                onEditTournament={handleOpenEditTournament}
                 onDeleteTournament={handleDeleteTournament}
             />
 
@@ -2071,6 +2175,217 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                 }}
             />
 
+            {/* Edit Tournament Modal */}
+            <Modal
+                visible={editTourneyModalVisible}
+                animationType="slide"
+                transparent={true}
+                onRequestClose={() => setEditTourneyModalVisible(false)}
+            >
+                <KeyboardAvoidingView
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                    style={styles.modalOverlay}
+                >
+                    <ToastOverlay isModal />
+                    <View style={styles.modalContainer}>
+                        <View style={styles.modalHeader}>
+                            <View style={{ flex: 1 }}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                    <Trophy size={16} color="#2563eb" />
+                                    <Text style={styles.modalTitle}>Edit Tournament Info</Text>
+                                </View>
+                                <Text style={styles.modalSub} numberOfLines={1}>{editingTourney?.name}</Text>
+                            </View>
+                            <TouchableOpacity onPress={() => setEditTourneyModalVisible(false)} style={styles.modalCloseBtn}>
+                                <X size={18} color="#475569" />
+                            </TouchableOpacity>
+                        </View>
+
+                        <ScrollView
+                            style={styles.modalBody}
+                            contentContainerStyle={{ paddingBottom: 160 }}
+                            showsVerticalScrollIndicator={false}
+                            keyboardShouldPersistTaps="handled"
+                        >
+                            {/* Logo Upload Preview */}
+                            <Text style={styles.fieldLabel}>TOURNAMENT LOGO (1:1 CROP & UPLOAD)</Text>
+                            <View style={[styles.logoInputRow, { marginBottom: 12 }]}>
+                                <View style={styles.playerAvatarBox}>
+                                    {editTourneyLogo ? (
+                                        <Image source={{ uri: editTourneyLogo }} style={styles.playerAvatarImg} />
+                                    ) : (
+                                        <Trophy size={22} color="#94a3b8" />
+                                    )}
+                                </View>
+                                <View style={{ flex: 1, gap: 6 }}>
+                                    <TouchableOpacity style={styles.uploadBtnSmall} onPress={handlePickEditTourneyLogo}>
+                                        <Camera size={13} color="#2563eb" />
+                                        <Text style={styles.uploadBtnSmallText}>
+                                            {editTourneyLogo ? 'Change Logo (1:1)' : 'Upload Logo (1:1 Crop)'}
+                                        </Text>
+                                    </TouchableOpacity>
+                                    {editTourneyLogo ? (
+                                        <TouchableOpacity onPress={() => setEditTourneyLogo('')}>
+                                            <Text style={styles.clearLogoText}>✕ Remove Logo</Text>
+                                        </TouchableOpacity>
+                                    ) : null}
+                                </View>
+                            </View>
+
+                            <Text style={styles.fieldLabel}>TOURNAMENT NAME *</Text>
+                            <TextInput
+                                style={styles.modalInput}
+                                value={editTourneyName}
+                                onChangeText={setEditTourneyName}
+                                placeholder="e.g. World Cricket League 2026"
+                                placeholderTextColor="#94a3b8"
+                            />
+
+                            <View style={{ flexDirection: 'row', gap: 10 }}>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.fieldLabel}>SQUAD LIMIT *</Text>
+                                    <TextInput
+                                        style={styles.modalInput}
+                                        value={editTourneySquadLimit}
+                                        onChangeText={setEditTourneySquadLimit}
+                                        keyboardType="numeric"
+                                        placeholder="25"
+                                        placeholderTextColor="#94a3b8"
+                                    />
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.fieldLabel}>START DATE</Text>
+                                    <TextInput
+                                        style={styles.modalInput}
+                                        value={editTourneyStartDate}
+                                        onChangeText={setEditTourneyStartDate}
+                                        placeholder="YYYY-MM-DD"
+                                        placeholderTextColor="#94a3b8"
+                                    />
+                                </View>
+                            </View>
+
+                            <Text style={styles.fieldLabel}>TIME (OPTIONAL)</Text>
+                            <TextInput
+                                style={styles.modalInput}
+                                value={editTourneyTime}
+                                onChangeText={setEditTourneyTime}
+                                placeholder="e.g. 09:00 AM"
+                                placeholderTextColor="#94a3b8"
+                            />
+
+                            <Text style={styles.fieldLabel}>CURRENCY / BUDGET SCALE</Text>
+                            <View style={styles.pickerRow}>
+                                <TouchableOpacity
+                                    style={[
+                                        styles.catPick,
+                                        editTourneyScale === 'L_TO_CR' && styles.catPickActive
+                                    ]}
+                                    onPress={() => setEditTourneyScale('L_TO_CR')}
+                                >
+                                    <Text style={[
+                                        styles.catPickText,
+                                        editTourneyScale === 'L_TO_CR' && styles.catPickTextActive
+                                    ]}>L → Cr (IPL Scale)</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[
+                                        styles.catPick,
+                                        editTourneyScale === 'K_TO_L' && styles.catPickActive
+                                    ]}
+                                    onPress={() => setEditTourneyScale('K_TO_L')}
+                                >
+                                    <Text style={[
+                                        styles.catPickText,
+                                        editTourneyScale === 'K_TO_L' && styles.catPickTextActive
+                                    ]}>K → L (Club Scale)</Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            <Text style={styles.fieldLabel}>AUCTION DRIVING MODE</Text>
+                            <View style={styles.pickerRow}>
+                                <TouchableOpacity
+                                    style={[
+                                        styles.catPick,
+                                        editTourneyAuctionType === 'owner_driven' && styles.catPickActive
+                                    ]}
+                                    onPress={() => setEditTourneyAuctionType('owner_driven')}
+                                >
+                                    <Text style={[
+                                        styles.catPickText,
+                                        editTourneyAuctionType === 'owner_driven' && styles.catPickTextActive
+                                    ]}>Team Owner Driven</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[
+                                        styles.catPick,
+                                        editTourneyAuctionType === 'admin_driven' && styles.catPickActive
+                                    ]}
+                                    onPress={() => setEditTourneyAuctionType('admin_driven')}
+                                >
+                                    <Text style={[
+                                        styles.catPickText,
+                                        editTourneyAuctionType === 'admin_driven' && styles.catPickTextActive
+                                    ]}>Admin Driven</Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            <Text style={styles.fieldLabel}>TOURNAMENT STATUS</Text>
+                            <View style={styles.pickerRow}>
+                                {(['upcoming', 'live', 'paused', 'completed'] as const).map(st => (
+                                    <TouchableOpacity
+                                        key={st}
+                                        style={[
+                                            styles.catPick,
+                                            editTourneyStatus === st && styles.catPickActive
+                                        ]}
+                                        onPress={() => setEditTourneyStatus(st)}
+                                    >
+                                        <Text style={[
+                                            styles.catPickText,
+                                            editTourneyStatus === st && styles.catPickTextActive
+                                        ]}>{st.toUpperCase()}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+
+                            <Text style={styles.fieldLabel}>DESCRIPTION / RULES</Text>
+                            <TextInput
+                                style={[styles.modalInput, { height: 75, textAlignVertical: 'top' }]}
+                                value={editTourneyDescription}
+                                onChangeText={setEditTourneyDescription}
+                                placeholder="Auction rules, venue, notes..."
+                                placeholderTextColor="#94a3b8"
+                                multiline
+                            />
+
+                            <TouchableOpacity
+                                style={[styles.modalSaveBtn, savingTourney && { opacity: 0.6 }]}
+                                onPress={handleSaveEditTournament}
+                                disabled={savingTourney}
+                            >
+                                {savingTourney ? (
+                                    <ActivityIndicator size="small" color="#ffffff" />
+                                ) : (
+                                    <>
+                                        <Save size={15} color="#ffffff" />
+                                        <Text style={styles.modalSaveBtnText}>Save Tournament Info</Text>
+                                    </>
+                                )}
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={styles.modalCancelBtn}
+                                onPress={() => setEditTourneyModalVisible(false)}
+                                disabled={savingTourney}
+                            >
+                                <Text style={styles.modalCancelBtnText}>Cancel</Text>
+                            </TouchableOpacity>
+                        </ScrollView>
+                    </View>
+                </KeyboardAvoidingView>
+            </Modal>
+
             {/* Edit Player Modal */}
             <Modal
                 visible={editPlayerModalVisible}
@@ -2082,6 +2397,7 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                     behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                     style={styles.modalOverlay}
                 >
+                    <ToastOverlay isModal />
                     <View style={styles.modalContainer}>
                         <View style={styles.modalHeader}>
                             <View style={{ flex: 1 }}>

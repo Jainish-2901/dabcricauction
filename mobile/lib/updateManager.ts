@@ -1,5 +1,6 @@
 import * as Updates from 'expo-updates';
 import { Alert } from 'react-native';
+import { toast } from './toast';
 
 /**
  * Checks for OTA updates using EAS Update / expo-updates.
@@ -10,7 +11,7 @@ export async function checkForAppUpdates(showNoUpdateAlert = false): Promise<boo
         if (__DEV__) {
             console.log('[EAS Update] Running in development mode (__DEV__), skipping OTA check.');
             if (showNoUpdateAlert) {
-                Alert.alert('Development Mode', 'OTA Updates are active only in standalone/production builds.');
+                toast.info('Development Mode', 'OTA Updates are active only in standalone/production builds.');
             }
             return false;
         }
@@ -18,7 +19,7 @@ export async function checkForAppUpdates(showNoUpdateAlert = false): Promise<boo
         if (!Updates.isEnabled) {
             console.log('[EAS Update] expo-updates is disabled or not configured.');
             if (showNoUpdateAlert) {
-                Alert.alert('EAS Update', 'Updates are not enabled for this build.');
+                toast.info('EAS Update', 'Updates are not enabled for this build.');
             }
             return false;
         }
@@ -53,14 +54,14 @@ export async function checkForAppUpdates(showNoUpdateAlert = false): Promise<boo
         } else {
             console.log('[EAS Update] App is already up to date.');
             if (showNoUpdateAlert) {
-                Alert.alert('App Up to Date', 'You are already using the latest version of Dab Cric Auction.');
+                toast.success('App Up to Date', 'You are already using the latest version.');
             }
             return false;
         }
     } catch (error: any) {
         console.warn('[EAS Update] Error checking for updates:', error?.message || error);
         if (showNoUpdateAlert) {
-            Alert.alert('Update Check Failed', error?.message || 'Could not check for updates.');
+            toast.error('Update Check Failed', error?.message || 'Could not check for updates.');
         }
         return false;
     }

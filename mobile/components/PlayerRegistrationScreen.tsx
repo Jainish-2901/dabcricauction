@@ -27,6 +27,7 @@ import {
     Lock
 } from 'lucide-react-native';
 import { apiFetch } from '../lib/api';
+import { toast } from '../lib/toast';
 
 interface PlayerRegistrationScreenProps {
     tournamentId: string;
@@ -90,7 +91,7 @@ export const PlayerRegistrationScreen: React.FC<PlayerRegistrationScreenProps> =
 
     const handleSubmit = async () => {
         if (!name.trim()) {
-            Alert.alert('Required', 'Please enter player full name.');
+            toast.warning('Required Field', 'Please enter player full name.');
             return;
         }
 
@@ -122,17 +123,18 @@ export const PlayerRegistrationScreen: React.FC<PlayerRegistrationScreenProps> =
             if (res.ok) {
                 const data = await res.json();
                 setSubmittedPlayer(data.player || payload);
+                toast.success('Registration Confirmed!', `${payload.name} added to auction pool`);
             } else {
                 const errData = await res.json().catch(() => ({}));
                 if (res.status === 403 || errData.error?.includes('CLOSED')) {
                     setIsClosed(true);
-                    Alert.alert('Registration Closed', errData.error || 'Player self-registration is closed by the tournament organizer.');
+                    toast.warning('Registration Closed', errData.error || 'Player self-registration is closed by organizer.');
                 } else {
-                    Alert.alert('Error', errData.error || 'Failed to submit registration. Please try again.');
+                    toast.error('Submission Failed', errData.error || 'Failed to submit registration. Please try again.');
                 }
             }
         } catch (e: any) {
-            Alert.alert('Error', e?.message || 'Network error');
+            toast.error('Network Error', e?.message || 'Unable to submit registration.');
         } finally {
             setLoading(false);
         }

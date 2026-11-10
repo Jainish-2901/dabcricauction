@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { X, Plus, Trash2, Layers, Check, ArrowRight, UserCheck, Shield, Sparkles, Search, Filter } from 'lucide-react';
 import { getBudgetUnits } from '../utils/currency';
+import toast from '../lib/toast';
 
 const SlotManagerModal = ({ isOpen, onClose, tournament, tournamentId, tournamentName, onUpdated }) => {
     const { smallUnit, isKtoL } = getBudgetUnits(tournament);
@@ -80,7 +81,7 @@ const SlotManagerModal = ({ isOpen, onClose, tournament, tournamentId, tournamen
             setNewSlotName('');
             showNotice(`Slot "${created.name}" created with base price ₹${created.basePrice} ${smallUnit}`);
         } catch (err) {
-            alert('Failed to create slot');
+            toast.error('Failed to create slot');
         } finally {
             setSaving(false);
         }
@@ -97,7 +98,7 @@ const SlotManagerModal = ({ isOpen, onClose, tournament, tournamentId, tournamen
             });
             showNotice('Slot deleted');
         } catch (err) {
-            alert('Failed to delete slot');
+            toast.error('Failed to delete slot');
         }
     };
 
@@ -118,7 +119,7 @@ const SlotManagerModal = ({ isOpen, onClose, tournament, tournamentId, tournamen
             showNotice(`Shifted "${player.name}" to ${slot.name} — Base Price auto-set to ₹${slot.basePrice} ${smallUnit}!`);
             if (onUpdated) onUpdated();
         } catch (err) {
-            alert('Failed to assign player to slot');
+            toast.error('Failed to assign player to slot');
         }
     };
 
@@ -129,7 +130,7 @@ const SlotManagerModal = ({ isOpen, onClose, tournament, tournamentId, tournamen
             showNotice(`Removed ${player.name} from slot`);
             if (onUpdated) onUpdated();
         } catch (err) {
-            alert('Failed to unslot player');
+            toast.error('Failed to unslot player');
         }
     };
 

@@ -10,7 +10,8 @@ import {
     StatusBar,
     Alert,
     Platform,
-    Modal
+    Modal,
+    TextInput
 } from 'react-native';
 import {
     Play,
@@ -33,11 +34,14 @@ import {
     ChevronRight,
     Flag,
     Trophy,
-    Radio
+    Radio,
+    Search,
+    Sparkles
 } from 'lucide-react-native';
 import socket from '../lib/socket';
 import { apiFetch } from '../lib/api';
 import { getBudgetUnits } from '../lib/currency';
+import { toast } from '../lib/toast';
 
 export interface AdminConsoleScreenProps {
     tournamentId: string;
@@ -91,6 +95,10 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
     const [notice, setNotice] = useState<string | null>(null);
     const [bidLogs, setBidLogs] = useState<any[]>([]);
     const [announcementModal, setAnnouncementModal] = useState<{ type: 'sold' | 'unsold'; player: any; team?: any; price?: number } | null>(null);
+    const [consoleTab, setConsoleTab] = useState<'stage' | 'players'>('stage');
+    const [playerFilter, setPlayerFilter] = useState<'all' | 'remaining' | 'pending' | 'passed' | 'unsold' | 'sold'>('all');
+    const [playerSearch, setPlayerSearch] = useState('');
+    const [onlyActiveSlotInQueue, setOnlyActiveSlotInQueue] = useState(false);
 
     useEffect(() => {
         if (announcementModal) {
@@ -265,6 +273,23 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
             showNotice(`📢 Re-Auction Round: ${data?.reopenedCount || ''} unsold players brought into slot!`);
         });
 
+        socket.on('player_passed', (data: any) => {
+            const passedP = data?.player;
+            if (passedP) {
+                setPlayers(prev => prev.map(p => (p._id === passedP._id || (p as any).id === passedP._id) ? { ...p, status: 'passed', currentLeadTeamId: null } : p));
+            }
+        });
+
+        socket.on('passed_reopened', (data: any) => {
+            if (data?.players) {
+                setPlayers(prev => prev.map(p => {
+                    const match = data.players.find((rp: any) => rp._id === p._id || rp.id === p._id);
+                    return match ? { ...p, ...match } : p;
+                }));
+            }
+            showNotice(`🔄 Brought ${data?.reopenedCount || ''} passed players back to auction!`);
+        });
+
         socket.on('auction_ended', (data: any) => {
             setTournament((prev: any) => ({ ...prev, status: 'completed' }));
             setBiddingState('stopped');
@@ -286,6 +311,8 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
             socket.off('bid_undone');
             socket.off('sale_rolled_back');
             socket.off('unsold_reopened_to_slot');
+            socket.off('player_passed');
+            socket.off('passed_reopened');
             socket.off('auction_ended');
             socket.off('connect', handleConnect);
             socket.disconnect();
@@ -570,7 +597,7 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
 
     const handleTrigger10sTimer = () => {
         if (!currentPlayer) {
-            Alert.alert('No Player', 'Please bring a player to the auction stage first.');
+            toast.warning('No Player', 'Please bring a player to the auction stage first.');
             return;
         }
         socket.emit('trigger_final_countdown', {
@@ -598,7 +625,7 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
 
         if (pool.length === 0) {
             const currentSlotObj = slots.find(s => s._id === activeSlotId);
-            Alert.alert('Pool Empty', `No pending players found in ${category || currentSlotObj?.name || 'pool'}`);
+            toast.info('Pool Empty', `No pending players found in ${category || currentSlotObj?.name || 'pool'}`);
             return;
         }
 
@@ -609,7 +636,7 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
 
     const handleSell = () => {
         if (!currentPlayer || !leadTeam) {
-            Alert.alert('No Bid', 'There is no active bid to hammer sell.');
+            toast.warning('No Bid', 'There is no active bid to hammer sell.');
             return;
         }
         socket.emit('sell_player', { tournamentId, playerId: currentPlayer._id });
@@ -629,7 +656,7 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
     const handleRollbackSale = () => {
         const target = lastSoldPlayer || players.find(p => p.status === 'sold');
         if (!target) {
-            Alert.alert('Notice', 'No recently sold player to rollback.');
+            toast.info('Notice', 'No recently sold player to rollback.');
             return;
         }
 
@@ -645,6 +672,48 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                 }
             ]
         );
+    };
+
+    const handlePassAndNext = () => {
+        if (currentPlayer && currentPlayer.status !== 'sold' && currentPlayer.status !== 'unsold') {
+            socket.emit('pass_player', { tournamentId, playerId: currentPlayer._id });
+            setPlayers(prev => prev.map(p => p._id === currentPlayer._id ? { ...p, status: 'passed', currentLeadTeamId: null } : p));
+            // Fallback API/Supabase update
+            apiFetch(`/api/players/${currentPlayer._id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: 'passed', currentLeadTeamId: null, currentBid: currentPlayer.basePrice || 0 })
+            }).catch(() => {});
+        }
+        handleNextPlayer();
+    };
+
+    const handleBringPassedToAuction = async () => {
+        if (passedPlayers.length === 0) return;
+
+        socket.emit('reopen_passed_to_auction', { tournamentId }, (res: any) => {
+            if (res?.success) {
+                fetchTournament();
+                showNotice(`🔄 Brought ${res.reopenedCount || passedPlayers.length} passed players back to pending!`);
+            }
+        });
+
+        // Optimistic & direct fallback sync
+        const targets = [...passedPlayers];
+        setPlayers(prev => prev.map(p => (
+            (p.status === 'passed' || (p.status === 'bidding' && p._id !== currentPlayer?._id))
+                ? { ...p, status: 'pending', currentLeadTeamId: null, currentBid: p.basePrice || 0 }
+                : p
+        )));
+
+        for (const p of targets) {
+            apiFetch(`/api/players/${p._id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: 'pending', currentLeadTeamId: null, currentBid: p.basePrice || 0 })
+            }).catch(() => {});
+        }
+        showNotice(`🔄 Brought ${targets.length} passed players back to auction queue!`);
     };
 
     const handleNextPlayer = () => {
@@ -683,13 +752,30 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
     const nextBidAmount = (!leadTeam && currentBid === (currentPlayer?.basePrice || 0))
         ? (currentPlayer?.basePrice || 20)
         : currentBid + dynamicInc;
+
     const unsoldPlayers = players.filter(p => p.status === 'unsold');
+    const soldPlayers = players.filter(p => p.status === 'sold');
+    const pendingPlayers = players.filter(p => p.status === 'pending');
+    const passedPlayers = players.filter(p => p.status === 'passed' || (p.status === 'bidding' && p._id !== currentPlayer?._id));
+    const remainingPlayers = players.filter(p => p.status !== 'sold');
+
+    const filteredPlayersList = players.filter(p => {
+        if (onlyActiveSlotInQueue && activeSlotId && p.slotId !== activeSlotId) return false;
+        if (playerSearch.trim()) {
+            const q = playerSearch.trim().toLowerCase();
+            if (!p.name?.toLowerCase().includes(q) && !p.category?.toLowerCase().includes(q)) return false;
+        }
+        if (playerFilter === 'all') return true;
+        if (playerFilter === 'remaining') return p.status !== 'sold';
+        if (playerFilter === 'passed') return p.status === 'passed' || (p.status === 'bidding' && p._id !== currentPlayer?._id);
+        return p.status === playerFilter;
+    });
 
     const handleAdminTeamBid = (team: any) => {
         if (!currentPlayer || biddingState !== 'active') return;
         const remainingPurseLakhs = Math.max(0, ((team.budget || 0) - (team.spent || 0)) * 100);
         if (remainingPurseLakhs < nextBidAmount) {
-            Alert.alert('Insufficient Purse', `${team.name} only has ₹${(remainingPurseLakhs / 100).toFixed(2)} ${largeUnit} remaining.`);
+            toast.error('Insufficient Purse', `${team.name} only has ₹${(remainingPurseLakhs / 100).toFixed(2)} ${largeUnit} remaining.`);
             return;
         }
         socket.emit('place_bid', {
@@ -775,6 +861,28 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                         </Text>
                     </TouchableOpacity>
                 </View>
+
+                {/* Console View Tab Bar: Stage vs Players Pool */}
+                <View style={styles.consoleTabRow}>
+                    <TouchableOpacity
+                        style={[styles.consoleTabBtn, consoleTab === 'stage' && styles.consoleTabBtnActive]}
+                        onPress={() => setConsoleTab('stage')}
+                    >
+                        <Gavel size={13} color={consoleTab === 'stage' ? '#ffffff' : '#64748b'} />
+                        <Text style={[styles.consoleTabText, consoleTab === 'stage' && styles.consoleTabTextActive]}>
+                            Live Stage
+                        </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[styles.consoleTabBtn, consoleTab === 'players' && styles.consoleTabBtnActive]}
+                        onPress={() => setConsoleTab('players')}
+                    >
+                        <Users size={13} color={consoleTab === 'players' ? '#ffffff' : '#64748b'} />
+                        <Text style={[styles.consoleTabText, consoleTab === 'players' && styles.consoleTabTextActive]}>
+                            Players List ({players.length})
+                        </Text>
+                    </TouchableOpacity>
+                </View>
             </View>
 
             {/* In-App Notice */}
@@ -785,6 +893,181 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                 </View>
             )}
 
+            {consoleTab === 'players' ? (
+                <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+                    {/* Player Search & Slot Toggle */}
+                    <View style={styles.poolSearchCard}>
+                        <View style={styles.poolSearchRow}>
+                            <Search size={15} color="#94a3b8" />
+                            <TextInput
+                                style={styles.poolSearchInput}
+                                placeholder="Search players by name or role..."
+                                placeholderTextColor="#94a3b8"
+                                value={playerSearch}
+                                onChangeText={setPlayerSearch}
+                            />
+                            {playerSearch.length > 0 && (
+                                <TouchableOpacity onPress={() => setPlayerSearch('')}>
+                                    <X size={14} color="#94a3b8" />
+                                </TouchableOpacity>
+                            )}
+                        </View>
+
+                        {activeSlotId && (
+                            <TouchableOpacity
+                                style={[
+                                    styles.slotFilterPill,
+                                    onlyActiveSlotInQueue && styles.slotFilterPillActive
+                                ]}
+                                onPress={() => setOnlyActiveSlotInQueue(!onlyActiveSlotInQueue)}
+                            >
+                                <Layers size={12} color={onlyActiveSlotInQueue ? '#ffffff' : '#7c3aed'} />
+                                <Text style={[styles.slotFilterPillText, onlyActiveSlotInQueue && { color: '#ffffff' }]}>
+                                    {onlyActiveSlotInQueue
+                                        ? `Filtering Active Slot: ${slots.find(s => s._id === activeSlotId)?.name || 'Slot'}`
+                                        : `Show Active Slot Only (${slots.find(s => s._id === activeSlotId)?.name || 'Slot'})`}
+                                </Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
+
+                    {/* Status Filter Pills */}
+                    <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={styles.poolFilterRow}
+                    >
+                        {[
+                            { id: 'all', label: `All (${players.length})` },
+                            { id: 'remaining', label: `Remaining (${remainingPlayers.length})` },
+                            { id: 'pending', label: `Pending (${pendingPlayers.length})` },
+                            { id: 'passed', label: `Passed (${passedPlayers.length})` },
+                            { id: 'unsold', label: `Unsold (${unsoldPlayers.length})` },
+                            { id: 'sold', label: `Sold (${soldPlayers.length})` }
+                        ].map(f => (
+                            <TouchableOpacity
+                                key={f.id}
+                                style={[styles.poolFilterChip, playerFilter === f.id && styles.poolFilterChipActive]}
+                                onPress={() => setPlayerFilter(f.id as any)}
+                            >
+                                <Text style={[styles.poolFilterChipText, playerFilter === f.id && styles.poolFilterChipTextActive]}>
+                                    {f.label}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </ScrollView>
+
+                    {/* Re-open Passed Players Banner */}
+                    {passedPlayers.length > 0 && (playerFilter === 'passed' || playerFilter === 'remaining' || playerFilter === 'all') && (
+                        <TouchableOpacity
+                            style={styles.bringPassedBtn}
+                            onPress={handleBringPassedToAuction}
+                        >
+                            <RotateCcw size={14} color="#ffffff" />
+                            <Text style={styles.bringPassedBtnText}>
+                                🔄 Bring All Passed ({passedPlayers.length}) Back to Auction
+                            </Text>
+                        </TouchableOpacity>
+                    )}
+
+                    {/* Bring Unsold to Re-Auction Slot Banner */}
+                    {unsoldPlayers.length > 0 && (playerFilter === 'unsold' || playerFilter === 'remaining') && (
+                        <TouchableOpacity
+                            style={styles.bringAllUnsoldBtn}
+                            onPress={handleBringAllUnsoldToSlot}
+                        >
+                            <Sparkles size={14} color="#ffffff" />
+                            <Text style={styles.bringAllUnsoldBtnText}>
+                                ⚡ Bring All Unsold ({unsoldPlayers.length}) to Re-Auction Slot
+                            </Text>
+                        </TouchableOpacity>
+                    )}
+
+                    {/* Players List */}
+                    {filteredPlayersList.length === 0 ? (
+                        <View style={styles.emptyCard}>
+                            <Users size={30} color="#94a3b8" />
+                            <Text style={styles.emptyTitle}>No Players Found</Text>
+                            <Text style={styles.emptySub}>No players match the selected filter or search.</Text>
+                        </View>
+                    ) : (
+                        <View style={{ gap: 8 }}>
+                            {filteredPlayersList.map((p, idx) => {
+                                const isCurrent = currentPlayer?._id === p._id;
+                                const isPassed = p.status === 'passed' || (p.status === 'bidding' && !isCurrent);
+                                const soldTeam = p.status === 'sold' ? teams.find(t => t._id === p.soldToTeamId || (t as any).id === p.soldToTeamId) : null;
+
+                                return (
+                                    <View
+                                        key={p._id || idx}
+                                        style={[
+                                            styles.poolPlayerCard,
+                                            isCurrent && styles.poolPlayerCardLive,
+                                            p.status === 'sold' && styles.poolPlayerCardSold
+                                        ]}
+                                    >
+                                        <View style={styles.poolPlayerAvatar}>
+                                            {p.image ? (
+                                                <Image source={{ uri: p.image }} style={styles.poolPlayerAvatarImg} />
+                                            ) : (
+                                                <Text style={styles.poolPlayerInitial}>{p.name?.substring(0, 1) || 'P'}</Text>
+                                            )}
+                                        </View>
+
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={styles.poolPlayerName} numberOfLines={1}>{p.name}</Text>
+                                            <Text style={styles.poolPlayerMeta} numberOfLines={1}>
+                                                {p.category} • Base ₹{p.basePrice}{smallUnit}
+                                            </Text>
+                                            {p.status === 'sold' && (
+                                                <Text style={styles.poolPlayerSoldInfo} numberOfLines={1}>
+                                                    Sold to {soldTeam?.name || 'Team'} • ₹{p.soldPrice || p.currentBid}{smallUnit}
+                                                </Text>
+                                            )}
+                                        </View>
+
+                                        <View style={{ alignItems: 'flex-end', gap: 6 }}>
+                                            <View style={[
+                                                styles.poolStatusBadge,
+                                                isCurrent ? styles.poolStatusLive :
+                                                p.status === 'sold' ? styles.poolStatusSold :
+                                                p.status === 'unsold' ? styles.poolStatusUnsold :
+                                                isPassed ? styles.poolStatusPassed : styles.poolStatusPending
+                                            ]}>
+                                                <Text style={[
+                                                    styles.poolStatusText,
+                                                    isCurrent ? { color: '#ffffff' } :
+                                                    p.status === 'sold' ? { color: '#15803d' } :
+                                                    p.status === 'unsold' ? { color: '#dc2626' } :
+                                                    isPassed ? { color: '#b45309' } : { color: '#475569' }
+                                                ]}>
+                                                    {isCurrent ? 'LIVE' : isPassed ? 'PASSED' : (p.status || 'pending').toUpperCase()}
+                                                </Text>
+                                            </View>
+
+                                            {p.status !== 'sold' && !isCurrent && (
+                                                <TouchableOpacity
+                                                    style={styles.bringToStageBtn}
+                                                    onPress={() => {
+                                                        selectPlayer(p);
+                                                        setConsoleTab('stage');
+                                                        showNotice(`Brought ${p.name} to Live Bidding Stage!`);
+                                                    }}
+                                                >
+                                                    <Play size={10} color="#ffffff" />
+                                                    <Text style={styles.bringToStageBtnText}>
+                                                        {isPassed || p.status === 'unsold' ? 'Re-Auction' : 'Auction'}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            )}
+                                        </View>
+                                    </View>
+                                );
+                            })}
+                        </View>
+                    )}
+                </ScrollView>
+            ) : (
             <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
                 {/* Official Completed Celebration Banner */}
                 {tournament?.status === 'completed' && (
@@ -1019,7 +1302,7 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                     style={[styles.actionBtn, styles.nextBtn]}
-                                    onPress={handleNextPlayer}
+                                    onPress={handlePassAndNext}
                                 >
                                     <Text style={styles.nextBtnText}>Pass / Next</Text>
                                     <ArrowRight size={14} color="#ffffff" />
@@ -1220,7 +1503,67 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                         ))}
                     </View>
                 )}
+
+                {/* Quick Player Pool Overview Card on Stage */}
+                <View style={[styles.teamsCard, { marginTop: 14 }]}>
+                    <View style={styles.teamsHeaderRow}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <Users size={16} color="#2563eb" />
+                            <Text style={styles.teamsTitle}>Player Pool Status ({players.length})</Text>
+                        </View>
+                        <TouchableOpacity onPress={() => { setPlayerFilter('all'); setConsoleTab('players'); }}>
+                            <Text style={{ fontSize: 11, fontWeight: '800', color: '#2563eb' }}>View List →</Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
+                        <TouchableOpacity
+                            style={[styles.poolStatMiniCard, { backgroundColor: '#f8fafc', borderColor: '#e2e8f0' }]}
+                            onPress={() => { setPlayerFilter('pending'); setConsoleTab('players'); }}
+                        >
+                            <Text style={[styles.poolStatCount, { color: '#0f172a' }]}>{pendingPlayers.length}</Text>
+                            <Text style={styles.poolStatLabel}>PENDING</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={[styles.poolStatMiniCard, { backgroundColor: '#fffbeb', borderColor: '#fde68a' }]}
+                            onPress={() => { setPlayerFilter('passed'); setConsoleTab('players'); }}
+                        >
+                            <Text style={[styles.poolStatCount, { color: '#b45309' }]}>{passedPlayers.length}</Text>
+                            <Text style={styles.poolStatLabel}>PASSED</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={[styles.poolStatMiniCard, { backgroundColor: '#fef2f2', borderColor: '#fecaca' }]}
+                            onPress={() => { setPlayerFilter('unsold'); setConsoleTab('players'); }}
+                        >
+                            <Text style={[styles.poolStatCount, { color: '#dc2626' }]}>{unsoldPlayers.length}</Text>
+                            <Text style={styles.poolStatLabel}>UNSOLD</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={[styles.poolStatMiniCard, { backgroundColor: '#f0fdf4', borderColor: '#bbf7d0' }]}
+                            onPress={() => { setPlayerFilter('sold'); setConsoleTab('players'); }}
+                        >
+                            <Text style={[styles.poolStatCount, { color: '#15803d' }]}>{soldPlayers.length}</Text>
+                            <Text style={styles.poolStatLabel}>SOLD</Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    {passedPlayers.length > 0 && (
+                        <TouchableOpacity
+                            style={[styles.bringPassedBtn, { marginTop: 10, marginBottom: 0 }]}
+                            onPress={handleBringPassedToAuction}
+                        >
+                            <RotateCcw size={13} color="#ffffff" />
+                            <Text style={styles.bringPassedBtnText}>
+                                🔄 Bring Passed ({passedPlayers.length}) Back to Auction
+                            </Text>
+                        </TouchableOpacity>
+                    )}
+                </View>
             </ScrollView>
+            )}
 
             {/* Mobile Slot Selection Modal */}
             <Modal
@@ -2694,6 +3037,245 @@ const styles = StyleSheet.create({
         color: '#b45309',
         textAlign: 'center',
         marginTop: 3,
+    },
+    consoleTabRow: {
+        flexDirection: 'row',
+        gap: 6,
+        marginTop: 10,
+        backgroundColor: '#f1f5f9',
+        padding: 4,
+        borderRadius: 12,
+    },
+    consoleTabBtn: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        paddingVertical: 8,
+        borderRadius: 9,
+    },
+    consoleTabBtnActive: {
+        backgroundColor: '#2563eb',
+        shadowColor: '#2563eb',
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+        elevation: 2,
+    },
+    consoleTabText: {
+        fontSize: 11,
+        fontWeight: '800',
+        color: '#64748b',
+    },
+    consoleTabTextActive: {
+        color: '#ffffff',
+    },
+    poolSearchCard: {
+        backgroundColor: '#ffffff',
+        borderWidth: 1,
+        borderColor: '#e2e8f0',
+        borderRadius: 14,
+        padding: 10,
+        marginBottom: 10,
+        gap: 8,
+    },
+    poolSearchRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#f8fafc',
+        borderWidth: 1,
+        borderColor: '#e2e8f0',
+        borderRadius: 10,
+        paddingHorizontal: 10,
+        paddingVertical: 7,
+        gap: 8,
+    },
+    poolSearchInput: {
+        flex: 1,
+        fontSize: 12,
+        fontWeight: '600',
+        color: '#0f172a',
+        padding: 0,
+    },
+    slotFilterPill: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        backgroundColor: '#f5f3ff',
+        borderWidth: 1,
+        borderColor: '#ddd6fe',
+        borderRadius: 10,
+        paddingVertical: 7,
+        paddingHorizontal: 10,
+    },
+    slotFilterPillActive: {
+        backgroundColor: '#7c3aed',
+        borderColor: '#7c3aed',
+    },
+    slotFilterPillText: {
+        fontSize: 11,
+        fontWeight: '800',
+        color: '#6d28d9',
+        flex: 1,
+    },
+    poolFilterRow: {
+        gap: 6,
+        paddingBottom: 10,
+    },
+    poolFilterChip: {
+        paddingHorizontal: 12,
+        paddingVertical: 7,
+        borderRadius: 10,
+        backgroundColor: '#ffffff',
+        borderWidth: 1,
+        borderColor: '#e2e8f0',
+    },
+    poolFilterChipActive: {
+        backgroundColor: '#2563eb',
+        borderColor: '#2563eb',
+    },
+    poolFilterChipText: {
+        fontSize: 11,
+        fontWeight: '800',
+        color: '#475569',
+    },
+    poolFilterChipTextActive: {
+        color: '#ffffff',
+    },
+    bringPassedBtn: {
+        backgroundColor: '#4f46e5',
+        borderRadius: 12,
+        paddingVertical: 10,
+        paddingHorizontal: 12,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        marginBottom: 10,
+    },
+    bringPassedBtnText: {
+        color: '#ffffff',
+        fontSize: 11,
+        fontWeight: '900',
+    },
+    poolPlayerCard: {
+        backgroundColor: '#ffffff',
+        borderWidth: 1,
+        borderColor: '#e2e8f0',
+        borderRadius: 14,
+        padding: 10,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+    },
+    poolPlayerCardLive: {
+        borderColor: '#3b82f6',
+        backgroundColor: '#eff6ff',
+    },
+    poolPlayerCardSold: {
+        backgroundColor: '#f8fafc',
+        opacity: 0.85,
+    },
+    poolPlayerAvatar: {
+        width: 40,
+        height: 40,
+        borderRadius: 12,
+        backgroundColor: '#f1f5f9',
+        borderWidth: 1,
+        borderColor: '#e2e8f0',
+        alignItems: 'center',
+        justifyContent: 'center',
+        overflow: 'hidden',
+    },
+    poolPlayerAvatarImg: {
+        width: '100%',
+        height: '100%',
+        resizeMode: 'cover',
+    },
+    poolPlayerInitial: {
+        fontSize: 15,
+        fontWeight: '900',
+        color: '#475569',
+    },
+    poolPlayerName: {
+        fontSize: 13,
+        fontWeight: '800',
+        color: '#0f172a',
+    },
+    poolPlayerMeta: {
+        fontSize: 11,
+        fontWeight: '600',
+        color: '#64748b',
+        marginTop: 1,
+    },
+    poolPlayerSoldInfo: {
+        fontSize: 10,
+        fontWeight: '800',
+        color: '#15803d',
+        marginTop: 2,
+    },
+    poolStatusBadge: {
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+        borderRadius: 6,
+        borderWidth: 1,
+    },
+    poolStatusLive: {
+        backgroundColor: '#2563eb',
+        borderColor: '#2563eb',
+    },
+    poolStatusSold: {
+        backgroundColor: '#f0fdf4',
+        borderColor: '#bbf7d0',
+    },
+    poolStatusUnsold: {
+        backgroundColor: '#fef2f2',
+        borderColor: '#fecaca',
+    },
+    poolStatusPassed: {
+        backgroundColor: '#fffbeb',
+        borderColor: '#fde68a',
+    },
+    poolStatusPending: {
+        backgroundColor: '#f1f5f9',
+        borderColor: '#e2e8f0',
+    },
+    poolStatusText: {
+        fontSize: 9,
+        fontWeight: '900',
+    },
+    bringToStageBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        backgroundColor: '#2563eb',
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        borderRadius: 8,
+    },
+    bringToStageBtnText: {
+        fontSize: 10,
+        fontWeight: '900',
+        color: '#ffffff',
+    },
+    poolStatMiniCard: {
+        flex: 1,
+        minWidth: '22%',
+        paddingVertical: 10,
+        paddingHorizontal: 6,
+        borderRadius: 12,
+        borderWidth: 1,
+        alignItems: 'center',
+    },
+    poolStatCount: {
+        fontSize: 16,
+        fontWeight: '900',
+    },
+    poolStatLabel: {
+        fontSize: 9,
+        fontWeight: '800',
+        color: '#64748b',
+        marginTop: 2,
     },
 });
 

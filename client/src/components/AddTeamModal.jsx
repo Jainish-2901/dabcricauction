@@ -3,6 +3,7 @@ import axios from 'axios';
 import { X, Shield, Award, Calculator, Upload, Trash2, Image as ImageIcon, Crop, User } from 'lucide-react';
 import { getBudgetUnits } from '../utils/currency';
 import ImageCropModal from './ImageCropModal';
+import toast from '../lib/toast';
 
 const AddTeamModal = ({ isOpen, onClose, tournamentId, tournament = null, onAdded, initialData = null, isEdit = false }) => {
     const { largeUnit, smallUnit } = getBudgetUnits(tournament);
@@ -63,7 +64,7 @@ const AddTeamModal = ({ isOpen, onClose, tournamentId, tournament = null, onAdde
         if (!file) return;
 
         if (file.size > 8 * 1024 * 1024) {
-            alert('Logo image size must be less than 8MB');
+            toast.warning('Logo image size must be less than 8MB');
             return;
         }
 
@@ -89,7 +90,7 @@ const AddTeamModal = ({ isOpen, onClose, tournamentId, tournament = null, onAdde
         if (!file) return;
 
         if (file.size > 8 * 1024 * 1024) {
-            alert('Captain photo size must be less than 8MB');
+            toast.warning('Captain photo size must be less than 8MB');
             return;
         }
 
@@ -129,13 +130,15 @@ const AddTeamModal = ({ isOpen, onClose, tournamentId, tournament = null, onAdde
 
             if (isEdit) {
                 await axios.put(`/api/teams/${initialData._id}`, payload);
+                toast.success('Team updated successfully');
             } else {
                 await axios.post('/api/teams', payload);
+                toast.success('Team added successfully');
             }
             onAdded();
             onClose();
         } catch (err) {
-            alert('Failed to save team: ' + (err.response?.data?.message || err.message));
+            toast.error('Failed to save team: ' + (err.response?.data?.message || err.message));
         } finally {
             setLoading(false);
         }

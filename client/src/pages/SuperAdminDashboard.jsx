@@ -15,6 +15,7 @@ import TournamentHubModal from '../components/TournamentHubModal';
 import ManageCredentialsModal from '../components/ManageCredentialsModal';
 import { useAuth } from '../context/AuthContext';
 import { getBudgetUnits } from '../utils/currency';
+import toast from '../lib/toast';
 
 const SuperAdminDashboard = () => {
     const { logout } = useAuth();
@@ -131,7 +132,7 @@ const SuperAdminDashboard = () => {
                 fetchUsers();
             }
         } catch (err) {
-            alert('Failed to delete item: ' + (err.response?.data?.message || err.message));
+            toast.error('Failed to delete item: ' + (err.response?.data?.message || err.message));
             console.error(err);
         }
     };
@@ -185,7 +186,7 @@ const SuperAdminDashboard = () => {
                 setHubTournament(prev => prev ? { ...prev, status: newStatus } : null);
             }
         } catch (err) {
-            alert('Failed to update tournament status');
+            toast.error('Failed to update tournament status');
         }
     };
 
@@ -201,6 +202,7 @@ const SuperAdminDashboard = () => {
         e.stopPropagation();
         navigator.clipboard.writeText(text);
         setCopiedId(id);
+        toast.success('Copied to clipboard!');
         setTimeout(() => setCopiedId(null), 2000);
     };
 
@@ -231,8 +233,9 @@ const SuperAdminDashboard = () => {
                         await axios.put(`/api/tournaments/${t._id}`, { status });
                         fetchTournaments();
                         setHubTournament(prev => prev ? { ...prev, status } : null);
+                        toast.success('Tournament status updated');
                     } catch (e) {
-                        alert('Failed to update tournament status');
+                        toast.error('Failed to update tournament status');
                     }
                 }}
             />

@@ -21,6 +21,7 @@ import {
 import ImageCropModal from '../components/ImageCropModal';
 import { apiFetch } from '../lib/api';
 import { supabase } from '../lib/supabase';
+import toast from '../lib/toast';
 
 const CATEGORIES = [
     { id: 'Batsman', label: 'Batsman', icon: '🏏', desc: 'Top/Middle order batter' },
@@ -139,7 +140,7 @@ const PlayerRegistrationPage = () => {
         const file = e.target.files?.[0];
         if (file) {
             if (file.size > 8 * 1024 * 1024) {
-                alert('File size too large. Please select an image under 8MB.');
+                toast.warning('File size too large. Please select an image under 8MB.');
                 return;
             }
             const reader = new FileReader();

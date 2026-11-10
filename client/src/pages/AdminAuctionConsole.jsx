@@ -205,6 +205,23 @@ const AdminAuctionConsole = () => {
             showNotice('info', `📢 All ${data?.reopenedCount || ''} unsold players brought into Re-Auction slot!`);
         });
 
+        socket.on('player_passed', (data) => {
+            const passedP = data?.player;
+            if (passedP) {
+                setPlayers(prev => prev.map(p => (p._id === passedP._id || p.id === passedP._id) ? { ...p, status: 'passed', currentLeadTeamId: null } : p));
+            }
+        });
+
+        socket.on('passed_reopened', (data) => {
+            if (data?.players) {
+                setPlayers(prev => prev.map(p => {
+                    const match = data.players.find(rp => rp._id === p._id || rp.id === p._id);
+                    return match ? { ...p, ...match } : p;
+                }));
+            }
+            showNotice('success', `🔄 Brought ${data?.reopenedCount || ''} passed players back into pending auction queue!`);
+        });
+
         return () => {
             socket.off('bid_update');
             socket.off('player_sold');
@@ -219,6 +236,8 @@ const AdminAuctionConsole = () => {
             socket.off('auction_status_changed');
             socket.off('team_updated');
             socket.off('unsold_reopened_to_slot');
+            socket.off('player_passed');
+            socket.off('passed_reopened');
             socket.off('connect', handleConnect);
         };
     }, [tournamentId]);
@@ -611,6 +630,29 @@ const AdminAuctionConsole = () => {
         nextPlayer();
     };
 
+    const handlePassAndNext = () => {
+        if (currentPlayer && currentPlayer.status !== 'sold' && currentPlayer.status !== 'unsold') {
+            socket.emit('pass_player', { playerId: currentPlayer._id, tournamentId });
+            setPlayers(prev => prev.map(p => p._id === currentPlayer._id ? { ...p, status: 'passed', currentLeadTeamId: null } : p));
+        }
+        nextPlayer();
+    };
+
+    const handleBringPassedToAuction = () => {
+        if (passedPlayers.length === 0) return;
+        socket.emit('reopen_passed_to_auction', { tournamentId }, (res) => {
+            if (res?.success) {
+                fetchData();
+                showNotice('success', `🔄 Brought ${res.reopenedCount || passedPlayers.length} passed players back to pending queue!`);
+            }
+        });
+        setPlayers(prev => prev.map(p => (
+            (p.status === 'passed' || (p.status === 'bidding' && p._id !== currentPlayer?._id))
+                ? { ...p, status: 'pending', currentLeadTeamId: null, currentBid: p.basePrice || 0 }
+                : p
+        )));
+    };
+
     const nextPlayer = () => {
         let pool = activeSlotId
             ? players.filter(p => p.slotId === activeSlotId && p.status === 'pending')
@@ -643,9 +685,14 @@ const AdminAuctionConsole = () => {
         }
     };
 
+    const passedPlayers = players.filter(p => p.status === 'passed' || (p.status === 'bidding' && p._id !== currentPlayer?._id));
+    const remainingPlayers = players.filter(p => p.status !== 'sold');
+
     const filteredPlayers = players.filter(p => {
         if (onlyActiveSlotInQueue && activeSlotId && p.slotId !== activeSlotId) return false;
         if (playerFilter === 'all') return true;
+        if (playerFilter === 'remaining') return p.status !== 'sold';
+        if (playerFilter === 'passed') return p.status === 'passed' || (p.status === 'bidding' && p._id !== currentPlayer?._id);
         return p.status === playerFilter;
     });
 
@@ -1130,7 +1177,7 @@ const AdminAuctionConsole = () => {
                         )}
 
                         <button
-                            onClick={nextPlayer}
+                            onClick={handlePassAndNext}
                             className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs shadow-sm transition-all flex items-center gap-1.5"
                         >
                             Pass / Next <ArrowRight className="w-4 h-4" />
@@ -1293,20 +1340,37 @@ const AdminAuctionConsole = () => {
                                 )}
 
                                 <div className="flex gap-1 overflow-x-auto pb-1 text-xs">
-                                    {['all', 'pending', 'sold', 'unsold'].map(f => (
+                                    {[
+                                        { id: 'all', label: `All (${players.length})` },
+                                        { id: 'remaining', label: `Remaining (${remainingPlayers.length})` },
+                                        { id: 'pending', label: `Pending (${players.filter(p => p.status === 'pending').length})` },
+                                        { id: 'passed', label: `Passed (${passedPlayers.length})` },
+                                        { id: 'unsold', label: `Unsold (${unsoldPlayers.length})` },
+                                        { id: 'sold', label: `Sold (${players.filter(p => p.status === 'sold').length})` }
+                                    ].map(f => (
                                         <button
-                                            key={f}
-                                            onClick={() => setPlayerFilter(f)}
-                                            className={`px-3 py-1 rounded-lg capitalize font-bold text-xs transition-all ${
-                                                playerFilter === f
+                                            key={f.id}
+                                            onClick={() => setPlayerFilter(f.id)}
+                                            className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition-all shrink-0 cursor-pointer ${
+                                                playerFilter === f.id
                                                     ? 'bg-blue-600 text-white shadow-xs'
                                                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                                             }`}
                                         >
-                                            {f}
+                                            {f.label}
                                         </button>
                                     ))}
                                 </div>
+
+                                {passedPlayers.length > 0 && (playerFilter === 'passed' || playerFilter === 'remaining' || playerFilter === 'all') && (
+                                    <button
+                                        onClick={handleBringPassedToAuction}
+                                        className="w-full py-2 px-3 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white rounded-xl font-black text-xs shadow-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-98"
+                                    >
+                                        <RotateCcw className="w-3.5 h-3.5" />
+                                        <span>🔄 Bring All Passed ({passedPlayers.length}) Back to Auction</span>
+                                    </button>
+                                )}
                             </div>
 
                             {/* Players List */}
@@ -1316,40 +1380,65 @@ const AdminAuctionConsole = () => {
                                 ) : (
                                     filteredPlayers.map(p => {
                                         const isCurrent = currentPlayer?._id === p._id;
+                                        const isPassed = p.status === 'passed' || (p.status === 'bidding' && !isCurrent);
 
                                         return (
                                             <div
                                                 key={p._id}
                                                 onClick={() => p.status !== 'sold' && selectPlayer(p)}
-                                                className={`p-2.5 rounded-xl border flex items-center justify-between transition-all ${
+                                                className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 transition-all ${
                                                     isCurrent
                                                         ? 'border-blue-400 bg-blue-50'
                                                         : p.status === 'sold'
-                                                        ? 'border-slate-200 bg-slate-50 opacity-60 cursor-not-allowed'
-                                                        : 'border-slate-200 bg-white hover:border-slate-300 cursor-pointer shadow-2xs'
+                                                        ? 'border-slate-200 bg-slate-50 opacity-65 cursor-not-allowed'
+                                                        : 'border-slate-200 bg-white hover:border-blue-300 cursor-pointer shadow-2xs'
                                                 }`}
                                             >
-                                                <div className="flex items-center gap-2.5">
-                                                    <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-600 border border-slate-200">
-                                                        {p.name.substring(0, 1)}
+                                                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                                    <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-600 border border-slate-200 shrink-0 overflow-hidden">
+                                                        {p.image ? (
+                                                            <img src={p.image} alt={p.name} className="w-full h-full object-cover" />
+                                                        ) : (
+                                                            p.name.substring(0, 1)
+                                                        )}
                                                     </div>
-                                                    <div>
-                                                        <div className="text-xs font-bold text-slate-900">{p.name}</div>
-                                                        <div className="text-[11px] text-slate-500">
+                                                    <div className="min-w-0">
+                                                        <div className="text-xs font-bold text-slate-900 truncate">{p.name}</div>
+                                                        <div className="text-[11px] text-slate-500 truncate">
                                                             {p.category} • ₹{p.basePrice}{smallUnit}
                                                         </div>
                                                     </div>
                                                 </div>
 
-                                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${
-                                                    p.status === 'sold'
-                                                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                                        : p.status === 'unsold'
-                                                        ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                                                        : 'bg-slate-100 text-slate-600'
-                                                }`}>
-                                                    {p.status}
-                                                </span>
+                                                <div className="flex items-center gap-1.5 shrink-0">
+                                                    {p.status !== 'sold' && !isCurrent && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                selectPlayer(p);
+                                                                showNotice('info', `Brought ${p.name} to Live Stage!`);
+                                                            }}
+                                                            className="px-2 py-1 bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white border border-blue-200 rounded-lg text-[10px] font-black transition-all cursor-pointer"
+                                                            title="Bring player directly to Live Bidding Stage"
+                                                        >
+                                                            {isPassed || p.status === 'unsold' ? 'Re-Auction' : 'Auction'}
+                                                        </button>
+                                                    )}
+                                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${
+                                                        isCurrent
+                                                            ? 'bg-blue-600 text-white'
+                                                            : p.status === 'sold'
+                                                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                                            : p.status === 'unsold'
+                                                            ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                                                            : isPassed
+                                                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                                                            : 'bg-slate-100 text-slate-600'
+                                                    }`}>
+                                                        {isCurrent ? 'LIVE' : isPassed ? 'PASSED' : p.status}
+                                                    </span>
+                                                </div>
                                             </div>
                                         );
                                     })

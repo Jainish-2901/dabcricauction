@@ -12,12 +12,14 @@ import AuctioneerDashboard from './pages/AuctioneerDashboard';
 import PlayerRegistrationPage from './pages/PlayerRegistrationPage';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import ToastContainer from './components/ToastContainer';
 
 function App() {
   return (
     <Router>
       <AuthProvider>
         <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-blue-500/20 antialiased">
+          <ToastContainer />
           <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route path="/login" element={<LoginPage />} />

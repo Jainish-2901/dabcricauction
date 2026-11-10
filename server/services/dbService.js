@@ -1537,10 +1537,54 @@ const db = {
         }
 
         writeData(state);
+        if (supabase) {
+            await supaSync.insertSlot(unsoldSlot);
+            for (const p of updatedPlayers) {
+                await supaSync.updatePlayer(p._id, p);
+            }
+            if (tIdx !== -1) {
+                await supaSync.updateTournament(tournamentId, {
+                    activeSlotId: unsoldSlot._id,
+                    biddingState: 'active'
+                });
+            }
+        }
         return {
             unsoldSlot,
             reopenedCount: updatedPlayers.length,
             players: updatedPlayers
+        };
+    },
+
+    async reopenPassedPlayers(tournamentId) {
+        const state = readData();
+        const tournament = (state.tournaments || []).find(t => t._id === tournamentId);
+        const activePlayerId = tournament?.currentBiddingPlayerId;
+        const reopened = [];
+
+        for (const p of (state.players || [])) {
+            if (
+                p.tournamentId === tournamentId &&
+                (p.status === 'passed' || (p.status === 'bidding' && p._id !== activePlayerId))
+            ) {
+                p.status = 'pending';
+                p.currentBid = p.basePrice || 20;
+                p.currentLeadTeamId = null;
+                reopened.push(p);
+                if (supabase) {
+                    await supaSync.updatePlayer(p._id, {
+                        status: 'pending',
+                        currentBid: p.currentBid,
+                        currentLeadTeamId: null
+                    });
+                }
+            }
+        }
+
+        writeData(state);
+        return {
+            reopenedCount: reopened.length,
+            players: reopened
         };
     },
 

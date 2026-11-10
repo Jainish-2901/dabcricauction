@@ -40,6 +40,7 @@ import {
     X
 } from 'lucide-react-native';
 import { apiFetch } from '../lib/api';
+import { toast } from '../lib/toast';
 
 interface LoginScreenProps {
     onLoginSuccess: (user: any) => void;
@@ -70,17 +71,17 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
 
     const handleAuth = async () => {
         if (!username.trim() || !password.trim()) {
-            Alert.alert('Required Fields', 'Username and Password are required.');
+            toast.warning('Required Fields', 'Username and Password are required.');
             return;
         }
 
         if (authMode === 'signup') {
             if (password.length < 4) {
-                Alert.alert('Validation Error', 'Password should be at least 4 characters long.');
+                toast.warning('Validation Error', 'Password should be at least 4 characters long.');
                 return;
             }
             if (password !== confirmPassword) {
-                Alert.alert('Validation Error', 'Passwords do not match. Please verify.');
+                toast.warning('Validation Error', 'Passwords do not match. Please verify.');
                 return;
             }
         }
@@ -115,9 +116,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                 throw new Error(data.message || 'Authentication failed. Please verify credentials.');
             }
 
+            toast.success(
+                authMode === 'signup' ? 'Account Created!' : 'Welcome Back!',
+                `Signed in as ${data.user?.username || username.trim()}`
+            );
             onLoginSuccess(data.user);
         } catch (error: any) {
-            Alert.alert(
+            toast.error(
                 authMode === 'signup' ? 'Registration Error' : 'Sign In Notice',
                 error?.message || 'Invalid credentials or unable to connect to server.'
             );
@@ -129,7 +134,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     // Forgot Password Step 1: Verify Account
     const handleVerifyForgotAccount = async () => {
         if (!username.trim()) {
-            Alert.alert('Required Field', 'Please enter your username to find your account.');
+            toast.warning('Required Field', 'Please enter your username to find your account.');
             return;
         }
 
@@ -149,8 +154,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
 
             setVerifiedAccount(data);
             setForgotStep(2);
+            toast.info('Account Verified', 'Enter your new password below.');
         } catch (error: any) {
-            Alert.alert('Account Not Found', error?.message || 'Please check the username.');
+            toast.error('Account Not Found', error?.message || 'Please check the username.');
         } finally {
             setLoading(false);
         }
@@ -159,22 +165,22 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     // Forgot Password Step 2: Reset Password
     const handleResetPassword = async () => {
         if (!newPassword.trim()) {
-            Alert.alert('Required Field', 'Please enter your new password.');
+            toast.warning('Required Field', 'Please enter your new password.');
             return;
         }
 
         if (newPassword.trim().length < 4) {
-            Alert.alert('Validation Error', 'Password must be at least 4 characters long.');
+            toast.warning('Validation Error', 'Password must be at least 4 characters long.');
             return;
         }
 
         if (newPassword !== confirmNewPassword) {
-            Alert.alert('Validation Error', 'Passwords do not match. Please verify.');
+            toast.warning('Validation Error', 'Passwords do not match. Please verify.');
             return;
         }
 
         if (verifiedAccount?.hasPhone && !forgotPhone.trim()) {
-            Alert.alert('Verification Required', 'Please enter your registered mobile number for identity verification.');
+            toast.warning('Verification Required', 'Please enter your registered mobile number for identity verification.');
             return;
         }
 
@@ -196,24 +202,17 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                 throw new Error(data.message || 'Failed to reset password.');
             }
 
-            Alert.alert(
+            toast.success(
                 'Password Reset Successful 🎉',
-                'Your password has been updated. Please sign in with your new password.',
-                [
-                    {
-                        text: 'Sign In Now',
-                        onPress: () => {
-                            setPassword('');
-                            setNewPassword('');
-                            setConfirmNewPassword('');
-                            setAuthMode('login');
-                            setForgotStep(1);
-                        }
-                    }
-                ]
+                'Your password has been updated. Please sign in.'
             );
+            setPassword('');
+            setNewPassword('');
+            setConfirmNewPassword('');
+            setAuthMode('login');
+            setForgotStep(1);
         } catch (error: any) {
-            Alert.alert('Reset Failed', error?.message || 'Please check your inputs.');
+            toast.error('Reset Failed', error?.message || 'Please check your inputs.');
         } finally {
             setLoading(false);
         }

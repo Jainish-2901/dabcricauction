@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { X, Trophy, TrendingUp, Layers, Coins } from 'lucide-react';
+import toast from '../lib/toast';
 
 const DEFAULT_SLABS_L_CR = [
     { upTo: 100, increment: 10, label: 'Up to ₹1 Cr (100 L)' },
@@ -93,14 +94,16 @@ const CreateTournamentModal = ({ isOpen, onClose, onCreated, initialData = null,
         try {
             if (isEdit) {
                 await axios.put(`/api/tournaments/${initialData._id}`, formData);
+                toast.success('Tournament updated successfully');
             } else {
                 await axios.post('/api/tournaments', formData);
+                toast.success('Tournament created successfully');
             }
             onCreated();
             onClose();
         } catch (err) {
             console.error(err);
-            alert('Failed to save tournament');
+            toast.error('Failed to save tournament');
         } finally {
             setLoading(false);
         }

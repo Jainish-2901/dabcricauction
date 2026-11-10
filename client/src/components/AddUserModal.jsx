@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { X, UserPlus, Lock } from 'lucide-react';
+import toast from '../lib/toast';
 
 const AddUserModal = ({ isOpen, onClose, tournamentId, onAdded, initialData = null, isEdit = false }) => {
     const [formData, setFormData] = useState({
@@ -57,8 +58,9 @@ const AddUserModal = ({ isOpen, onClose, tournamentId, onAdded, initialData = nu
             });
             onAdded();
             onClose();
+            toast.success(isEdit ? 'User updated successfully' : 'User added successfully');
         } catch (err) {
-            alert(err.response?.data?.message || 'Failed to save user');
+            toast.error(err.response?.data?.message || 'Failed to save user');
         } finally {
             setLoading(false);
         }

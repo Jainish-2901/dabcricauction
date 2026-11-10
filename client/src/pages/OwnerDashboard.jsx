@@ -5,6 +5,7 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import socket from '../socket';
 import { getBudgetUnits } from '../utils/currency';
+import toast from '../lib/toast';
 
 const getBidIncrement = (bid, rules) => {
     const list = Array.isArray(rules) && rules.length > 0 ? rules : [
@@ -320,23 +321,23 @@ const OwnerDashboard = () => {
 
     const placeBid = (increment) => {
         if (biddingState === 'break') {
-            alert("Auction is currently on a break!");
+            toast.info("Auction is currently on a break!");
             return;
         }
         if (biddingState === 'paused') {
-            alert("Bidding is currently paused by the auctioneer!");
+            toast.warning("Bidding is currently paused by the auctioneer!");
             return;
         }
         if (tournament?.status === 'completed') {
-            alert("Auction is officially completed!");
+            toast.info("Auction is officially completed!");
             return;
         }
         if (!currentPlayer) {
-            alert("No player is currently on stage for bidding!");
+            toast.warning("No player is currently on stage for bidding!");
             return;
         }
         if ((tournament?.status === 'upcoming' || biddingState === 'stopped') && !currentPlayer) {
-            alert("Auction has not officially started yet!");
+            toast.info("Auction has not officially started yet!");
             return;
         }
 
@@ -357,12 +358,12 @@ const OwnerDashboard = () => {
         const remainingPurseLakhs = Math.max(0, ((Number(teamData.budget) || 0) - (Number(teamData.spent) || 0)) * 100);
 
         if (newBid > remainingPurseLakhs) {
-            alert(`Insufficient Budget! Your remaining purse is ₹${((Number(teamData.budget) || 0) - (Number(teamData.spent) || 0)).toFixed(2)} ${largeUnit} (₹${remainingPurseLakhs.toFixed(0)} ${smallUnit}).`);
+            toast.error(`Insufficient Budget! Remaining purse: ₹${((Number(teamData.budget) || 0) - (Number(teamData.spent) || 0)).toFixed(2)} ${largeUnit} (₹${remainingPurseLakhs.toFixed(0)} ${smallUnit}).`);
             return;
         }
 
         if (tournament && squad.length >= (tournament.squadSizeLimit || 25)) {
-            alert("Squad Full!");
+            toast.error("Squad Full! Maximum squad size limit reached.");
             return;
         }
 

@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import axios from 'axios';
 import { X, Upload, FileText, Download, ChevronDown, ChevronUp, User, Trash2, Camera } from 'lucide-react';
 import ImageCropModal from './ImageCropModal';
+import toast from '../lib/toast';
 
 const AddPlayerModal = ({ isOpen, onClose, tournamentId, onAdded, initialData = null, isEdit = false }) => {
     const [mode, setMode] = useState('manual');
@@ -78,7 +79,7 @@ const AddPlayerModal = ({ isOpen, onClose, tournamentId, onAdded, initialData = 
         if (!file) return;
 
         if (file.size > 8 * 1024 * 1024) {
-            alert('Image size must be less than 8MB');
+            toast.warning('Image size must be less than 8MB');
             return;
         }
 
@@ -131,14 +132,16 @@ const AddPlayerModal = ({ isOpen, onClose, tournamentId, onAdded, initialData = 
 
             if (isEdit) {
                 await axios.put(`/api/players/${initialData._id}`, payload);
+                toast.success('Player updated successfully');
             } else {
                 await axios.post('/api/players', payload);
+                toast.success('Player added successfully');
             }
             onAdded();
             onClose();
         } catch (err) {
             const msg = err.response?.data?.message || err.message || 'Error saving player';
-            alert(`Error saving player: ${msg}`);
+            toast.error(`Error saving player: ${msg}`);
         } finally {
             setLoading(false);
         }
@@ -171,7 +174,7 @@ const AddPlayerModal = ({ isOpen, onClose, tournamentId, onAdded, initialData = 
     const handleCsvSubmit = async (e) => {
         e.preventDefault();
         if (!csvFile) {
-            alert("Please select a CSV file");
+            toast.warning("Please select a CSV file");
             return;
         }
 
@@ -182,7 +185,7 @@ const AddPlayerModal = ({ isOpen, onClose, tournamentId, onAdded, initialData = 
             const text = event.target.result;
             const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
             if (lines.length <= 1) {
-                alert("CSV file is empty or only contains header.");
+                toast.warning("CSV file is empty or only contains header.");
                 setLoading(false);
                 return;
             }
@@ -244,11 +247,12 @@ const AddPlayerModal = ({ isOpen, onClose, tournamentId, onAdded, initialData = 
                 for (const player of newPlayers) {
                     await axios.post('/api/players', player);
                 }
+                toast.success(`Imported ${newPlayers.length} players successfully!`);
                 onAdded();
                 onClose();
             } catch (err) {
                 console.error(err);
-                alert("Failed to import some players");
+                toast.error("Failed to import some players");
             } finally {
                 setLoading(false);
             }

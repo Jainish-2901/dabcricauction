@@ -18,6 +18,7 @@ import {
     Trophy,
     Flag
 } from 'lucide-react';
+import toast from '../lib/toast';
 
 const TournamentHubModal = ({
     isOpen,
@@ -48,9 +49,10 @@ const TournamentHubModal = ({
             await axios.put(`/api/tournaments/${tournament._id}`, { registrationOpen: nextState });
             setIsRegOpen(nextState);
             tournament.registrationOpen = nextState;
+            toast.success(`Player entry form is now ${nextState ? 'OPEN' : 'CLOSED'}`);
             if (onEditTournament) onEditTournament(tournament);
         } catch (err) {
-            alert('Failed to toggle registration: ' + (err.response?.data?.message || err.message));
+            toast.error('Failed to toggle registration: ' + (err.response?.data?.message || err.message));
         } finally {
             setTogglingReg(false);
         }
@@ -66,6 +68,7 @@ const TournamentHubModal = ({
         e.stopPropagation();
         navigator.clipboard.writeText(publicAuctionUrl);
         setCopiedPublic(true);
+        toast.success('Live Auction URL copied to clipboard!');
         setTimeout(() => setCopiedPublic(false), 2000);
     };
 
@@ -73,6 +76,7 @@ const TournamentHubModal = ({
         e.stopPropagation();
         navigator.clipboard.writeText(playerRegistrationUrl);
         setCopiedForm(true);
+        toast.success('Registration Form URL copied to clipboard!');
         setTimeout(() => setCopiedForm(false), 2000);
     };
 

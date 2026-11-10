@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { X, ZoomIn, ZoomOut, RotateCw, Check, Crop } from 'lucide-react';
+import toast from '../lib/toast';
 
 const ImageCropModal = ({
     isOpen,
@@ -79,7 +80,7 @@ const ImageCropModal = ({
         if (!imageRef.current) return;
         const img = imageRef.current;
         if (!img.naturalWidth || !img.naturalHeight) {
-            alert('Image has not finished loading. Please wait a moment and try again.');
+            toast.warning('Image has not finished loading. Please wait a moment and try again.');
             return;
         }
 

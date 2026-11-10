@@ -16,6 +16,7 @@ import { Shield, Users, Pause, LogOut, CheckCircle2, AlertCircle, ArrowLeft, Tim
 import socket from '../lib/socket';
 import { apiFetch } from '../lib/api';
 import { getBudgetUnits } from '../lib/currency';
+import { toast } from '../lib/toast';
 
 const getBidIncrement = (bid: number, rules?: any[]) => {
     const list = Array.isArray(rules) && rules.length > 0 ? rules : [
@@ -277,7 +278,7 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
                 setLeadTeam(data.player.currentLeadTeamId || null);
             }
             fetchTournament();
-            Alert.alert('Sale Rolled Back', `Sale reverted! Bidding reopened on ${data.player?.name}.`);
+            toast.info('Sale Rolled Back', `Sale reverted! Bidding reopened on ${data.player?.name}.`);
         });
 
         socket.on('bid_undone', (data: { currentBid: number; leadTeam: any }) => {
@@ -382,27 +383,27 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
 
     const handlePlaceBid = (increment?: number) => {
         if (biddingState === 'break') {
-            Alert.alert('On Break', 'Auction is currently on a short break. It will resume shortly.');
+            toast.info('On Break', 'Auction is currently on a short break. It will resume shortly.');
             return;
         }
 
         if (biddingState === 'paused') {
-            Alert.alert('Paused', 'Bidding is currently paused by the auctioneer.');
+            toast.warning('Paused', 'Bidding is currently paused by the auctioneer.');
             return;
         }
 
         if (!currentPlayer) {
-            Alert.alert('No Player', 'No player is currently on stage for bidding.');
+            toast.warning('No Player', 'No player is currently on stage for bidding.');
             return;
         }
 
         if ((tournament?.status === 'upcoming' || biddingState === 'stopped') && !currentPlayer) {
-            Alert.alert('Upcoming', 'Auction has not officially started yet!');
+            toast.info('Upcoming', 'Auction has not officially started yet!');
             return;
         }
 
         if (tournament && squad.length >= (tournament.squadSizeLimit || 25)) {
-            Alert.alert('Squad Full', `You have reached the maximum squad limit of ${tournament.squadSizeLimit || 25} players.`);
+            toast.error('Squad Full', `Max squad limit of ${tournament.squadSizeLimit || 25} players reached.`);
             return;
         }
 
@@ -417,7 +418,7 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
         const remainingPurseLakhs = Math.max(0, ((Number(teamData.budget) || 0) - (Number(teamData.spent) || 0)) * 100);
 
         if (newBid > remainingPurseLakhs) {
-            Alert.alert('Insufficient Budget', `Your remaining purse is ₹${((Number(teamData.budget) || 0) - (Number(teamData.spent) || 0)).toFixed(2)} ${largeUnit} (₹${remainingPurseLakhs.toFixed(0)} ${smallUnit}).`);
+            toast.error('Insufficient Budget', `Remaining purse is ₹${((Number(teamData.budget) || 0) - (Number(teamData.spent) || 0)).toFixed(2)} ${largeUnit} (₹${remainingPurseLakhs.toFixed(0)} ${smallUnit}).`);
             return;
         }
 

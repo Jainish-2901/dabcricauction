@@ -10,6 +10,7 @@ import SpectatorScreen from './components/SpectatorScreen';
 import PlayerRegistrationScreen from './components/PlayerRegistrationScreen';
 import { Shield, Award, Users, Eye, UserPlus } from 'lucide-react-native';
 import { checkForAppUpdates } from './lib/updateManager';
+import { ToastOverlay } from './lib/toast';
 
 const SESSION_STORAGE_KEY = '@dab_cric_auction_active_session_v1';
 
@@ -268,6 +269,9 @@ export default function App() {
                     </View>
                 </SafeAreaView>
             )}
+
+            {/* Global Toast Notifications Overlay */}
+            <ToastOverlay />
         </View>
     );
 }
