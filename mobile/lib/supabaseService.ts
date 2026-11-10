@@ -249,7 +249,6 @@ export const directCreateTournament = async (payload: any) => {
         time: payload.time || '',
         description: payload.description || '',
         logo: payload.logo || '',
-        registration_open: payload.registrationOpen !== false,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
     };
@@ -278,7 +277,6 @@ export const directUpdateTournament = async (id: string, payload: any) => {
     if (payload.logo !== undefined) updateRecord.logo = payload.logo;
     if (payload.activeSlotId !== undefined) updateRecord.active_slot_id = payload.activeSlotId;
     if (payload.currentBiddingPlayerId !== undefined) updateRecord.current_bidding_player_id = payload.currentBiddingPlayerId;
-    if (payload.registrationOpen !== undefined) updateRecord.registration_open = payload.registrationOpen;
 
     const { data, error } = await supabase
         .from('tournaments')

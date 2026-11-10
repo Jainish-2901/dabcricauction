@@ -46,7 +46,321 @@ const syncToSupabaseAsync = () => {
         } catch (e) {
             console.warn('⚠️ Supabase background sync notice:', e.message);
         }
-    }, 2000);
+    }, 1500);
+};
+
+// Direct Supabase Cloud DB Realtime Sync Handlers
+const supaSync = {
+    async insertTournament(t) {
+        if (!supabase) return;
+        try {
+            const row = {
+                _id: t._id,
+                name: t.name || 'Tournament',
+                status: t.status || 'upcoming',
+                auction_type: t.auctionType || 'owner_driven',
+                bidding_state: t.biddingState || 'idle',
+                squad_size_limit: Number(t.squadSizeLimit) || 25,
+                start_date: t.startDate || null,
+                time: t.time || null,
+                description: t.description || null,
+                logo: t.logo || null,
+                active_slot_id: t.activeSlotId || null,
+                current_bidding_player_id: t.currentBiddingPlayerId || null,
+                bid_increment_rules: t.bidIncrementRules || [],
+                updated_at: new Date().toISOString()
+            };
+            const { error } = await supabase.from('tournaments').upsert(row, { onConflict: '_id' });
+            if (error) console.error('❌ Supabase insertTournament error:', error.message);
+            else console.log('⚡ Supabase cloud: Tournament inserted ->', t._id);
+        } catch (e) {
+            console.error('❌ Supabase insertTournament exception:', e.message);
+        }
+    },
+
+    async updateTournament(id, update) {
+        if (!supabase) return;
+        try {
+            const row = { updated_at: new Date().toISOString() };
+            if (update.name !== undefined) row.name = update.name;
+            if (update.status !== undefined) row.status = update.status;
+            if (update.auctionType !== undefined) row.auction_type = update.auctionType;
+            if (update.biddingState !== undefined) row.bidding_state = update.biddingState;
+            if (update.squadSizeLimit !== undefined) row.squad_size_limit = Number(update.squadSizeLimit) || 25;
+            if (update.startDate !== undefined) row.start_date = update.startDate;
+            if (update.time !== undefined) row.time = update.time;
+            if (update.description !== undefined) row.description = update.description;
+            if (update.logo !== undefined) row.logo = update.logo;
+            if (update.activeSlotId !== undefined) row.active_slot_id = update.activeSlotId;
+            if (update.currentBiddingPlayerId !== undefined) row.current_bidding_player_id = update.currentBiddingPlayerId;
+            if (update.bidIncrementRules !== undefined) row.bid_increment_rules = update.bidIncrementRules;
+
+            const { error } = await supabase.from('tournaments').update(row).eq('_id', id);
+            if (error) console.error('❌ Supabase updateTournament error:', error.message);
+            else console.log('⚡ Supabase cloud: Tournament updated ->', id);
+        } catch (e) {
+            console.error('❌ Supabase updateTournament exception:', e.message);
+        }
+    },
+
+    async deleteTournament(id) {
+        if (!supabase) return;
+        try {
+            await Promise.allSettled([
+                supabase.from('tournaments').delete().eq('_id', id),
+                supabase.from('teams').delete().eq('tournament_id', id),
+                supabase.from('players').delete().eq('tournament_id', id),
+                supabase.from('slots').delete().eq('tournament_id', id),
+                supabase.from('users').delete().eq('tournament_id', id),
+                supabase.from('bids').delete().eq('tournament_id', id)
+            ]);
+            console.log('⚡ Supabase cloud: Tournament and cascaded records deleted ->', id);
+        } catch (e) {
+            console.error('❌ Supabase deleteTournament error:', e.message);
+        }
+    },
+
+    async insertTeam(tm) {
+        if (!supabase) return;
+        try {
+            const row = {
+                _id: tm._id,
+                tournament_id: tm.tournamentId || null,
+                name: tm.name,
+                short_name: tm.shortName || null,
+                logo: tm.logo || null,
+                budget: Number(tm.budget) || 100,
+                spent: Number(tm.spent) || 0,
+                is_owner_captain: Boolean(tm.isOwnerCaptain),
+                captain_name: tm.captainName || null,
+                captain_price: Number(tm.captainPrice) || 0,
+                captain_photo: tm.captainPhoto || null,
+                players: tm.players || [],
+                updated_at: new Date().toISOString()
+            };
+            const { error } = await supabase.from('teams').upsert(row, { onConflict: '_id' });
+            if (error) console.error('❌ Supabase insertTeam error:', error.message);
+            else console.log('⚡ Supabase cloud: Team inserted ->', tm._id);
+        } catch (e) {
+            console.error('❌ Supabase insertTeam exception:', e.message);
+        }
+    },
+
+    async updateTeam(id, update) {
+        if (!supabase) return;
+        try {
+            const row = { updated_at: new Date().toISOString() };
+            if (update.name !== undefined) row.name = update.name;
+            if (update.shortName !== undefined) row.short_name = update.shortName;
+            if (update.logo !== undefined) row.logo = update.logo;
+            if (update.budget !== undefined) row.budget = Number(update.budget);
+            if (update.spent !== undefined) row.spent = Number(update.spent);
+            if (update.isOwnerCaptain !== undefined) row.is_owner_captain = Boolean(update.isOwnerCaptain);
+            if (update.captainName !== undefined) row.captain_name = update.captainName;
+            if (update.captainPrice !== undefined) row.captain_price = Number(update.captainPrice);
+            if (update.captainPhoto !== undefined) row.captain_photo = update.captainPhoto;
+            if (update.players !== undefined) row.players = update.players;
+
+            const { error } = await supabase.from('teams').update(row).eq('_id', id);
+            if (error) console.error('❌ Supabase updateTeam error:', error.message);
+        } catch (e) {
+            console.error('❌ Supabase updateTeam exception:', e.message);
+        }
+    },
+
+    async deleteTeam(id) {
+        if (!supabase) return;
+        try {
+            await Promise.allSettled([
+                supabase.from('teams').delete().eq('_id', id),
+                supabase.from('players').update({ sold_to_team_id: null, current_lead_team_id: null, status: 'pending' }).eq('sold_to_team_id', id),
+                supabase.from('users').delete().eq('team_id', id)
+            ]);
+            console.log('⚡ Supabase cloud: Team deleted ->', id);
+        } catch (e) {
+            console.error('❌ Supabase deleteTeam error:', e.message);
+        }
+    },
+
+    async insertPlayer(p) {
+        if (!supabase) return;
+        try {
+            const row = {
+                _id: p._id,
+                tournament_id: p.tournamentId || null,
+                slot_id: p.slotId || null,
+                name: p.name,
+                category: p.category || 'Batsman',
+                batting_style: p.battingStyle || null,
+                bowling_style: p.bowlingStyle || null,
+                base_price: Number(p.basePrice) || 20,
+                current_bid: Number(p.currentBid) || 0,
+                sold_price: Number(p.soldPrice) || 0,
+                status: p.status || 'pending',
+                current_lead_team_id: p.currentLeadTeamId || null,
+                sold_to_team_id: p.soldToTeamId || null,
+                image: p.image || null,
+                cric_heroes_profile_url: p.cricHeroesProfileUrl || null,
+                mobile: p.mobile || null,
+                age: Number(p.age) || null,
+                stats: p.stats || {},
+                is_re_auction: Boolean(p.isReAuction),
+                updated_at: new Date().toISOString()
+            };
+            const { error } = await supabase.from('players').upsert(row, { onConflict: '_id' });
+            if (error) console.error('❌ Supabase insertPlayer error:', error.message);
+            else console.log('⚡ Supabase cloud: Player inserted ->', p._id);
+        } catch (e) {
+            console.error('❌ Supabase insertPlayer exception:', e.message);
+        }
+    },
+
+    async updatePlayer(id, update) {
+        if (!supabase) return;
+        try {
+            const row = { updated_at: new Date().toISOString() };
+            if (update.name !== undefined) row.name = update.name;
+            if (update.category !== undefined) row.category = update.category;
+            if (update.battingStyle !== undefined) row.batting_style = update.battingStyle;
+            if (update.bowlingStyle !== undefined) row.bowling_style = update.bowlingStyle;
+            if (update.basePrice !== undefined) row.base_price = Number(update.basePrice);
+            if (update.currentBid !== undefined) row.current_bid = Number(update.currentBid);
+            if (update.soldPrice !== undefined) row.sold_price = Number(update.soldPrice);
+            if (update.status !== undefined) row.status = update.status;
+            if (update.slotId !== undefined) row.slot_id = update.slotId;
+            if (update.currentLeadTeamId !== undefined) row.current_lead_team_id = update.currentLeadTeamId;
+            if (update.soldToTeamId !== undefined) row.sold_to_team_id = update.soldToTeamId;
+            if (update.image !== undefined) row.image = update.image;
+            if (update.cricHeroesProfileUrl !== undefined) row.cric_heroes_profile_url = update.cricHeroesProfileUrl;
+            if (update.age !== undefined) row.age = Number(update.age);
+            if (update.stats !== undefined) row.stats = update.stats;
+            if (update.isReAuction !== undefined) row.is_re_auction = Boolean(update.isReAuction);
+
+            const { error } = await supabase.from('players').update(row).eq('_id', id);
+            if (error) console.error('❌ Supabase updatePlayer error:', error.message);
+        } catch (e) {
+            console.error('❌ Supabase updatePlayer exception:', e.message);
+        }
+    },
+
+    async deletePlayer(id) {
+        if (!supabase) return;
+        try {
+            await supabase.from('players').delete().eq('_id', id);
+            console.log('⚡ Supabase cloud: Player deleted ->', id);
+        } catch (e) {
+            console.error('❌ Supabase deletePlayer error:', e.message);
+        }
+    },
+
+    async insertSlot(s) {
+        if (!supabase) return;
+        try {
+            const row = {
+                _id: s._id,
+                tournament_id: s.tournamentId || null,
+                name: s.name,
+                role: s.role || 'Batsman',
+                base_price: Number(s.basePrice) || 20,
+                order: Number(s.order) || 1,
+                is_default_unsold: Boolean(s.isDefaultUnsold),
+                slot_type: s.slotType || 'custom',
+                updated_at: new Date().toISOString()
+            };
+            const { error } = await supabase.from('slots').upsert(row, { onConflict: '_id' });
+            if (error) console.error('❌ Supabase insertSlot error:', error.message);
+            else console.log('⚡ Supabase cloud: Slot inserted ->', s._id);
+        } catch (e) {
+            console.error('❌ Supabase insertSlot exception:', e.message);
+        }
+    },
+
+    async updateSlot(id, update) {
+        if (!supabase) return;
+        try {
+            const row = { updated_at: new Date().toISOString() };
+            if (update.name !== undefined) row.name = update.name;
+            if (update.role !== undefined) row.role = update.role;
+            if (update.basePrice !== undefined) row.base_price = Number(update.basePrice);
+            if (update.order !== undefined) row.order = Number(update.order);
+            if (update.isDefaultUnsold !== undefined) row.is_default_unsold = Boolean(update.isDefaultUnsold);
+            if (update.slotType !== undefined) row.slot_type = update.slotType;
+
+            const { error } = await supabase.from('slots').update(row).eq('_id', id);
+            if (error) console.error('❌ Supabase updateSlot error:', error.message);
+        } catch (e) {
+            console.error('❌ Supabase updateSlot exception:', e.message);
+        }
+    },
+
+    async deleteSlot(id) {
+        if (!supabase) return;
+        try {
+            await Promise.allSettled([
+                supabase.from('slots').delete().eq('_id', id),
+                supabase.from('players').update({ slot_id: null }).eq('slot_id', id)
+            ]);
+            console.log('⚡ Supabase cloud: Slot deleted ->', id);
+        } catch (e) {
+            console.error('❌ Supabase deleteSlot error:', e.message);
+        }
+    },
+
+    async insertUser(u) {
+        if (!supabase) return;
+        try {
+            const row = {
+                _id: u._id,
+                username: u.username,
+                name: u.name || null,
+                organization_name: u.organizationName || null,
+                phone: u.phone || null,
+                password_hash: u.passwordHash,
+                plain_password: u.plainPassword || null,
+                role: u.role || 'superadmin',
+                tournament_id: u.tournamentId || null,
+                team_id: u.teamId || null,
+                team_name: u.teamName || null,
+                updated_at: new Date().toISOString()
+            };
+            const { error } = await supabase.from('users').upsert(row, { onConflict: '_id' });
+            if (error) console.error('❌ Supabase insertUser error:', error.message);
+            else console.log('⚡ Supabase cloud: User inserted ->', u.username);
+        } catch (e) {
+            console.error('❌ Supabase insertUser exception:', e.message);
+        }
+    },
+
+    async updateUser(id, update) {
+        if (!supabase) return;
+        try {
+            const row = { updated_at: new Date().toISOString() };
+            if (update.username !== undefined) row.username = update.username;
+            if (update.name !== undefined) row.name = update.name;
+            if (update.organizationName !== undefined) row.organization_name = update.organizationName;
+            if (update.phone !== undefined) row.phone = update.phone;
+            if (update.passwordHash !== undefined) row.password_hash = update.passwordHash;
+            if (update.plainPassword !== undefined) row.plain_password = update.plainPassword;
+            if (update.role !== undefined) row.role = update.role;
+            if (update.teamId !== undefined) row.team_id = update.teamId;
+            if (update.teamName !== undefined) row.team_name = update.teamName;
+
+            const { error } = await supabase.from('users').update(row).eq('_id', id);
+            if (error) console.error('❌ Supabase updateUser error:', error.message);
+        } catch (e) {
+            console.error('❌ Supabase updateUser exception:', e.message);
+        }
+    },
+
+    async deleteUser(id) {
+        if (!supabase) return;
+        try {
+            await supabase.from('users').delete().eq('_id', id);
+            console.log('⚡ Supabase cloud: User deleted ->', id);
+        } catch (e) {
+            console.error('❌ Supabase deleteUser error:', e.message);
+        }
+    }
 };
 
 // Hydrate local cache from Supabase on startup
@@ -289,6 +603,11 @@ const db = {
 
         state.users.push(newUser);
         writeData(state);
+        if (role === 'team_owner' && assignedTeamId) {
+            const createdTeam = state.teams.find(t => t._id === assignedTeamId);
+            if (createdTeam) await supaSync.insertTeam(createdTeam);
+        }
+        await supaSync.insertUser(newUser);
         return newUser;
     },
 
@@ -520,6 +839,11 @@ const db = {
 
         state.users.push(newUser);
         writeData(state);
+        if (role === 'team_owner' && assignedTeamId) {
+            const createdTeam = state.teams.find(t => t._id === assignedTeamId);
+            if (createdTeam) await supaSync.insertTeam(createdTeam);
+        }
+        await supaSync.insertUser(newUser);
         return newUser;
     },
 
@@ -662,6 +986,7 @@ const db = {
         }
 
         writeData(state);
+        await supaSync.updateUser(userId, state.users[idx]);
         return state.users[idx];
     },
 
@@ -684,10 +1009,13 @@ const db = {
                 team.captainPlayerId = null;
                 team.captainPrice = 0;
             }
+            await supaSync.deletePlayer(user.captainPlayerId);
+            if (team) await supaSync.updateTeam(team._id, team);
         }
 
         state.users = state.users.filter(u => u._id !== userId);
         writeData(state);
+        await supaSync.deleteUser(userId);
         return { success: true };
     },
 
@@ -702,6 +1030,7 @@ const db = {
         }
         state.users[idx] = { ...state.users[idx], ...update };
         writeData(state);
+        await supaSync.updateUser(id, state.users[idx]);
         return state.users[idx];
     },
 
@@ -709,6 +1038,7 @@ const db = {
         const state = readData();
         state.users = state.users.filter(u => u._id !== id);
         writeData(state);
+        await supaSync.deleteUser(id);
         return true;
     },
 
@@ -739,6 +1069,7 @@ const db = {
         };
         state.tournaments.push(newT);
         writeData(state);
+        await supaSync.insertTournament(newT);
         return newT;
     },
 
@@ -761,6 +1092,7 @@ const db = {
             }
             state.tournaments[idx] = { ...state.tournaments[idx], ...cleanUpdate };
             writeData(state);
+            await supaSync.updateTournament(id, cleanUpdate);
             return state.tournaments[idx];
         }
         return null;
@@ -775,6 +1107,7 @@ const db = {
         state.users = state.users.filter(u => u.tournamentId !== id);
         state.slots = state.slots.filter(s => s.tournamentId !== id);
         writeData(state);
+        await supaSync.deleteTournament(id);
         return true;
     },
 
@@ -823,6 +1156,7 @@ const db = {
         };
         state.teams.push(newTeam);
         writeData(state);
+        await supaSync.insertTeam(newTeam);
         return newTeam;
     },
 
@@ -897,6 +1231,7 @@ const db = {
 
             state.teams[idx] = updated;
             writeData(state);
+            await supaSync.updateTeam(id, updated);
             return state.teams[idx];
         }
         return null;
@@ -906,6 +1241,7 @@ const db = {
         const state = readData();
         state.teams = state.teams.filter(t => t._id !== id);
         writeData(state);
+        await supaSync.deleteTeam(id);
         return true;
     },
 
@@ -951,6 +1287,7 @@ const db = {
         };
         state.players.push(newPlayer);
         writeData(state);
+        await supaSync.insertPlayer(newPlayer);
         return newPlayer;
     },
 
@@ -1066,6 +1403,7 @@ const db = {
 
             state.players[idx] = { ...current, ...update, ...extra };
             writeData(state);
+            await supaSync.updatePlayer(id, { ...update, ...extra });
             return state.players[idx];
         }
         return null;
@@ -1094,6 +1432,7 @@ const db = {
                 user.isCaptain = false;
             }
             writeData(state);
+            if (team) await supaSync.updateTeam(teamId, team);
             return true;
         }
 
@@ -1120,6 +1459,7 @@ const db = {
 
         state.players = state.players.filter(p => p._id !== id);
         writeData(state);
+        await supaSync.deletePlayer(id);
         return true;
     },
 
@@ -1217,6 +1557,7 @@ const db = {
         };
         state.slots.push(newSlot);
         writeData(state);
+        await supaSync.insertSlot(newSlot);
         return newSlot;
     },
 
@@ -1237,6 +1578,7 @@ const db = {
                 });
             }
             writeData(state);
+            await supaSync.updateSlot(slotId, update);
             return state.slots[idx];
         }
         return null;
@@ -1255,6 +1597,7 @@ const db = {
             if (p.slotId === slotId) p.slotId = null;
         });
         writeData(state);
+        await supaSync.deleteSlot(slotId);
         return true;
     },
 
@@ -1277,6 +1620,11 @@ const db = {
         });
 
         writeData(state);
+        if (supabase && updatedPlayers.length > 0) {
+            for (const p of updatedPlayers) {
+                await supaSync.updatePlayer(p._id, { slotId: p.slotId, basePrice: p.basePrice, currentBid: p.currentBid });
+            }
+        }
         return { slot, updatedCount: updatedPlayers.length, players: updatedPlayers };
     },
 

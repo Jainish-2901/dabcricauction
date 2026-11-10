@@ -43,8 +43,7 @@ async function syncToSupabase() {
             logo: t.logo || null,
             active_slot_id: t.activeSlotId || null,
             current_bidding_player_id: t.currentBiddingPlayerId || null,
-            bid_increment_rules: t.bidIncrementRules || [],
-            registration_open: t.registrationOpen !== false
+            bid_increment_rules: t.bidIncrementRules || []
         }));
 
         const { data, error } = await supabase.from('tournaments').upsert(rows, { onConflict: '_id' });
