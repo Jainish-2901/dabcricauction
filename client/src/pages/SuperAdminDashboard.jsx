@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
     Plus, Trash2, Edit, Users, Trophy, Settings, LogOut, Shield, 
     User, Layers, PlayCircle, Key, Eye, FileText, ExternalLink, Copy, Check,
-    Sparkles, Radio, ChevronRight, Activity, ArrowRight, Crown, X, Download
+    Sparkles, Radio, ChevronRight, Activity, ArrowRight, Crown, X, Download, Search
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -38,6 +38,9 @@ const SuperAdminDashboard = () => {
     const [selectedTournament, setSelectedTournament] = useState(null);
     const [hubTournament, setHubTournament] = useState(null);
     const [copiedId, setCopiedId] = useState(null);
+    const [playerSearchQuery, setPlayerSearchQuery] = useState('');
+    const [playerRoleFilter, setPlayerRoleFilter] = useState('ALL');
+    const [playerStatusFilter, setPlayerStatusFilter] = useState('ALL');
     const navigate = useNavigate();
 
     const { largeUnit, smallUnit } = getBudgetUnits(selectedTournament);
@@ -73,6 +76,24 @@ const SuperAdminDashboard = () => {
         .filter(Boolean);
 
     const allDisplayPlayers = [...retainedCaptains, ...(players || [])];
+
+    const filteredDisplayPlayers = allDisplayPlayers.filter(p => {
+        const isCap = p.isCaptain || p.isDirectOwnerCaptain;
+        if (playerSearchQuery.trim()) {
+            const q = playerSearchQuery.toLowerCase().trim();
+            const teamName = p.soldToTeamName || (p.soldToTeamId && teams.find(t => t._id === p.soldToTeamId)?.name) || '';
+            if (!p.name?.toLowerCase().includes(q) && !p.category?.toLowerCase().includes(q) && !teamName.toLowerCase().includes(q)) {
+                return false;
+            }
+        }
+        if (playerRoleFilter !== 'ALL' && p.category !== playerRoleFilter) return false;
+        if (playerStatusFilter !== 'ALL') {
+            if (playerStatusFilter === 'Sold' && p.status !== 'sold' && !isCap) return false;
+            if (playerStatusFilter === 'Unsold' && p.status !== 'unsold') return false;
+            if (playerStatusFilter === 'Available' && (p.status === 'sold' || p.status === 'unsold' || isCap)) return false;
+        }
+        return true;
+    });
 
     useEffect(() => {
         fetchTournaments();
@@ -931,9 +952,56 @@ const SuperAdminDashboard = () => {
                                 </div>
                             </div>
 
+                            {/* Search & Filter Bar for Players */}
+                            <div className="bg-white border border-slate-200/90 rounded-2xl p-3.5 mb-5 flex flex-wrap items-center gap-3">
+                                <div className="relative flex-1 min-w-[200px]">
+                                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                                    <input
+                                        type="text"
+                                        placeholder="Search player by name, role, or team..."
+                                        value={playerSearchQuery}
+                                        onChange={(e) => setPlayerSearchQuery(e.target.value)}
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-8 py-2 text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-blue-500 focus:bg-white"
+                                    />
+                                    {playerSearchQuery && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setPlayerSearchQuery('')}
+                                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                                            title="Clear search"
+                                        >
+                                            <X className="w-3.5 h-3.5" />
+                                        </button>
+                                    )}
+                                </div>
+
+                                <select
+                                    value={playerRoleFilter}
+                                    onChange={(e) => setPlayerRoleFilter(e.target.value)}
+                                    className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 focus:outline-none focus:border-blue-500"
+                                >
+                                    <option value="ALL">All Roles</option>
+                                    <option value="Batsman">Batsman</option>
+                                    <option value="Bowler">Bowler</option>
+                                    <option value="All-Rounder">All-Rounder</option>
+                                    <option value="Wicket Keeper">Wicket Keeper</option>
+                                </select>
+
+                                <select
+                                    value={playerStatusFilter}
+                                    onChange={(e) => setPlayerStatusFilter(e.target.value)}
+                                    className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 focus:outline-none focus:border-blue-500"
+                                >
+                                    <option value="ALL">All Status ({allDisplayPlayers.length})</option>
+                                    <option value="Available">Available</option>
+                                    <option value="Sold">Sold / Retained</option>
+                                    <option value="Unsold">Unsold</option>
+                                </select>
+                            </div>
+
                             {/* Player Cards (Including Retained Owner-Captains) */}
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {allDisplayPlayers.length > 0 ? allDisplayPlayers.map(p => {
+                                {filteredDisplayPlayers.length > 0 ? filteredDisplayPlayers.map(p => {
                                     const isCap = p.isCaptain || p.isDirectOwnerCaptain;
                                     return (
                                         <div 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { X, Plus, Trash2, Layers, Check, ArrowRight, UserCheck, Shield, Sparkles, Search, Filter } from 'lucide-react';
+import { X, Plus, Trash2, Edit2, Layers, Check, ArrowRight, UserCheck, Shield, Sparkles, Search, Filter } from 'lucide-react';
 import { getBudgetUnits } from '../utils/currency';
 import toast from '../lib/toast';
 
@@ -10,7 +10,8 @@ const SlotManagerModal = ({ isOpen, onClose, tournament, tournamentId, tournamen
     const [players, setPlayers] = useState([]);
     const [selectedSlot, setSelectedSlot] = useState(null);
 
-    // Form inputs for creating a new slot
+    // Form inputs for creating / editing a slot
+    const [editingSlot, setEditingSlot] = useState(null);
     const [newSlotName, setNewSlotName] = useState('');
     const [newSlotRole, setNewSlotRole] = useState('Batsman');
     const [newSlotBasePrice, setNewSlotBasePrice] = useState(isKtoL ? '20' : '100');
@@ -31,6 +32,8 @@ const SlotManagerModal = ({ isOpen, onClose, tournament, tournamentId, tournamen
             fetchData();
         } else if (!isOpen) {
             setSelectedSlot(null);
+            setEditingSlot(null);
+            setNewSlotName('');
             setSlots([]);
             setPlayers([]);
         }
@@ -61,27 +64,63 @@ const SlotManagerModal = ({ isOpen, onClose, tournament, tournamentId, tournamen
         }
     };
 
-    const handleCreateSlot = async (e) => {
+    const handleStartEditSlot = (slot) => {
+        if (!slot || slot.isDefaultUnsold || slot.slotType === 'unsold') return;
+        setEditingSlot(slot);
+        setNewSlotName(slot.name || '');
+        setNewSlotRole(slot.role || 'Batsman');
+        setNewSlotBasePrice(String(slot.basePrice ?? (isKtoL ? '20' : '100')));
+    };
+
+    const handleCancelEditSlot = () => {
+        setEditingSlot(null);
+        setNewSlotName('');
+        setNewSlotRole('Batsman');
+        setNewSlotBasePrice(isKtoL ? '20' : '100');
+    };
+
+    const handleSaveSlot = async (e) => {
         e.preventDefault();
         if (!newSlotName.trim()) return;
 
         setSaving(true);
         try {
-            const payload = {
-                name: newSlotName.trim(),
-                role: newSlotRole,
-                basePrice: Number(newSlotBasePrice) || 20,
-                order: slots.length + 1
-            };
+            if (editingSlot) {
+                const payload = {
+                    name: newSlotName.trim(),
+                    role: newSlotRole,
+                    basePrice: Number(newSlotBasePrice) || (isKtoL ? 20 : 100)
+                };
+                const res = await axios.put(`/api/tournaments/${tournamentId}/slots/${editingSlot._id}`, payload);
+                const updated = res.data.slot;
+                setSlots(prev => prev.map(s => (s._id === editingSlot._id ? updated : s)));
+                setSelectedSlot(prev => (prev?._id === editingSlot._id ? updated : prev));
+                setPlayers(prev => prev.map(p => (
+                    p.slotId === editingSlot._id && p.status === 'pending'
+                        ? { ...p, basePrice: updated.basePrice, currentBid: updated.basePrice }
+                        : p
+                )));
+                handleCancelEditSlot();
+                showNotice(`Slot "${updated.name}" updated — Base Price ₹${updated.basePrice} ${smallUnit}`);
+                if (onUpdated) onUpdated();
+            } else {
+                const payload = {
+                    name: newSlotName.trim(),
+                    role: newSlotRole,
+                    basePrice: Number(newSlotBasePrice) || (isKtoL ? 20 : 100),
+                    order: slots.length + 1
+                };
 
-            const res = await axios.post(`/api/tournaments/${tournamentId}/slots`, payload);
-            const created = res.data.slot;
-            setSlots(prev => [...prev, created]);
-            setSelectedSlot(created);
-            setNewSlotName('');
-            showNotice(`Slot "${created.name}" created with base price ₹${created.basePrice} ${smallUnit}`);
+                const res = await axios.post(`/api/tournaments/${tournamentId}/slots`, payload);
+                const created = res.data.slot;
+                setSlots(prev => [...prev, created]);
+                setSelectedSlot(created);
+                setNewSlotName('');
+                showNotice(`Slot "${created.name}" created with base price ₹${created.basePrice} ${smallUnit}`);
+                if (onUpdated) onUpdated();
+            }
         } catch (err) {
-            toast.error('Failed to create slot');
+            toast.error(editingSlot ? 'Failed to update slot' : 'Failed to create slot');
         } finally {
             setSaving(false);
         }
@@ -91,12 +130,15 @@ const SlotManagerModal = ({ isOpen, onClose, tournament, tournamentId, tournamen
         if (!window.confirm('Delete this slot? Assigned players will keep their base price but be unslotted.')) return;
         try {
             await axios.delete(`/api/tournaments/${tournamentId}/slots/${slotId}`);
+            if (editingSlot?._id === slotId) handleCancelEditSlot();
             setSlots(prev => {
                 const remaining = prev.filter(s => s._id !== slotId);
                 setSelectedSlot(prevSel => (prevSel?._id === slotId ? (remaining[0] || null) : prevSel));
                 return remaining;
             });
+            setPlayers(prev => prev.map(p => (p.slotId === slotId ? { ...p, slotId: null } : p)));
             showNotice('Slot deleted');
+            if (onUpdated) onUpdated();
         } catch (err) {
             toast.error('Failed to delete slot');
         }
@@ -108,15 +150,23 @@ const SlotManagerModal = ({ isOpen, onClose, tournament, tournamentId, tournamen
                 playerIds: [player._id]
             });
 
+            const isUnsoldSlot = slot.isDefaultUnsold || slot.slotType === 'unsold' || slot.basePrice == null;
+
             // Update local state
             setPlayers(prev => prev.map(p => {
                 if (p._id === player._id) {
-                    return { ...p, slotId: slot._id, basePrice: slot.basePrice, currentBid: slot.basePrice };
+                    return isUnsoldSlot
+                        ? { ...p, slotId: slot._id }
+                        : { ...p, slotId: slot._id, basePrice: slot.basePrice, currentBid: slot.basePrice };
                 }
                 return p;
             }));
 
-            showNotice(`Shifted "${player.name}" to ${slot.name} — Base Price auto-set to ₹${slot.basePrice} ${smallUnit}!`);
+            showNotice(
+                isUnsoldSlot
+                    ? `Shifted "${player.name}" to ${slot.name} — Retains player's own base price (₹${player.basePrice} ${smallUnit})`
+                    : `Shifted "${player.name}" to ${slot.name} — Base Price auto-set to ₹${slot.basePrice} ${smallUnit}!`
+            );
             if (onUpdated) onUpdated();
         } catch (err) {
             toast.error('Failed to assign player to slot');
@@ -196,11 +246,22 @@ const SlotManagerModal = ({ isOpen, onClose, tournament, tournamentId, tournamen
                     
                     {/* Left Column: Create & List Slots */}
                     <div className="md:col-span-5 space-y-4">
-                        {/* Create Slot Form */}
-                        <form onSubmit={handleCreateSlot} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
-                            <span className="text-[11px] font-extrabold uppercase text-slate-700 tracking-wider">
-                                Create New Slot / Tier Set
-                            </span>
+                        {/* Create / Edit Slot Form */}
+                        <form onSubmit={handleSaveSlot} className={`p-4 border rounded-2xl space-y-3 ${editingSlot ? 'bg-indigo-50/70 border-indigo-300' : 'bg-slate-50 border-slate-200'}`}>
+                            <div className="flex items-center justify-between gap-2">
+                                <span className={`text-[11px] font-extrabold uppercase tracking-wider ${editingSlot ? 'text-indigo-800' : 'text-slate-700'}`}>
+                                    {editingSlot ? `Edit Slot: ${editingSlot.name}` : 'Create New Slot / Tier Set'}
+                                </span>
+                                {editingSlot && (
+                                    <button
+                                        type="button"
+                                        onClick={handleCancelEditSlot}
+                                        className="text-[11px] font-bold text-slate-600 hover:text-slate-900 bg-white px-2 py-0.5 rounded-lg border border-slate-200"
+                                    >
+                                        Cancel
+                                    </button>
+                                )}
+                            </div>
 
                             <div>
                                 <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Slot Name</label>
@@ -245,10 +306,10 @@ const SlotManagerModal = ({ isOpen, onClose, tournament, tournamentId, tournamen
                             <button
                                 type="submit"
                                 disabled={saving}
-                                className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center gap-1.5"
+                                className={`w-full py-2.5 text-white font-extrabold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center gap-1.5 ${editingSlot ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-blue-600 hover:bg-blue-700'}`}
                             >
-                                <Plus className="w-3.5 h-3.5" />
-                                <span>Add Slot (Sets Base Price)</span>
+                                {editingSlot ? <Check className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+                                <span>{editingSlot ? 'Update Slot Details' : 'Add Slot (Sets Base Price)'}</span>
                             </button>
                         </form>
 
@@ -277,8 +338,8 @@ const SlotManagerModal = ({ isOpen, onClose, tournament, tournamentId, tournamen
                                             <div>
                                                 <h4 className="font-black text-xs text-slate-900">{slot.name}</h4>
                                                 <div className="flex items-center gap-2 mt-0.5">
-                                                    <span className="text-[10px] font-bold text-purple-700 bg-purple-100/70 px-1.5 py-0.5 rounded">
-                                                        ₹{slot.basePrice} {smallUnit} Base
+                                                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${(slot.isDefaultUnsold || slot.slotType === 'unsold' || slot.basePrice == null) ? 'text-amber-700 bg-amber-100/80' : 'text-purple-700 bg-purple-100/70'}`}>
+                                                        {(slot.isDefaultUnsold || slot.slotType === 'unsold' || slot.basePrice == null) ? 'Per Player Base' : `₹${slot.basePrice} ${smallUnit} Base`}
                                                     </span>
                                                     <span className="text-[10px] text-slate-500 font-semibold">
                                                         {slot.role} • {count} Players
@@ -292,13 +353,24 @@ const SlotManagerModal = ({ isOpen, onClose, tournament, tournamentId, tournamen
                                                         Default Re-Auction
                                                     </span>
                                                 ) : (
-                                                    <button
-                                                        onClick={() => handleDeleteSlot(slot._id)}
-                                                        className="p-1.5 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-lg"
-                                                        title="Delete Slot"
-                                                    >
-                                                        <Trash2 className="w-3.5 h-3.5" />
-                                                    </button>
+                                                    <>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleStartEditSlot(slot)}
+                                                            className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg"
+                                                            title="Edit Slot"
+                                                        >
+                                                            <Edit2 className="w-3.5 h-3.5" />
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleDeleteSlot(slot._id)}
+                                                            className="p-1.5 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-lg"
+                                                            title="Delete Slot"
+                                                        >
+                                                            <Trash2 className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    </>
                                                 )}
                                             </div>
                                         </div>
@@ -319,12 +391,20 @@ const SlotManagerModal = ({ isOpen, onClose, tournament, tournamentId, tournamen
                                         </span>
                                         <h3 className="font-black text-slate-900 text-sm">{selectedSlot.name}</h3>
                                         <p className="text-xs text-slate-600 mt-0.5">
-                                            Shifting players here auto-sets their base price to <strong className="text-purple-800 font-black">₹{selectedSlot.basePrice} {smallUnit}</strong>.
+                                            {(selectedSlot.isDefaultUnsold || selectedSlot.slotType === 'unsold' || selectedSlot.basePrice == null)
+                                                ? 'Base price is NOT auto-set — each player keeps their own base price.'
+                                                : <>Shifting players here auto-sets their base price to <strong className="text-purple-800 font-black">₹{selectedSlot.basePrice} {smallUnit}</strong>.</>}
                                         </p>
                                     </div>
                                     <div className="text-right">
-                                        <span className="text-2xl font-black text-purple-900">₹{selectedSlot.basePrice}</span>
-                                        <span className="text-xs font-bold text-purple-700"> {smallUnit}</span>
+                                        {(selectedSlot.isDefaultUnsold || selectedSlot.slotType === 'unsold' || selectedSlot.basePrice == null) ? (
+                                            <span className="text-xs font-black text-amber-800 bg-amber-100 border border-amber-300 px-2.5 py-1 rounded-lg">Per Player</span>
+                                        ) : (
+                                            <>
+                                                <span className="text-2xl font-black text-purple-900">₹{selectedSlot.basePrice}</span>
+                                                <span className="text-xs font-bold text-purple-700"> {smallUnit}</span>
+                                            </>
+                                        )}
                                     </div>
                                 </div>
 

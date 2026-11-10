@@ -159,7 +159,7 @@ export const handleDirectSupabaseApi = async (endpoint: string, options?: Reques
 
         const credAddMatch = path.match(/^\/api\/tournaments\/([^/?#]+)\/credentials\/add$/);
         if (credAddMatch && method === 'POST') {
-            const result = await db.directAddCredential(body);
+            const result = await db.directAddCredential({ tournamentId: credAddMatch[1], ...body });
             return createMockResponse(result, 201, true);
         }
 

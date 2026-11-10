@@ -148,7 +148,7 @@ const AddPlayerModal = ({ isOpen, onClose, tournamentId, onAdded, initialData = 
         }
     };
 
-    const parseCsvLine = (line) => {
+    const parseCsvLine = (line, delimiter = ',') => {
         const result = [];
         let insideQuotes = false;
         let entry = '';
@@ -161,7 +161,7 @@ const AddPlayerModal = ({ isOpen, onClose, tournamentId, onAdded, initialData = 
                 } else {
                     insideQuotes = !insideQuotes;
                 }
-            } else if (char === ',' && !insideQuotes) {
+            } else if (char === delimiter && !insideQuotes) {
                 result.push(entry.trim());
                 entry = '';
             } else {
@@ -170,6 +170,16 @@ const AddPlayerModal = ({ isOpen, onClose, tournamentId, onAdded, initialData = 
         }
         result.push(entry.trim());
         return result;
+    };
+
+    const normalizeCategory = (raw) => {
+        const v = String(raw || '').toLowerCase().trim();
+        if (!v) return 'All-Rounder';
+        if (v.includes('wicket') || v === 'wk' || v.includes('keeper')) return 'Wicket Keeper';
+        if (v.includes('bowl')) return 'Bowler';
+        if (v.includes('all')) return 'All-Rounder';
+        if (v.includes('bat')) return 'Batsman';
+        return raw.trim();
     };
 
     const handleCsvSubmit = async (e) => {
@@ -183,15 +193,17 @@ const AddPlayerModal = ({ isOpen, onClose, tournamentId, onAdded, initialData = 
         const reader = new FileReader();
 
         reader.onload = async (event) => {
-            const text = event.target.result;
-            const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
+            const rawText = String(event.target?.result || '').replace(/^\uFEFF/, '');
+            const lines = rawText.split(/\r?\n/).filter(l => l.trim().length > 0);
             if (lines.length <= 1) {
                 toast.warning("CSV file is empty or only contains header.");
                 setLoading(false);
                 return;
             }
 
-            const headerRow = parseCsvLine(lines[0]).map(h => h.toLowerCase().replace(/[^a-z0-9]/g, ''));
+            const firstLine = lines[0];
+            const delimiter = firstLine.includes('\t') ? '\t' : (firstLine.split(';').length > firstLine.split(',').length ? ';' : ',');
+            const headerRow = parseCsvLine(firstLine, delimiter).map(h => h.toLowerCase().replace(/[^a-z0-9]/g, ''));
             const newPlayers = [];
 
             // Detect column indices or use default positioning
@@ -212,13 +224,15 @@ const AddPlayerModal = ({ isOpen, onClose, tournamentId, onAdded, initialData = 
             };
 
             for (let i = 1; i < lines.length; i++) {
-                const cols = parseCsvLine(lines[i]);
-                if (cols.length === 0 || !cols[0]) continue;
+                const cols = parseCsvLine(lines[i], delimiter);
+                if (cols.length === 0 || !cols.some(Boolean)) continue;
 
-                // If header columns weren't matched, fallback to order
-                const name = (colIndex.name !== -1 ? cols[colIndex.name] : cols[0]) || '';
-                const category = (colIndex.category !== -1 ? cols[colIndex.category] : cols[1]) || 'All-Rounder';
-                const basePrice = Number(colIndex.basePrice !== -1 ? cols[colIndex.basePrice] : cols[2]) || 20;
+                const name = ((colIndex.name !== -1 ? cols[colIndex.name] : cols[0]) || '').trim();
+                const rawCat = (colIndex.category !== -1 ? cols[colIndex.category] : cols[1]) || '';
+                const category = normalizeCategory(rawCat);
+                const rawPrice = colIndex.basePrice !== -1 ? cols[colIndex.basePrice] : cols[2];
+                const parsedBase = Number(String(rawPrice ?? '').replace(/[^0-9.]/g, ''));
+                const basePrice = Number.isFinite(parsedBase) && parsedBase >= 0 && rawPrice !== '' && rawPrice !== undefined ? parsedBase : 20;
 
                 if (!name) continue;
 
@@ -226,22 +240,28 @@ const AddPlayerModal = ({ isOpen, onClose, tournamentId, onAdded, initialData = 
                     name,
                     category,
                     basePrice,
-                    battingStyle: colIndex.battingStyle !== -1 ? cols[colIndex.battingStyle] : 'Right Handed',
-                    bowlingStyle: colIndex.bowlingStyle !== -1 ? cols[colIndex.bowlingStyle] : 'Right-arm Fast',
-                    mobile: colIndex.mobile !== -1 ? cols[colIndex.mobile] : '',
+                    battingStyle: (colIndex.battingStyle !== -1 ? cols[colIndex.battingStyle] : '') || 'Right Handed',
+                    bowlingStyle: (colIndex.bowlingStyle !== -1 ? cols[colIndex.bowlingStyle] : '') || 'Right-arm Fast',
+                    mobile: colIndex.mobile !== -1 ? (cols[colIndex.mobile] || '') : '',
                     age: colIndex.age !== -1 && cols[colIndex.age] ? Number(cols[colIndex.age]) : undefined,
-                    cricHeroesProfileUrl: colIndex.cricHeroesURL !== -1 ? cols[colIndex.cricHeroesURL] : '',
+                    cricHeroesProfileUrl: colIndex.cricHeroesURL !== -1 ? (cols[colIndex.cricHeroesURL] || '') : '',
                     stats: {
-                        matches: colIndex.matches !== -1 && cols[colIndex.matches] ? Number(cols[colIndex.matches]) : 0,
-                        runs: colIndex.runs !== -1 && cols[colIndex.runs] ? Number(cols[colIndex.runs]) : 0,
-                        highestScore: colIndex.highestScore !== -1 ? cols[colIndex.highestScore] : '',
-                        wickets: colIndex.wickets !== -1 && cols[colIndex.wickets] ? Number(cols[colIndex.wickets]) : 0,
-                        bestBowling: colIndex.bestBowling !== -1 ? cols[colIndex.bestBowling] : ''
+                        matches: colIndex.matches !== -1 && cols[colIndex.matches] ? Number(cols[colIndex.matches]) || 0 : 0,
+                        runs: colIndex.runs !== -1 && cols[colIndex.runs] ? Number(cols[colIndex.runs]) || 0 : 0,
+                        highestScore: colIndex.highestScore !== -1 ? (cols[colIndex.highestScore] || '') : '',
+                        wickets: colIndex.wickets !== -1 && cols[colIndex.wickets] ? Number(cols[colIndex.wickets]) || 0 : 0,
+                        bestBowling: colIndex.bestBowling !== -1 ? (cols[colIndex.bestBowling] || '') : ''
                     },
                     tournamentId
                 };
 
                 newPlayers.push(playerObj);
+            }
+
+            if (newPlayers.length === 0) {
+                toast.warning("No valid player rows found in CSV file.");
+                setLoading(false);
+                return;
             }
 
             try {
@@ -257,6 +277,11 @@ const AddPlayerModal = ({ isOpen, onClose, tournamentId, onAdded, initialData = 
             } finally {
                 setLoading(false);
             }
+        };
+
+        reader.onerror = () => {
+            toast.error("Failed to read CSV file.");
+            setLoading(false);
         };
 
         reader.readAsText(csvFile);

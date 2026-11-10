@@ -400,7 +400,7 @@ const mapSlot = (r: any) => ({
     tournamentId: r.tournament_id,
     name: r.name,
     role: r.role || 'Batsman',
-    basePrice: Number(r.base_price) || 20,
+    basePrice: (r.is_default_unsold || r.slot_type === 'unsold' || r.base_price == null) ? null : Number(r.base_price),
     order: Number(r.order) || 1,
     isDefaultUnsold: r.is_default_unsold || false,
     slotType: r.slot_type || 'custom'
@@ -424,7 +424,7 @@ export const directCreateSlot = async (tournamentId: string, payload: any) => {
         tournament_id: tournamentId,
         name: payload.name?.trim(),
         role: payload.role || 'Batsman',
-        base_price: Number(payload.basePrice) || 20,
+        base_price: (payload.isDefaultUnsold || payload.slotType === 'unsold' || payload.basePrice == null) ? null : Number(payload.basePrice),
         order: Number(payload.order) || 1,
         is_default_unsold: payload.isDefaultUnsold || false,
         slot_type: payload.slotType || 'custom',

@@ -37,12 +37,14 @@ import {
     Trophy,
     Radio,
     Search,
-    Sparkles
+    Sparkles,
+    FileText
 } from 'lucide-react-native';
 import socket from '../lib/socket';
 import { apiFetch } from '../lib/api';
 import { getBudgetUnits } from '../lib/currency';
 import { toast } from '../lib/toast';
+import { handleExportCSVAction } from '../lib/csvExport';
 
 export interface AdminConsoleScreenProps {
     tournamentId: string;
@@ -1078,6 +1080,18 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                         <Text style={styles.completedSub}>
                             All bidding rounds have finished. Total Sold: {players.filter(p => p.status === 'sold').length} • Unsold: {players.filter(p => p.status === 'unsold').length}
                         </Text>
+                        <TouchableOpacity
+                            style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#059669', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, marginTop: 10 }}
+                            onPress={() => handleExportCSVAction({
+                                type: 'summary',
+                                tournament,
+                                teams,
+                                players
+                            })}
+                        >
+                            <FileText size={14} color="#ffffff" />
+                            <Text style={{ fontSize: 12, fontWeight: '800', color: '#ffffff' }}>Download Summary CSV</Text>
+                        </TouchableOpacity>
                     </View>
                 )}
 
@@ -1106,11 +1120,15 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                             <Text style={styles.activeSlotName} numberOfLines={1}>
                                 {slots.find(s => s._id === activeSlotId)?.name || 'All Players (No Slot Filter)'}
                             </Text>
-                            {slots.find(s => s._id === activeSlotId) && (
-                                <Text style={styles.activeSlotDetail}>
-                                    Base: ₹{slots.find(s => s._id === activeSlotId)?.basePrice}{smallUnit} • {slots.find(s => s._id === activeSlotId)?.role}
-                                </Text>
-                            )}
+                            {slots.find(s => s._id === activeSlotId) && (() => {
+                                const actSlot = slots.find(s => s._id === activeSlotId);
+                                const isUnsold = actSlot?.isDefaultUnsold || actSlot?.slotType === 'unsold' || actSlot?.basePrice == null;
+                                return (
+                                    <Text style={styles.activeSlotDetail}>
+                                        {isUnsold ? `Base: Per Player • ${actSlot?.role}` : `Base: ₹${actSlot?.basePrice}${smallUnit} • ${actSlot?.role}`}
+                                    </Text>
+                                );
+                            })()}
                         </View>
                     </View>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -1404,7 +1422,18 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                             <Users size={16} color="#2563eb" />
                             <Text style={styles.teamsTitle}>Connected Teams ({teams.length})</Text>
                         </View>
-                        <Text style={styles.teamsSub}>Tap team to view squad</Text>
+                        <TouchableOpacity
+                            style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#ecfdf5', borderWidth: 1, borderColor: '#a7f3d0', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 }}
+                            onPress={() => handleExportCSVAction({
+                                type: 'summary',
+                                tournament,
+                                teams,
+                                players
+                            })}
+                        >
+                            <FileText size={12} color="#047857" />
+                            <Text style={{ fontSize: 10, fontWeight: '800', color: '#047857' }}>Summary CSV</Text>
+                        </TouchableOpacity>
                     </View>
 
                     {teams.map(t => {
@@ -1680,7 +1709,7 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                                                         {isFinished && <Text style={styles.doneSlotChip}>{isUnsoldSlot ? 'No Unsold' : 'Done'}</Text>}
                                                     </View>
                                                     <Text style={styles.slotCardSub}>
-                                                        Base: ₹{s.basePrice}{smallUnit} • {s.role} • {sPending.length} {isUnsoldSlot ? 'Unsold Waiting' : 'Pending'}
+                                                        {isUnsoldSlot || s.basePrice == null ? 'Base: Per Player' : `Base: ₹${s.basePrice}${smallUnit}`} • {s.role} • {sPending.length} {isUnsoldSlot ? 'Unsold Waiting' : 'Pending'}
                                                     </Text>
                                                 </View>
                                                 <View style={[styles.slotPickBtn, isUnsoldSlot && { backgroundColor: '#d97706' }]}>

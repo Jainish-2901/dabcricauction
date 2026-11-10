@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, TouchableOpacity, Text, SafeAreaView, AppState, AppStateStatus, ActivityIndicator } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { safeStorage } from './lib/storage';
 import LoginScreen from './components/LoginScreen';
 import LiveBiddingRoom from './components/LiveBiddingRoom';
 import AdminConsoleScreen from './components/AdminConsoleScreen';
@@ -28,7 +28,7 @@ export default function App() {
 
         const restoreSession = async () => {
             try {
-                const storedSession = await AsyncStorage.getItem(SESSION_STORAGE_KEY);
+                const storedSession = await safeStorage.getItem(SESSION_STORAGE_KEY);
                 if (storedSession) {
                     const parsed = JSON.parse(storedSession);
                     if (parsed.user) {
@@ -72,7 +72,7 @@ export default function App() {
             const saveState = async () => {
                 try {
                     if (user) {
-                        await AsyncStorage.setItem(
+                        await safeStorage.setItem(
                             SESSION_STORAGE_KEY,
                             JSON.stringify({
                                 user,
@@ -83,7 +83,7 @@ export default function App() {
                             })
                         );
                     } else if (currentScreen === 'login') {
-                        await AsyncStorage.removeItem(SESSION_STORAGE_KEY);
+                        await safeStorage.removeItem(SESSION_STORAGE_KEY);
                     }
                 } catch (e) {
                     console.warn('⚠️ Failed to save session:', e);
@@ -99,7 +99,7 @@ export default function App() {
         const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
             if (nextAppState === 'active' && user) {
                 // Keep session updated on resume
-                AsyncStorage.setItem(
+                safeStorage.setItem(
                     SESSION_STORAGE_KEY,
                     JSON.stringify({
                         user,
@@ -108,7 +108,7 @@ export default function App() {
                         prevScreen,
                         lastActiveAt: Date.now()
                     })
-                ).catch(() => {});
+                ).catch(() => { });
             }
         });
 
@@ -137,7 +137,7 @@ export default function App() {
         setUser(null);
         setCurrentScreen('login');
         try {
-            await AsyncStorage.removeItem(SESSION_STORAGE_KEY);
+            await safeStorage.removeItem(SESSION_STORAGE_KEY);
         } catch (e) {
             console.warn('⚠️ Logout session removal notice:', e);
         }

@@ -32,7 +32,9 @@ import {
     Crown,
     Sparkles,
     Camera,
-    User
+    User,
+    ChevronDown,
+    ChevronUp
 } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { apiFetch, getApiUrl } from '../lib/api';
@@ -44,6 +46,7 @@ interface ManageCredentialsModalProps {
     tournaments?: any[];
     onSelectTournament?: (t: any) => void;
     teams?: any[];
+    onUpdated?: () => void;
     onClose: () => void;
 }
 
@@ -53,13 +56,22 @@ export const ManageCredentialsModal: React.FC<ManageCredentialsModalProps> = ({
     tournaments = [],
     onSelectTournament,
     teams = [],
+    onUpdated,
     onClose
 }) => {
     const [currentTournament, setCurrentTournament] = useState(tournament);
     const [loading, setLoading] = useState(false);
     const [credentialsList, setCredentialsList] = useState<any[]>([]);
+    const [localTeams, setLocalTeams] = useState<any[]>(teams || []);
+    const [teamDropdownOpen, setTeamDropdownOpen] = useState(false);
     const [copied, setCopied] = useState(false);
     const [showPasswords, setShowPasswords] = useState<{ [key: string]: boolean }>({});
+
+    useEffect(() => {
+        if (Array.isArray(teams) && teams.length > 0) {
+            setLocalTeams(teams);
+        }
+    }, [teams]);
 
     useEffect(() => {
         if (tournament) {
@@ -92,17 +104,20 @@ export const ManageCredentialsModal: React.FC<ManageCredentialsModalProps> = ({
 
     useEffect(() => {
         if (visible && currentTournament?._id) {
-            fetchCredentials();
+            fetchCredentialsAndTeams();
         }
     }, [visible, currentTournament?._id]);
 
-    const fetchCredentials = async () => {
+    const fetchCredentialsAndTeams = async () => {
         if (!currentTournament?._id) return;
         setLoading(true);
         try {
-            const res = await apiFetch(`/api/tournaments/${currentTournament._id}/credentials`);
-            if (res.ok) {
-                const data = await res.json();
+            const [credRes, teamsRes] = await Promise.all([
+                apiFetch(`/api/tournaments/${currentTournament._id}/credentials`),
+                apiFetch(`/api/teams/${currentTournament._id}`)
+            ]);
+            if (credRes.ok) {
+                const data = await credRes.json();
                 if (data.credentials && Array.isArray(data.credentials)) {
                     setCredentialsList(data.credentials);
                 } else {
@@ -111,6 +126,12 @@ export const ManageCredentialsModal: React.FC<ManageCredentialsModalProps> = ({
             } else {
                 setCredentialsList([]);
             }
+            if (teamsRes.ok) {
+                const tData = await teamsRes.json();
+                if (Array.isArray(tData)) {
+                    setLocalTeams(tData);
+                }
+            }
         } catch {
             setCredentialsList([]);
         } finally {
@@ -118,11 +139,25 @@ export const ManageCredentialsModal: React.FC<ManageCredentialsModalProps> = ({
         }
     };
 
+    const applyTeamCaptainDefaults = (teamIdVal: string) => {
+        const matched = (localTeams || []).find(t => (t._id || t.id) === teamIdVal);
+        if (matched && (matched.isOwnerCaptain || matched.captainName)) {
+            setCaptainName(matched.captainName || '');
+            setCaptainPhoto(matched.captainPhoto || matched.captainImage || '');
+            setCaptainPrice(String(matched.captainPrice ?? 0));
+        } else {
+            setCaptainName('');
+            setCaptainPhoto('');
+            setCaptainPrice('15');
+        }
+    };
+
     const handleOpenAdd = () => {
         setFormMode('add');
         setSelectedUserId(null);
         setFormRole('team_owner');
-        setFormTeamId(teams[0]?._id || '');
+        setFormTeamId('');
+        setTeamDropdownOpen(true);
         setFormUsername('');
         setFormPassword('');
         setCaptainName('');
@@ -166,7 +201,8 @@ export const ManageCredentialsModal: React.FC<ManageCredentialsModalProps> = ({
         setFormMode('edit');
         setSelectedUserId(cred._id);
         setFormRole(cred.role);
-        setFormTeamId(cred.teamId || '');
+        setFormTeamId(cred.teamId?._id || cred.teamId || '');
+        setTeamDropdownOpen(false);
         setFormUsername(cred.username);
         setFormPassword(cred.plainPassword || '');
         setCaptainName(cred.captainName || cred.username || '');
@@ -195,6 +231,7 @@ export const ManageCredentialsModal: React.FC<ManageCredentialsModalProps> = ({
                                 method: 'DELETE'
                             });
                             toast.success('Deleted', `Removed credentials for ${username}`);
+                            if (onUpdated) onUpdated();
                         } catch {}
                         setCredentialsList(prev => prev.filter(c => c._id !== userId));
                     }
@@ -216,9 +253,11 @@ export const ManageCredentialsModal: React.FC<ManageCredentialsModalProps> = ({
 
         setSaving(true);
 
+        const matchedTeam = localTeams.find(t => (t._id || t.id) === formTeamId);
         const payload = {
             role: formRole,
             teamId: formRole === 'team_owner' ? formTeamId : null,
+            teamName: formRole === 'team_owner' ? (matchedTeam?.name || undefined) : undefined,
             username: formUsername.trim(),
             password: formPassword.trim(),
             captainName: formRole === 'team_owner' ? (captainName || formUsername).trim() : undefined,
@@ -268,7 +307,8 @@ export const ManageCredentialsModal: React.FC<ManageCredentialsModalProps> = ({
                 }
             }
             setFormVisible(false);
-            fetchCredentials();
+            fetchCredentialsAndTeams();
+            if (onUpdated) onUpdated();
             toast.success('Saved', `Credentials for ${formUsername.trim()} saved!`);
         } catch (error: any) {
             toast.error('Save Failed', error.message || 'Operation failed');
@@ -511,22 +551,86 @@ export const ManageCredentialsModal: React.FC<ManageCredentialsModalProps> = ({
                                         {formRole === 'team_owner' && (
                                             <>
                                                 <Text style={styles.inputLabel}>ASSIGN TO TEAM *</Text>
-                                                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
-                                                    {teams.map(t => {
-                                                        const isSel = formTeamId === t._id;
-                                                        return (
-                                                            <TouchableOpacity
-                                                                key={t._id}
-                                                                style={[styles.teamSelectPill, isSel && styles.teamSelectPillActive]}
-                                                                onPress={() => setFormTeamId(t._id)}
-                                                            >
-                                                                <Text style={[styles.teamSelectPillText, isSel && styles.teamSelectPillTextActive]}>
-                                                                    {t.name} ({t.shortName || 'TM'})
-                                                                </Text>
-                                                            </TouchableOpacity>
-                                                        );
-                                                    })}
-                                                </ScrollView>
+                                                {localTeams.length === 0 ? (
+                                                    <View style={{ padding: 10, borderRadius: 10, backgroundColor: '#fffbeb', borderWidth: 1, borderColor: '#fde68a', marginBottom: 10 }}>
+                                                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#92400e' }}>
+                                                            No teams available in this tournament yet. Add a team in the Teams tab first.
+                                                        </Text>
+                                                    </View>
+                                                ) : (
+                                                    <View style={{ marginBottom: 10 }}>
+                                                        {(() => {
+                                                            const selectedTeamObj = localTeams.find(t => (t._id || t.id) === formTeamId);
+                                                            return (
+                                                                <TouchableOpacity
+                                                                    style={styles.teamDropdownTrigger}
+                                                                    onPress={() => setTeamDropdownOpen(!teamDropdownOpen)}
+                                                                    activeOpacity={0.75}
+                                                                >
+                                                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+                                                                        <Shield size={14} color={selectedTeamObj ? '#2563eb' : '#94a3b8'} />
+                                                                        <Text
+                                                                            style={[
+                                                                                styles.teamDropdownTriggerText,
+                                                                                !selectedTeamObj && { color: '#94a3b8', fontWeight: '600' }
+                                                                            ]}
+                                                                            numberOfLines={1}
+                                                                        >
+                                                                            {selectedTeamObj
+                                                                                ? `${selectedTeamObj.name} (${selectedTeamObj.shortName || 'TM'})`
+                                                                                : '-- Choose Team --'}
+                                                                        </Text>
+                                                                    </View>
+                                                                    {teamDropdownOpen ? (
+                                                                        <ChevronUp size={16} color="#64748b" />
+                                                                    ) : (
+                                                                        <ChevronDown size={16} color="#64748b" />
+                                                                    )}
+                                                                </TouchableOpacity>
+                                                            );
+                                                        })()}
+
+                                                        {teamDropdownOpen && (
+                                                            <View style={styles.teamDropdownList}>
+                                                                {localTeams.map(t => {
+                                                                    const tid = t._id || t.id;
+                                                                    const isSel = formTeamId === tid;
+                                                                    return (
+                                                                        <TouchableOpacity
+                                                                            key={tid}
+                                                                            style={[styles.teamDropdownItem, isSel && styles.teamDropdownItemActive]}
+                                                                            onPress={() => {
+                                                                                setFormTeamId(tid);
+                                                                                if (formMode === 'add') applyTeamCaptainDefaults(tid);
+                                                                                setTeamDropdownOpen(false);
+                                                                            }}
+                                                                        >
+                                                                            <View style={{ flex: 1 }}>
+                                                                                <Text style={[styles.teamDropdownItemText, isSel && styles.teamDropdownItemTextActive]}>
+                                                                                    {t.name} ({t.shortName || 'TM'}){t.isOwnerCaptain && t.captainName ? ` — Cap: ${t.captainName}` : ''}
+                                                                                </Text>
+                                                                            </View>
+                                                                            {isSel && <Check size={14} color="#2563eb" />}
+                                                                        </TouchableOpacity>
+                                                                    );
+                                                                })}
+                                                            </View>
+                                                        )}
+                                                    </View>
+                                                )}
+
+                                                {(() => {
+                                                    const selTeam = localTeams.find(t => (t._id || t.id) === formTeamId);
+                                                    if (!selTeam?.isOwnerCaptain) return null;
+                                                    return (
+                                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#ecfdf5', borderWidth: 1, borderColor: '#a7f3d0', borderRadius: 10, padding: 8, marginBottom: 8 }}>
+                                                            <Check size={14} color="#059669" />
+                                                            <Text style={{ fontSize: 10, color: '#065f46', fontWeight: '800', flex: 1 }}>
+                                                                Captain already created on {selTeam.name}: {selTeam.captainName || 'Captain'} (₹{selTeam.captainPrice || 0}). Auto-selected — just set Username & Password!
+                                                            </Text>
+                                                        </View>
+                                                    );
+                                                })()}
 
                                                 {/* Captain Banner */}
                                                 <View style={styles.captainBanner}>
@@ -1032,6 +1136,52 @@ const styles = StyleSheet.create({
     teamSelectPillTextActive: {
         color: '#2563eb',
         fontWeight: '800',
+    },
+    teamDropdownTrigger: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: '#f8fafc',
+        borderWidth: 1,
+        borderColor: '#cbd5e1',
+        borderRadius: 10,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+    },
+    teamDropdownTriggerText: {
+        fontSize: 12,
+        fontWeight: '800',
+        color: '#0f172a',
+        flex: 1,
+    },
+    teamDropdownList: {
+        marginTop: 6,
+        backgroundColor: '#ffffff',
+        borderWidth: 1,
+        borderColor: '#cbd5e1',
+        borderRadius: 10,
+        overflow: 'hidden',
+    },
+    teamDropdownItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        borderBottomWidth: 1,
+        borderBottomColor: '#f1f5f9',
+    },
+    teamDropdownItemActive: {
+        backgroundColor: '#eff6ff',
+    },
+    teamDropdownItemText: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: '#334155',
+    },
+    teamDropdownItemTextActive: {
+        color: '#1d4ed8',
+        fontWeight: '900',
     },
     captainBanner: {
         flexDirection: 'row',

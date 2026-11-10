@@ -908,7 +908,9 @@ const AdminAuctionConsole = () => {
                             </span>
                             {activeSlotObj && (
                                 <span className="text-xs font-black text-slate-800">
-                                    Base Price: ₹{activeSlotObj.basePrice} {smallUnit} • {activeSlotObj.role}
+                                    {(activeSlotObj.isDefaultUnsold || activeSlotObj.slotType === 'unsold' || activeSlotObj.basePrice == null)
+                                        ? `Base Price: Per Player • ${activeSlotObj.role}`
+                                        : `Base Price: ₹${activeSlotObj.basePrice} ${smallUnit} • ${activeSlotObj.role}`}
                                 </span>
                             )}
                         </div>
@@ -1728,7 +1730,7 @@ const AdminAuctionConsole = () => {
 
                                                         <div className="flex items-center gap-2 mt-1 text-xs flex-wrap">
                                                             <span className={`font-bold px-2 py-0.5 rounded ${isUnsoldSlot ? 'text-amber-800 bg-amber-100' : 'text-purple-700 bg-purple-100/70'}`}>
-                                                                Base: ₹{slot.basePrice} {smallUnit}
+                                                                {isUnsoldSlot || slot.basePrice == null ? 'Base: Per Player' : `Base: ₹${slot.basePrice} ${smallUnit}`}
                                                             </span>
                                                             <span className="text-slate-500">•</span>
                                                             <span className="text-slate-600 font-semibold">{slot.role}</span>

@@ -56,10 +56,13 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import TournamentHubModal from './TournamentHubModal';
 import ManageCredentialsModal from './ManageCredentialsModal';
+import AddTeamModal from './AddTeamModal';
+import AddPlayerModal from './AddPlayerModal';
 import { apiFetch, getApiUrl } from '../lib/api';
 import { getBudgetUnits } from '../lib/currency';
 import { checkForAppUpdates } from '../lib/updateManager';
 import { toast, ToastOverlay } from '../lib/toast';
+import { handleExportCSVAction } from '../lib/csvExport';
 
 const DEFAULT_SLABS_L_CR = [
     { upTo: 100, increment: 10, label: 'Up to ₹1 Cr (100 L)' },
@@ -135,6 +138,7 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
 
     // Slots Tab States
     const [selectedSlot, setSelectedSlot] = useState<any>(null);
+    const [editingSlot, setEditingSlot] = useState<any>(null);
     const [newSlotName, setNewSlotName] = useState('');
     const [newSlotRole, setNewSlotRole] = useState('Batsman');
     const [newSlotBasePrice, setNewSlotBasePrice] = useState(isKtoL ? '20' : '100');
@@ -159,6 +163,10 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
     const [savingTourney, setSavingTourney] = useState(false);
 
     // Edit Player Modal States
+    const [addTeamModalVisible, setAddTeamModalVisible] = useState(false);
+    const [editingTeamData, setEditingTeamData] = useState<any>(null);
+    const [addPlayerModalVisible, setAddPlayerModalVisible] = useState(false);
+    const [editingPlayerData, setEditingPlayerData] = useState<any>(null);
     const [editPlayerModalVisible, setEditPlayerModalVisible] = useState(false);
     const [editingPlayer, setEditingPlayer] = useState<any>(null);
     const [editPlayerName, setEditPlayerName] = useState('');
@@ -665,7 +673,22 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
     };
 
     // --- SLOTS HANDLERS ---
-    const handleCreateSlot = async () => {
+    const handleStartEditSlot = (slot: any) => {
+        if (!slot || slot.isDefaultUnsold || slot.slotType === 'unsold') return;
+        setEditingSlot(slot);
+        setNewSlotName(slot.name || '');
+        setNewSlotRole(slot.role || 'Batsman');
+        setNewSlotBasePrice(String(slot.basePrice ?? (isKtoL ? '20' : '100')));
+    };
+
+    const handleCancelEditSlot = () => {
+        setEditingSlot(null);
+        setNewSlotName('');
+        setNewSlotRole('Batsman');
+        setNewSlotBasePrice(isKtoL ? '20' : '100');
+    };
+
+    const handleSaveSlot = async () => {
         if (!newSlotName.trim()) {
             toast.warning('Required Field', 'Slot name is required');
             return;
@@ -674,31 +697,61 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
 
         setSavingSlot(true);
         try {
-            const payload = {
-                name: newSlotName.trim(),
-                role: newSlotRole,
-                basePrice: Number(newSlotBasePrice) || (isKtoL ? 20 : 100),
-                order: slots.length + 1
-            };
+            if (editingSlot) {
+                const payload = {
+                    name: newSlotName.trim(),
+                    role: newSlotRole,
+                    basePrice: Number(newSlotBasePrice) || (isKtoL ? 20 : 100)
+                };
 
-            const res = await apiFetch(`/api/tournaments/${selectedTournament._id}/slots`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
+                const res = await apiFetch(`/api/tournaments/${selectedTournament._id}/slots/${editingSlot._id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
 
-            if (res.ok) {
-                const data = await res.json();
-                const created = data.slot;
-                setSlots(prev => [...prev, created]);
-                setSelectedSlot(created);
-                setNewSlotName('');
-                toast.success('Slot Created', `"${created.name}" created • Base ₹${created.basePrice} ${smallUnit}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    const updated = data.slot;
+                    setSlots(prev => prev.map(s => (s._id === editingSlot._id ? updated : s)));
+                    setSelectedSlot((prevSel: any) => (prevSel?._id === editingSlot._id ? updated : prevSel));
+                    setPlayers(prev => prev.map(p => (
+                        p.slotId === editingSlot._id && p.status === 'pending'
+                            ? { ...p, basePrice: updated.basePrice, currentBid: updated.basePrice }
+                            : p
+                    )));
+                    handleCancelEditSlot();
+                    toast.success('Slot Updated', `"${updated.name}" updated • Base ₹${updated.basePrice} ${smallUnit}`);
+                } else {
+                    toast.error('Error', 'Failed to update slot');
+                }
             } else {
-                toast.error('Error', 'Failed to create slot');
+                const payload = {
+                    name: newSlotName.trim(),
+                    role: newSlotRole,
+                    basePrice: Number(newSlotBasePrice) || (isKtoL ? 20 : 100),
+                    order: slots.length + 1
+                };
+
+                const res = await apiFetch(`/api/tournaments/${selectedTournament._id}/slots`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (res.ok) {
+                    const data = await res.json();
+                    const created = data.slot;
+                    setSlots(prev => [...prev, created]);
+                    setSelectedSlot(created);
+                    setNewSlotName('');
+                    toast.success('Slot Created', `"${created.name}" created • Base ₹${created.basePrice} ${smallUnit}`);
+                } else {
+                    toast.error('Error', 'Failed to create slot');
+                }
             }
         } catch {
-            toast.error('Network Error', 'Failed to create slot');
+            toast.error('Network Error', editingSlot ? 'Failed to update slot' : 'Failed to create slot');
         } finally {
             setSavingSlot(false);
         }
@@ -718,11 +771,13 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                             await apiFetch(`/api/tournaments/${selectedTournament._id}/slots/${slotId}`, {
                                 method: 'DELETE'
                             });
+                            if (editingSlot?._id === slotId) handleCancelEditSlot();
                             setSlots(prev => {
                                 const remaining = prev.filter(s => s._id !== slotId);
                                 setSelectedSlot((prevSel: any) => (prevSel?._id === slotId ? (remaining[0] || null) : prevSel));
                                 return remaining;
                             });
+                            setPlayers(prev => prev.map(p => (p.slotId === slotId ? { ...p, slotId: null } : p)));
                             toast.success('Slot Deleted', `Removed "${slotName}"`);
                         } catch {
                             toast.error('Error', 'Failed to delete slot');
@@ -746,13 +801,21 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
             });
 
             if (res.ok) {
+                const isUnsoldSlot = slot.isDefaultUnsold || slot.slotType === 'unsold' || slot.basePrice == null;
                 setPlayers(prev => prev.map(p => {
                     if (p._id === player._id) {
-                        return { ...p, slotId: slot._id, basePrice: slot.basePrice, currentBid: slot.basePrice };
+                        return isUnsoldSlot
+                            ? { ...p, slotId: slot._id }
+                            : { ...p, slotId: slot._id, basePrice: slot.basePrice, currentBid: slot.basePrice };
                     }
                     return p;
                 }));
-                toast.success('Player Shifted', `"${player.name}" assigned to "${slot.name}" (Base ₹${slot.basePrice} ${smallUnit})`);
+                toast.success(
+                    'Player Shifted',
+                    isUnsoldSlot
+                        ? `"${player.name}" assigned to "${slot.name}" (Retains player's ₹${player.basePrice} ${smallUnit})`
+                        : `"${player.name}" assigned to "${slot.name}" (Base ₹${slot.basePrice} ${smallUnit})`
+                );
             } else {
                 toast.error('Error', 'Failed to assign player to slot');
             }
@@ -1272,143 +1335,34 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                                 </Text>
                             </View>
 
-                            {/* Register Team Form */}
-                            <View style={styles.formCard}>
-                                <Text style={styles.formTitle}>REGISTER TEAM FOR THIS TOURNAMENT</Text>
-
-                                <Text style={styles.inputLabel}>TEAM LOGO (1:1 CROP & UPLOAD)</Text>
-                                <View style={styles.logoInputRow}>
-                                    <View style={styles.logoPreviewBox}>
-                                        {newTeamLogo ? (
-                                            <Image source={{ uri: newTeamLogo }} style={styles.logoPreviewImg} />
-                                        ) : (
-                                            <Shield size={20} color="#94a3b8" />
-                                        )}
-                                    </View>
-                                    <View style={{ flex: 1, gap: 6 }}>
-                                        <TouchableOpacity style={styles.uploadBtnSmall} onPress={handlePickTeamLogo}>
-                                            <Camera size={13} color="#2563eb" />
-                                            <Text style={styles.uploadBtnSmallText}>
-                                                {newTeamLogo ? 'Change Logo (1:1)' : 'Upload Logo (1:1 Crop)'}
-                                            </Text>
-                                        </TouchableOpacity>
-                                        <TextInput
-                                            style={[styles.input, { marginBottom: 0, paddingVertical: 6, fontSize: 11 }]}
-                                            placeholder="Or enter logo URL (https://...)"
-                                            placeholderTextColor="#94a3b8"
-                                            value={newTeamLogo}
-                                            onChangeText={setNewTeamLogo}
-                                        />
-                                        {newTeamLogo ? (
-                                            <TouchableOpacity onPress={() => setNewTeamLogo('')}>
-                                                <Text style={styles.clearLogoText}>✕ Clear Logo</Text>
-                                            </TouchableOpacity>
-                                        ) : null}
-                                    </View>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 8 }}>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.listTitle}>Registered Teams ({teams.length})</Text>
+                                    <Text style={styles.listHint}>Tap any team card to inspect Squad</Text>
                                 </View>
-
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Team Name (e.g. Royal Challengers Bengaluru)"
-                                    placeholderTextColor="#94a3b8"
-                                    value={newTeamName}
-                                    onChangeText={setNewTeamName}
-                                />
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Short Code (e.g. RCB)"
-                                    placeholderTextColor="#94a3b8"
-                                    autoCapitalize="characters"
-                                    value={newTeamShort}
-                                    onChangeText={setNewTeamShort}
-                                />
-
-                                <Text style={styles.inputLabel}>PURSE BUDGET (₹ {largeName.toUpperCase()} / {largeUnit})</Text>
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder={`Purse in ${largeUnit} (e.g. ${isKtoL ? '20' : '100'})`}
-                                    placeholderTextColor="#94a3b8"
-                                    keyboardType="numeric"
-                                    value={newTeamBudget}
-                                    onChangeText={setNewTeamBudget}
-                                />
-
                                 <TouchableOpacity
-                                    style={styles.checkboxRow}
-                                    onPress={() => setIsOwnerCaptain(!isOwnerCaptain)}
-                                    activeOpacity={0.7}
+                                    style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#059669', paddingHorizontal: 10, paddingVertical: 8, borderRadius: 10 }}
+                                    onPress={() => handleExportCSVAction({
+                                        type: 'summary',
+                                        tournament: selectedTournament,
+                                        teams,
+                                        players: allDisplayPlayers
+                                    })}
                                 >
-                                    {isOwnerCaptain ? (
-                                        <CheckSquare size={18} color="#2563eb" />
-                                    ) : (
-                                        <Square size={18} color="#94a3b8" />
-                                    )}
-                                    <View style={{ flex: 1 }}>
-                                        <Text style={styles.checkboxLabel}>Owner Playing as Captain</Text>
-                                        <Text style={styles.checkboxSub}>Auto-deduct captain price from purse</Text>
-                                    </View>
+                                    <FileText size={13} color="#ffffff" />
+                                    <Text style={{ fontSize: 11, fontWeight: '800', color: '#ffffff' }}>Summary CSV</Text>
                                 </TouchableOpacity>
-
-                                {isOwnerCaptain && (
-                                    <View style={styles.deductionBox}>
-                                        <Text style={styles.inputLabel}>CAPTAIN FULL NAME</Text>
-                                        <TextInput
-                                            style={styles.input}
-                                            placeholder="Captain / Owner Full Name"
-                                            placeholderTextColor="#94a3b8"
-                                            value={captainName}
-                                            onChangeText={setCaptainName}
-                                        />
-
-                                        <Text style={styles.inputLabel}>CAPTAIN PROFILE PHOTO (1:1 CROP)</Text>
-                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#ffffff', padding: 10, borderRadius: 14, borderWidth: 1, borderColor: '#e2e8f0', marginBottom: 10 }}>
-                                            <View style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#cbd5e1', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                                                {captainPhoto ? (
-                                                    <Image source={{ uri: captainPhoto }} style={{ width: '100%', height: '100%' }} />
-                                                ) : (
-                                                    <User size={24} color="#94a3b8" />
-                                                )}
-                                            </View>
-                                            <View style={{ flex: 1, gap: 6 }}>
-                                                <TouchableOpacity style={styles.uploadBtnSmall} onPress={handlePickCaptainPhoto}>
-                                                    <Camera size={13} color="#2563eb" />
-                                                    <Text style={styles.uploadBtnSmallText}>
-                                                        {captainPhoto ? 'Change Captain Photo' : 'Upload Captain Photo (1:1)'}
-                                                    </Text>
-                                                </TouchableOpacity>
-                                                {captainPhoto ? (
-                                                    <TouchableOpacity onPress={() => setCaptainPhoto('')}>
-                                                        <Text style={styles.clearLogoText}>✕ Remove Photo</Text>
-                                                    </TouchableOpacity>
-                                                ) : (
-                                                    <Text style={{ fontSize: 10, color: '#94a3b8' }}>Tap to select & crop from gallery</Text>
-                                                )}
-                                            </View>
-                                        </View>
-
-                                        <Text style={styles.inputLabel}>CAPTAIN RETAINED PRICE (₹ {largeName.toUpperCase()} / {largeUnit})</Text>
-                                        <TextInput
-                                            style={styles.input}
-                                            placeholder={`Captain Price in ${largeUnit} (e.g. ${isKtoL ? '3' : '15'})`}
-                                            placeholderTextColor="#94a3b8"
-                                            keyboardType="numeric"
-                                            value={captainPrice}
-                                            onChangeText={setCaptainPrice}
-                                        />
-                                        <Text style={styles.calcText}>
-                                            Remaining Live Auction Purse: <Text style={styles.calcHighlight}>₹{Math.max(0, (Number(newTeamBudget) || 0) - (Number(captainPrice) || 0))} {largeUnit}</Text>
-                                        </Text>
-                                    </View>
-                                )}
-
-                                <TouchableOpacity style={styles.addBtn} onPress={handleCreateTeam}>
-                                    <Shield size={14} color="#ffffff" />
-                                    <Text style={styles.addBtnText}>Add Team to {selectedTournament?.name}</Text>
+                                <TouchableOpacity
+                                    style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#2563eb', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 }}
+                                    onPress={() => {
+                                        setEditingTeamData(null);
+                                        setAddTeamModalVisible(true);
+                                    }}
+                                >
+                                    <Plus size={14} color="#ffffff" />
+                                    <Text style={{ fontSize: 11, fontWeight: '800', color: '#ffffff' }}>Add Team</Text>
                                 </TouchableOpacity>
                             </View>
-
-                            <Text style={styles.listTitle}>Registered Teams ({teams.length})</Text>
-                            <Text style={styles.listHint}>Tap any team card to inspect full Squad Roster & Sold Prices</Text>
 
                             {teams.map(tm => {
                                 const teamAcquired = players.filter(p => (p.soldToTeamId === tm._id || p.soldToTeamId === tm.id) && !p.isCaptain && !String(p._id || '').startsWith('pl_cap_'));
@@ -1438,12 +1392,24 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                                                     </View>
                                                 </View>
                                             </View>
-                                            <TouchableOpacity
-                                                onPress={() => handleDeleteTeam(tm._id, tm.name)}
-                                                style={styles.deleteIcon}
-                                            >
-                                                <Trash2 size={14} color="#dc2626" />
-                                            </TouchableOpacity>
+                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                                <TouchableOpacity
+                                                    onPress={() => {
+                                                        setEditingTeamData(tm);
+                                                        setAddTeamModalVisible(true);
+                                                    }}
+                                                    style={[styles.deleteIcon, { backgroundColor: '#eff6ff', borderRadius: 8, borderWidth: 1, borderColor: '#bfdbfe' }]}
+                                                    accessibilityLabel="Edit Team"
+                                                >
+                                                    <Edit2 size={13} color="#2563eb" />
+                                                </TouchableOpacity>
+                                                <TouchableOpacity
+                                                    onPress={() => handleDeleteTeam(tm._id, tm.name)}
+                                                    style={styles.deleteIcon}
+                                                >
+                                                    <Trash2 size={14} color="#dc2626" />
+                                                </TouchableOpacity>
+                                            </View>
                                         </View>
 
                                         {/* Captain Banner */}
@@ -1584,75 +1550,35 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                                 ))}
                             </ScrollView>
 
-                            {/* Add Player Form */}
-                            <View style={styles.formCard}>
-                                <Text style={styles.formTitle}>REGISTER PLAYER FOR THIS TOURNAMENT</Text>
-
-                                <Text style={styles.inputLabel}>PLAYER PHOTO (1:1 CROP & UPLOAD)</Text>
-                                <View style={styles.logoInputRow}>
-                                    <View style={styles.playerAvatarBox}>
-                                        {newPlayerImage ? (
-                                            <Image source={{ uri: newPlayerImage }} style={styles.playerAvatarImg} />
-                                        ) : (
-                                            <User size={22} color="#94a3b8" />
-                                        )}
-                                    </View>
-                                    <View style={{ flex: 1, gap: 6 }}>
-                                        <TouchableOpacity style={styles.uploadBtnSmall} onPress={handlePickNewPlayerImage}>
-                                            <Camera size={13} color="#2563eb" />
-                                            <Text style={styles.uploadBtnSmallText}>
-                                                {newPlayerImage ? 'Change Photo (1:1)' : 'Upload Photo (1:1 Crop)'}
-                                            </Text>
-                                        </TouchableOpacity>
-                                        {newPlayerImage ? (
-                                            <TouchableOpacity onPress={() => setNewPlayerImage('')}>
-                                                <Text style={styles.clearLogoText}>✕ Clear Photo</Text>
-                                            </TouchableOpacity>
-                                        ) : null}
-                                    </View>
-                                </View>
-
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Player Name (e.g. Virat Kohli)"
-                                    placeholderTextColor="#94a3b8"
-                                    value={newPlayerName}
-                                    onChangeText={setNewPlayerName}
-                                />
-                                <View style={styles.pickerRow}>
-                                    {['Batsman', 'Bowler', 'All-Rounder', 'Wicket Keeper'].map(cat => (
-                                        <TouchableOpacity
-                                            key={cat}
-                                            style={[styles.catPick, newPlayerCategory === cat && styles.catPickActive]}
-                                            onPress={() => setNewPlayerCategory(cat)}
-                                        >
-                                            <Text style={[styles.catPickText, newPlayerCategory === cat && styles.catPickTextActive]}>
-                                                {cat.split(' ')[0]}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </View>
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder={`Base Price in ${smallUnit} (e.g. ${isKtoL ? '20' : '100'})`}
-                                    placeholderTextColor="#94a3b8"
-                                    keyboardType="numeric"
-                                    value={newPlayerBase}
-                                    onChangeText={setNewPlayerBase}
-                                />
-                                <TouchableOpacity style={styles.addBtn} onPress={handleCreatePlayer}>
-                                    <UserPlus size={14} color="#ffffff" />
-                                    <Text style={styles.addBtnText}>Add Player to {selectedTournament?.name}</Text>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, gap: 6, flexWrap: 'wrap' }}>
+                                <Text style={[styles.listTitle, { marginBottom: 0, flex: 1 }]}>Auction Players ({filteredPlayers.length})</Text>
+                                <TouchableOpacity
+                                    onPress={() => handleExportCSVAction({
+                                        type: 'players',
+                                        tournament: selectedTournament,
+                                        teams,
+                                        players: allDisplayPlayers
+                                    })}
+                                    style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#f1f5f9', borderWidth: 1, borderColor: '#cbd5e1', paddingHorizontal: 8, paddingVertical: 6, borderRadius: 8 }}
+                                >
+                                    <FileText size={12} color="#475569" />
+                                    <Text style={{ fontSize: 11, fontWeight: '800', color: '#334155' }}>CSV</Text>
                                 </TouchableOpacity>
-                            </View>
-
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                                <Text style={styles.listTitle}>Auction Players ({filteredPlayers.length})</Text>
                                 <TouchableOpacity
                                     onPress={() => onOpenPlayerRegistration(selectedTournament?._id)}
                                     style={styles.publicFormLinkBtn}
                                 >
-                                    <Text style={styles.publicFormLinkText}>Self-Reg Form →</Text>
+                                    <Text style={styles.publicFormLinkText}>Self-Reg</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    onPress={() => {
+                                        setEditingPlayerData(null);
+                                        setAddPlayerModalVisible(true);
+                                    }}
+                                    style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#2563eb', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 }}
+                                >
+                                    <Plus size={13} color="#ffffff" />
+                                    <Text style={{ fontSize: 11, fontWeight: '800', color: '#ffffff' }}>Add Player</Text>
                                 </TouchableOpacity>
                             </View>
 
@@ -1712,7 +1638,10 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                                             </View>
                                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                                                 <TouchableOpacity
-                                                    onPress={() => handleOpenEditPlayer(p)}
+                                                    onPress={() => {
+                                                        setEditingPlayerData(p);
+                                                        setAddPlayerModalVisible(true);
+                                                    }}
                                                     style={[styles.deleteIcon, { backgroundColor: '#eff6ff', borderRadius: 8, borderWidth: 1, borderColor: '#bfdbfe' }]}
                                                     accessibilityLabel="Edit Player"
                                                 >
@@ -1744,11 +1673,23 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                                 </Text>
                             </View>
 
-                            {/* Create New Slot Form */}
-                            <View style={styles.formCard}>
-                                <View style={styles.formCardHeader}>
-                                    <Layers size={14} color="#7c3aed" />
-                                    <Text style={[styles.formTitle, { color: '#6d28d9' }]}>CREATE NEW SLOT / TIER SET</Text>
+                            {/* Create / Edit Slot Form */}
+                            <View style={[styles.formCard, editingSlot && { borderColor: '#818cf8', backgroundColor: '#eef2ff' }]}>
+                                <View style={[styles.formCardHeader, { justifyContent: 'space-between' }]}>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
+                                        <Layers size={14} color={editingSlot ? '#4338ca' : '#7c3aed'} />
+                                        <Text style={[styles.formTitle, { color: editingSlot ? '#3730a3' : '#6d28d9' }]}>
+                                            {editingSlot ? `EDIT SLOT: ${editingSlot.name}` : 'CREATE NEW SLOT / TIER SET'}
+                                        </Text>
+                                    </View>
+                                    {editingSlot && (
+                                        <TouchableOpacity
+                                            onPress={handleCancelEditSlot}
+                                            style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#cbd5e1' }}
+                                        >
+                                            <Text style={{ fontSize: 10, fontWeight: '800', color: '#475569' }}>Cancel</Text>
+                                        </TouchableOpacity>
+                                    )}
                                 </View>
                                 <TextInput
                                     style={styles.input}
@@ -1780,16 +1721,18 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                                     onChangeText={setNewSlotBasePrice}
                                 />
                                 <TouchableOpacity
-                                    style={[styles.addBtn, { backgroundColor: '#7c3aed' }]}
-                                    onPress={handleCreateSlot}
+                                    style={[styles.addBtn, { backgroundColor: editingSlot ? '#4338ca' : '#7c3aed' }]}
+                                    onPress={handleSaveSlot}
                                     disabled={savingSlot}
                                 >
                                     {savingSlot ? (
                                         <ActivityIndicator size="small" color="#ffffff" />
                                     ) : (
                                         <>
-                                            <Plus size={14} color="#ffffff" />
-                                            <Text style={styles.addBtnText}>Add Slot (Auto-Sets Base Price)</Text>
+                                            {editingSlot ? <Check size={14} color="#ffffff" /> : <Plus size={14} color="#ffffff" />}
+                                            <Text style={styles.addBtnText}>
+                                                {editingSlot ? 'Update Slot Details' : 'Add Slot (Auto-Sets Base Price)'}
+                                            </Text>
                                         </>
                                     )}
                                 </TouchableOpacity>
@@ -1817,8 +1760,10 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                                             <View style={{ flex: 1 }}>
                                                 <Text style={styles.slotName}>{slot.name}</Text>
                                                 <View style={styles.slotMetaRow}>
-                                                    <View style={styles.slotPriceBadge}>
-                                                        <Text style={styles.slotPriceText}>₹{slot.basePrice} {smallUnit} Base</Text>
+                                                    <View style={[styles.slotPriceBadge, (slot.isDefaultUnsold || slot.slotType === 'unsold' || slot.basePrice == null) && { backgroundColor: '#fef3c7' }]}>
+                                                        <Text style={[styles.slotPriceText, (slot.isDefaultUnsold || slot.slotType === 'unsold' || slot.basePrice == null) && { color: '#b45309' }]}>
+                                                            {(slot.isDefaultUnsold || slot.slotType === 'unsold' || slot.basePrice == null) ? 'Per Player Base' : `₹${slot.basePrice} ${smallUnit} Base`}
+                                                        </Text>
                                                     </View>
                                                     <Text style={styles.slotSub}>{slot.role} • {count} Players</Text>
                                                 </View>
@@ -1829,12 +1774,22 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                                                         <Text style={styles.reAuctionTagText}>DEFAULT RE-AUCTION</Text>
                                                     </View>
                                                 ) : (
-                                                    <TouchableOpacity
-                                                        onPress={() => handleDeleteSlot(slot._id, slot.name)}
-                                                        style={styles.deleteIcon}
-                                                    >
-                                                        <Trash2 size={13} color="#dc2626" />
-                                                    </TouchableOpacity>
+                                                    <>
+                                                        <TouchableOpacity
+                                                            onPress={() => handleStartEditSlot(slot)}
+                                                            style={[styles.deleteIcon, { backgroundColor: '#eef2ff', borderColor: '#c7d2fe', borderWidth: 1, borderRadius: 8 }]}
+                                                            accessibilityLabel="Edit Slot"
+                                                        >
+                                                            <Edit2 size={13} color="#4338ca" />
+                                                        </TouchableOpacity>
+                                                        <TouchableOpacity
+                                                            onPress={() => handleDeleteSlot(slot._id, slot.name)}
+                                                            style={styles.deleteIcon}
+                                                            accessibilityLabel="Delete Slot"
+                                                        >
+                                                            <Trash2 size={13} color="#dc2626" />
+                                                        </TouchableOpacity>
+                                                    </>
                                                 )}
                                             </View>
                                         </TouchableOpacity>
@@ -1846,16 +1801,37 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                             {selectedSlot ? (
                                 <View style={styles.slotTargetPanel}>
                                     <View style={styles.slotTargetHeader}>
-                                        <View>
+                                        <View style={{ flex: 1, marginRight: 8 }}>
                                             <Text style={styles.slotTargetLabel}>ACTIVE TARGET SLOT</Text>
                                             <Text style={styles.slotTargetTitle}>{selectedSlot.name}</Text>
                                             <Text style={styles.slotTargetSub}>
-                                                Shifting players here auto-sets base price to ₹{selectedSlot.basePrice} {smallUnit}
+                                                {(selectedSlot.isDefaultUnsold || selectedSlot.slotType === 'unsold' || selectedSlot.basePrice == null)
+                                                    ? 'Base price is NOT auto-set — each player keeps their own base price'
+                                                    : `Shifting players here auto-sets base price to ₹${selectedSlot.basePrice} ${smallUnit}`}
                                             </Text>
                                         </View>
-                                        <View style={styles.slotTargetPriceBox}>
-                                            <Text style={styles.slotTargetPriceVal}>₹{selectedSlot.basePrice}</Text>
-                                            <Text style={styles.slotTargetPriceUnit}>{smallUnit}</Text>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                            {!(selectedSlot.isDefaultUnsold || selectedSlot.slotType === 'unsold') && (
+                                                <TouchableOpacity
+                                                    onPress={() => handleStartEditSlot(selectedSlot)}
+                                                    style={{ padding: 8, borderRadius: 10, backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#ddd6fe' }}
+                                                >
+                                                    <Edit2 size={14} color="#4338ca" />
+                                                </TouchableOpacity>
+                                            )}
+                                            <View style={styles.slotTargetPriceBox}>
+                                                {(selectedSlot.isDefaultUnsold || selectedSlot.slotType === 'unsold' || selectedSlot.basePrice == null) ? (
+                                                    <>
+                                                        <Text style={[styles.slotTargetPriceVal, { fontSize: 12, color: '#b45309' }]}>Per</Text>
+                                                        <Text style={[styles.slotTargetPriceUnit, { color: '#b45309' }]}>Player</Text>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Text style={styles.slotTargetPriceVal}>₹{selectedSlot.basePrice}</Text>
+                                                        <Text style={styles.slotTargetPriceUnit}>{smallUnit}</Text>
+                                                    </>
+                                                )}
+                                            </View>
                                         </View>
                                     </View>
 
@@ -2201,6 +2177,7 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                 onOpenPlayerRegistration={onOpenPlayerRegistration}
                 onOpenManageCredentials={(t) => {
                     setSelectedTournament(t);
+                    if (t?._id) fetchTournamentDetails(t._id);
                     setCredentialsModalVisible(true);
                 }}
                 onOpenRoster={() => setActiveTab('teams')}
@@ -2215,8 +2192,49 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                 tournaments={tournaments}
                 onSelectTournament={(t) => setSelectedTournament(t)}
                 teams={teams}
+                onUpdated={() => {
+                    if (selectedTournament?._id) {
+                        fetchTournamentDetails(selectedTournament._id);
+                    }
+                }}
                 onClose={() => {
                     setCredentialsModalVisible(false);
+                    if (selectedTournament?._id) {
+                        fetchTournamentDetails(selectedTournament._id);
+                    }
+                }}
+            />
+
+            {/* Web-Parity Add / Edit Team Modal */}
+            <AddTeamModal
+                visible={addTeamModalVisible}
+                onClose={() => {
+                    setAddTeamModalVisible(false);
+                    setEditingTeamData(null);
+                }}
+                tournamentId={selectedTournament?._id}
+                tournament={selectedTournament}
+                initialData={editingTeamData}
+                isEdit={!!editingTeamData}
+                onAdded={() => {
+                    if (selectedTournament?._id) {
+                        fetchTournamentDetails(selectedTournament._id);
+                    }
+                }}
+            />
+
+            {/* Web-Parity Add / Edit Player Modal (Manual + 1:1 Crop + Cricket Styles + CSV Feed Import) */}
+            <AddPlayerModal
+                visible={addPlayerModalVisible}
+                onClose={() => {
+                    setAddPlayerModalVisible(false);
+                    setEditingPlayerData(null);
+                }}
+                tournamentId={selectedTournament?._id}
+                tournament={selectedTournament}
+                initialData={editingPlayerData}
+                isEdit={!!editingPlayerData}
+                onAdded={() => {
                     if (selectedTournament?._id) {
                         fetchTournamentDetails(selectedTournament._id);
                     }

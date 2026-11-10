@@ -261,7 +261,7 @@ const supaSync = {
                 tournament_id: s.tournamentId || null,
                 name: s.name,
                 role: s.role || 'Batsman',
-                base_price: Number(s.basePrice) || 20,
+                base_price: (s.isDefaultUnsold || s.slotType === 'unsold' || s.basePrice == null) ? null : Number(s.basePrice),
                 order: Number(s.order) || 1,
                 is_default_unsold: Boolean(s.isDefaultUnsold),
                 slot_type: s.slotType || 'custom',
@@ -406,7 +406,7 @@ const hydrateFromSupabase = async () => {
             tournamentId: r.tournament_id,
             name: r.name,
             role: r.role,
-            basePrice: r.base_price,
+            basePrice: (r.is_default_unsold || r.slot_type === 'unsold' || r.base_price == null) ? null : r.base_price,
             order: r.order,
             isDefaultUnsold: r.is_default_unsold,
             slotType: r.slot_type
@@ -764,57 +764,74 @@ const db = {
         }
 
         let captainPlayerId = null;
-        const parsedPrice = Number(captainPrice) || 0;
+        const hasCaptainPrice = captainPrice !== undefined && captainPrice !== null && captainPrice !== '';
+        const parsedPrice = hasCaptainPrice ? (Number(captainPrice) || 0) : 0;
         const finalCaptainName = (captainName || cleanUsername).trim();
         const finalCaptainPhoto = (captainPhoto || image || '').trim();
 
-        // When a Team Owner credential is created, automatically register them as Captain in the player list first!
+        // Sync or attach Team Owner & Captain without duplicating captain players or double-deducting purse
         if (role === 'team_owner' && teamId) {
             const team = state.teams.find(t => t._id === teamId);
+            const existingCapPlayer = (state.players || []).find(
+                p => (p.soldToTeamId === teamId || p.teamId === teamId || p._id === team?.captainPlayerId) &&
+                    (p.isCaptain || String(p._id || '').startsWith('pl_cap_'))
+            );
 
-            const captainPlayer = {
-                _id: 'pl_cap_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
-                tournamentId,
-                teamId: teamId,
-                name: finalCaptainName,
-                category: category || 'All-Rounder',
-                battingStyle: battingStyle || 'Right Handed',
-                bowlingStyle: bowlingStyle || 'Right-arm Medium',
-                basePrice: parsedPrice,
-                soldPrice: parsedPrice,
-                currentBid: parsedPrice,
-                status: 'sold', // Retained as team captain
-                isCaptain: true,
-                isOwner: true,
-                soldToTeamId: teamId,
-                currentLeadTeamId: teamId,
-                mobile: (mobile || '').trim(),
-                age: Number(age) || undefined,
-                cricHeroesProfileUrl: (cricHeroesProfileUrl || '').trim(),
-                image: finalCaptainPhoto,
-                stats: stats || { matches: 0, runs: 0, wickets: 0, highestScore: '', bestBowling: '' }
-            };
+            if (existingCapPlayer) {
+                existingCapPlayer.isCaptain = true;
+                captainPlayerId = existingCapPlayer._id;
+                if (captainName && captainName.trim()) existingCapPlayer.name = captainName.trim();
+                if (finalCaptainPhoto) existingCapPlayer.image = finalCaptainPhoto;
+                if (category) existingCapPlayer.category = category;
+                if (battingStyle) existingCapPlayer.battingStyle = battingStyle;
+                if (bowlingStyle) existingCapPlayer.bowlingStyle = bowlingStyle;
+                if (mobile !== undefined) existingCapPlayer.mobile = (mobile || '').trim();
+                if (age) existingCapPlayer.age = Number(age);
+                if (cricHeroesProfileUrl) existingCapPlayer.cricHeroesProfileUrl = cricHeroesProfileUrl.trim();
 
-            captainPlayerId = captainPlayer._id;
-
-            // Put Captain FIRST in the players list
-            if (!state.players) state.players = [];
-            state.players.unshift(captainPlayer);
-
-            // Update Team budget spent & roster
-            if (team) {
+                if (hasCaptainPrice) {
+                    const oldP = Number(existingCapPlayer.soldPrice ?? existingCapPlayer.basePrice) || 0;
+                    const diff = parsedPrice - oldP;
+                    existingCapPlayer.basePrice = parsedPrice;
+                    existingCapPlayer.soldPrice = parsedPrice;
+                    existingCapPlayer.currentBid = parsedPrice;
+                    if (team) {
+                        team.captainPrice = parsedPrice;
+                        team.spent = Math.max(0, Number(((team.spent || 0) + diff).toFixed(2)));
+                    }
+                }
+                if (team) {
+                    team.isOwnerCaptain = true;
+                    team.captainName = existingCapPlayer.name;
+                    team.captainPlayerId = existingCapPlayer._id;
+                    if (finalCaptainPhoto) team.captainPhoto = finalCaptainPhoto;
+                }
+                await supaSync.updatePlayer(existingCapPlayer._id, existingCapPlayer);
+            } else if (team && team.isOwnerCaptain) {
+                // Captain already configured during team creation -> reuse team's captain cleanly (no duplicate row, no double purse deduction)
+                const existingCapPrice = Number(team.captainPrice) || 0;
+                const resolvedPrice = hasCaptainPrice ? parsedPrice : existingCapPrice;
+                const diff = resolvedPrice - existingCapPrice;
+                if (captainName && captainName.trim()) team.captainName = captainName.trim();
+                if (finalCaptainPhoto) team.captainPhoto = finalCaptainPhoto;
+                if (hasCaptainPrice && diff !== 0) {
+                    team.captainPrice = resolvedPrice;
+                    team.spent = Math.max(0, Number(((team.spent || 0) + diff).toFixed(2)));
+                }
+            } else if (team) {
+                // Team did not have a captain yet -> configure on team object cleanly
                 team.isOwnerCaptain = true;
                 team.captainName = finalCaptainName;
                 team.captainPrice = parsedPrice;
                 team.captainPhoto = finalCaptainPhoto;
-                team.captainPlayerId = captainPlayer._id;
-                team.spent = (team.spent || 0) + parsedPrice;
-                if (!team.players) team.players = [];
-                if (!team.players.some(p => (p._id || p) === captainPlayer._id)) {
-                    team.players.unshift(captainPlayer);
-                }
+                team.spent = Math.max(0, Number(((team.spent || 0) + parsedPrice).toFixed(2)));
             }
         }
+
+        const matchedTeam = role === 'team_owner' && teamId ? state.teams.find(t => t._id === teamId) : null;
+        const resolvedCaptainName = matchedTeam?.captainName || finalCaptainName;
+        const resolvedCaptainPhoto = matchedTeam?.captainPhoto || finalCaptainPhoto;
+        const resolvedCaptainPrice = matchedTeam?.captainPrice ?? parsedPrice;
 
         const newUser = {
             _id: 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
@@ -825,10 +842,10 @@ const db = {
             tournamentId,
             teamId: teamId || null,
             isCaptain: role === 'team_owner',
-            captainName: finalCaptainName,
+            captainName: resolvedCaptainName,
             captainPlayerId,
-            captainPrice: parsedPrice,
-            captainPhoto: finalCaptainPhoto,
+            captainPrice: resolvedCaptainPrice,
+            captainPhoto: resolvedCaptainPhoto,
             category,
             battingStyle,
             bowlingStyle,
@@ -839,9 +856,9 @@ const db = {
 
         state.users.push(newUser);
         writeData(state);
-        if (role === 'team_owner' && assignedTeamId) {
-            const createdTeam = state.teams.find(t => t._id === assignedTeamId);
-            if (createdTeam) await supaSync.insertTeam(createdTeam);
+        if (role === 'team_owner' && teamId) {
+            const updatedTeam = state.teams.find(t => t._id === teamId);
+            if (updatedTeam) await supaSync.updateTeam(teamId, updatedTeam);
         }
         await supaSync.insertUser(newUser);
         return newUser;
@@ -881,6 +898,7 @@ const db = {
             user.plainPassword = password.trim();
         }
 
+        const previousTeamId = typeof user.teamId === 'object' ? user.teamId?._id : user.teamId;
         if (teamId !== undefined) {
             user.teamId = teamId;
         }
@@ -901,6 +919,16 @@ const db = {
 
         // Also update team captainPhoto and details if user has a team
         const targetTeamId = typeof user.teamId === 'object' ? user.teamId?._id : (user.teamId || data.teamId);
+        if (previousTeamId && targetTeamId && previousTeamId !== targetTeamId) {
+            const prevTeam = state.teams.find(t => t._id === previousTeamId);
+            if (prevTeam) {
+                prevTeam.isOwnerCaptain = false;
+                prevTeam.captainName = null;
+                prevTeam.captainPhoto = '';
+                prevTeam.captainPlayerId = null;
+                await supaSync.updateTeam(previousTeamId, prevTeam);
+            }
+        }
         if (targetTeamId) {
             const team = state.teams.find(t => t._id === targetTeamId);
             if (team) {
@@ -920,6 +948,11 @@ const db = {
 
         if (capPlayer) {
             capPlayer.isCaptain = true;
+            if (targetTeamId) {
+                capPlayer.teamId = targetTeamId;
+                capPlayer.soldToTeamId = targetTeamId;
+                capPlayer.currentLeadTeamId = targetTeamId;
+            }
             user.captainPlayerId = capPlayer._id;
             if (captainName) capPlayer.name = captainName.trim();
             if (data.captainPhoto !== undefined) capPlayer.image = user.captainPhoto;
@@ -1487,7 +1520,9 @@ const db = {
 
         // Find or create default unsold slot
         let unsoldSlot = state.slots.find(s => s.tournamentId === tournamentId && (s.isDefaultUnsold || s.slotType === 'unsold'));
-        if (!unsoldSlot) {
+        if (unsoldSlot) {
+            unsoldSlot.basePrice = null; // Always per-player dependent
+        } else {
             unsoldSlot = {
                 _id: 'slot_unsold_' + tournamentId,
                 tournamentId,
@@ -1598,19 +1633,31 @@ const db = {
         if (!state.slots) state.slots = [];
         const idx = state.slots.findIndex(s => s._id === slotId);
         if (idx !== -1) {
-            state.slots[idx] = { ...state.slots[idx], ...update };
-            // If basePrice of slot changed, optionally update all players in this slot
-            if (update.basePrice !== undefined) {
-                const newPrice = Number(update.basePrice) || 20;
+            const cleanUpdate = { ...update };
+            if (cleanUpdate.name !== undefined) cleanUpdate.name = String(cleanUpdate.name).trim();
+            if (cleanUpdate.basePrice !== undefined) cleanUpdate.basePrice = Number(cleanUpdate.basePrice) || 20;
+            if (cleanUpdate.order !== undefined) cleanUpdate.order = Number(cleanUpdate.order) || state.slots[idx].order;
+
+            state.slots[idx] = { ...state.slots[idx], ...cleanUpdate };
+            const updatedSlotPlayers = [];
+            // If basePrice of slot changed, update pending players in this slot
+            if (cleanUpdate.basePrice !== undefined) {
+                const newPrice = Number(cleanUpdate.basePrice) || 20;
                 state.players.forEach(p => {
                     if (p.slotId === slotId && p.status === 'pending') {
                         p.basePrice = newPrice;
                         p.currentBid = newPrice;
+                        updatedSlotPlayers.push(p);
                     }
                 });
             }
             writeData(state);
-            await supaSync.updateSlot(slotId, update);
+            await supaSync.updateSlot(slotId, cleanUpdate);
+            if (updatedSlotPlayers.length > 0) {
+                for (const p of updatedSlotPlayers) {
+                    await supaSync.updatePlayer(p._id, { basePrice: p.basePrice, currentBid: p.currentBid });
+                }
+            }
             return state.slots[idx];
         }
         return null;
@@ -1730,7 +1777,7 @@ const db = {
             const remaining = Math.max(0, (t.budget || 0) - (t.spent || 0)).toFixed(2);
             const ownerUser = (state.users || []).find(u => u.teamId === t._id && u.role === 'team_owner');
             const capName = t.captainName || ownerUser?.captainName || ownerUser?.name || ownerUser?.username || (t.isOwnerCaptain ? 'Captain' : '-');
-            const tPlayers = players.filter(p => p.soldToTeamId === t._id || p.soldToTeamId === t.id);
+            const tPlayers = players.filter(p => (p.soldToTeamId === t._id || p.soldToTeamId === t.id) && !p.isCaptain && !String(p._id || '').startsWith('pl_cap_'));
             const totalSquad = tPlayers.length + (t.isOwnerCaptain ? 1 : 0);
             csv += `"${t.name}","${t.shortName || ''}","${capName}",${t.budget || 100},${t.spent || 0},${remaining},"${t.isOwnerCaptain ? `Yes - Retained (₹${t.captainPrice || 0}${smallUnit})` : 'No'}",${totalSquad}\n`;
         });

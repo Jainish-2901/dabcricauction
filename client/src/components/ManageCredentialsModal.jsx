@@ -116,19 +116,30 @@ const ManageCredentialsModal = ({
         }
     };
 
+    const applyTeamCaptainDefaults = (teamIdVal) => {
+        const matched = (teams || []).find(t => (t._id || t.id) === teamIdVal);
+        if (matched && (matched.isOwnerCaptain || matched.captainName)) {
+            setCaptainName(matched.captainName || '');
+            setCaptainPhoto(matched.captainPhoto || matched.captainImage || '');
+            setCaptainPrice(String(matched.captainPrice ?? 0));
+        } else {
+            setCaptainName('');
+            setCaptainPhoto('');
+            setCaptainPrice('15');
+        }
+    };
+
     const handleOpenAdd = () => {
+        const defaultTeamId = teams[0]?._id || teams[0]?.id || '';
         setFormMode('add');
         setActiveCredId(null);
         setFormRole('team_owner');
-        setFormTeamId(teams[0]?._id || '');
+        setFormTeamId(defaultTeamId);
         setFormUsername('');
         setFormPassword('');
-        setCaptainName('');
-        setCaptainPhoto('');
         setCategory('All-Rounder');
         setBattingStyle('Right Handed');
         setBowlingStyle('Right-arm Medium');
-        setCaptainPrice('15');
         setAge('28');
         setCricHeroesProfileUrl('');
         setMatches('0');
@@ -136,7 +147,8 @@ const ManageCredentialsModal = ({
         setHighestScore('');
         setWickets('0');
         setBestBowling('');
-        setShowCricketDetails(true);
+        applyTeamCaptainDefaults(defaultTeamId);
+        setShowCricketDetails(false);
         setFormError('');
         setIsFormOpen(true);
     };
@@ -564,20 +576,37 @@ const ManageCredentialsModal = ({
                                             <label className="block text-[11px] font-extrabold uppercase text-slate-600 mb-1">Assign to Team *</label>
                                             <select
                                                 value={formTeamId}
-                                                onChange={(e) => setFormTeamId(e.target.value)}
+                                                onChange={(e) => {
+                                                    const val = e.target.value;
+                                                    setFormTeamId(val);
+                                                    if (formMode === 'add') applyTeamCaptainDefaults(val);
+                                                }}
                                                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800"
                                                 required
                                             >
                                                 <option value="">-- Choose Team --</option>
                                                 {teams.map(t => (
                                                     <option key={t._id || t.id} value={t._id || t.id}>
-                                                        {t.name} ({t.shortName || 'TM'})
+                                                        {t.name} ({t.shortName || 'TM'}){t.isOwnerCaptain && t.captainName ? ` — Cap: ${t.captainName}` : ''}
                                                     </option>
                                                 ))}
                                             </select>
                                         </div>
                                     )}
                                 </div>
+
+                                {formRole === 'team_owner' && (() => {
+                                    const selectedTeamObj = (teams || []).find(t => (t._id || t.id) === formTeamId);
+                                    if (!selectedTeamObj?.isOwnerCaptain) return null;
+                                    return (
+                                        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2 text-xs text-emerald-900 font-bold">
+                                            <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                                            <span>
+                                                Captain already created for <strong>{selectedTeamObj.name}</strong>: <strong>{selectedTeamObj.captainName || 'Captain'}</strong> (₹{selectedTeamObj.captainPrice || 0}). Auto-selected — just enter Username & Password!
+                                            </span>
+                                        </div>
+                                    );
+                                })()}
 
                                 {/* Username & Password */}
                                 <div className="grid grid-cols-2 gap-3">
