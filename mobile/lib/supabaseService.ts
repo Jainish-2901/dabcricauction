@@ -510,7 +510,7 @@ const mapPlayer = (r: any) => ({
     bowlingStyle: r.bowling_style || 'Right-Arm Medium',
     basePrice: Number(r.base_price) || 20,
     currentBid: Number(r.current_bid) || 0,
-    soldPrice: Number(r.sold_price) || 0,
+    soldPrice: Number(r.sold_price) > 0 ? Number(r.sold_price) : (r.status === 'sold' && Number(r.current_bid) > 0 ? Number(r.current_bid) : (Number(r.sold_price) || 0)),
     status: r.status || 'pending',
     currentLeadTeamId: r.current_lead_team_id || null,
     soldToTeamId: r.sold_to_team_id || null,
@@ -803,5 +803,192 @@ export const directRecordBid = async (tournamentId: string, payload: {
     ]);
 
     return record;
+};
+
+// ==================== TRANSFERS, TRADES & INJURY REPLACEMENTS ====================
+
+export const directGetTransfers = async (tournamentId: string) => {
+    const { data, error } = await supabase
+        .from('transfers')
+        .select('*')
+        .eq('tournament_id', tournamentId)
+        .order('created_at', { ascending: false });
+
+    if (error) return [];
+    return data || [];
+};
+
+export const directReplaceInjuredPlayer = async (tournamentId: string, payload: {
+    teamId: string;
+    injuredPlayerId: string;
+    replacementPlayerId: string;
+    replacementPrice: number;
+}) => {
+    const [{ data: teamData }, { data: injuredData }, { data: replacementData }] = await Promise.all([
+        supabase.from('teams').select('*').eq('_id', payload.teamId).single(),
+        supabase.from('players').select('*').eq('_id', payload.injuredPlayerId).single(),
+        supabase.from('players').select('*').eq('_id', payload.replacementPlayerId).single()
+    ]);
+
+    if (!teamData) throw new Error('Team not found');
+    if (!injuredData) throw new Error('Injured player not found');
+    if (!replacementData) throw new Error('Replacement player not found');
+
+    const oldPrice = Number(injuredData.sold_price || injuredData.current_bid || injuredData.base_price || 0);
+    const newPrice = Number(payload.replacementPrice) || Number(replacementData.base_price || 0);
+    const priceDiff = newPrice - oldPrice;
+    const diffLarge = Number((priceDiff / 100).toFixed(2));
+
+    const currentSpent = Number(teamData.spent || 0);
+    const currentBudget = Number(teamData.budget || 100);
+    if (diffLarge > 0 && diffLarge > (currentBudget - currentSpent)) {
+        throw new Error('Insufficient purse for this replacement!');
+    }
+
+    const newSpent = Math.max(0, Number((currentSpent + diffLarge).toFixed(2)));
+
+    const p1 = supabase.from('players').update({
+        status: 'injured',
+        is_injured: true,
+        sold_to_team_id: null,
+        sold_to_team_name: null,
+        updated_at: new Date().toISOString()
+    }).eq('_id', payload.injuredPlayerId);
+
+    const p2 = supabase.from('players').update({
+        status: 'sold',
+        sold_to_team_id: payload.teamId,
+        sold_to_team_name: teamData.name,
+        sold_price: newPrice,
+        current_bid: newPrice,
+        updated_at: new Date().toISOString()
+    }).eq('_id', payload.replacementPlayerId);
+
+    const p3 = supabase.from('teams').update({
+        spent: newSpent,
+        updated_at: new Date().toISOString()
+    }).eq('_id', payload.teamId);
+
+    const record = {
+        _id: generateId('trf'),
+        tournament_id: tournamentId,
+        type: 'injury_replacement',
+        team_id: payload.teamId,
+        team_name: teamData.name,
+        team_logo: teamData.logo,
+        injured_player_id: payload.injuredPlayerId,
+        injured_player_name: injuredData.name,
+        injured_player_price: oldPrice,
+        replacement_player_id: payload.replacementPlayerId,
+        replacement_player_name: replacementData.name,
+        replacement_player_price: newPrice,
+        price_difference: priceDiff,
+        created_at: new Date().toISOString()
+    };
+    const p4 = supabase.from('transfers').insert(record);
+
+    await Promise.all([p1, p2, p3, p4]);
+    return { success: true, record };
+};
+
+export const directTradePlayers = async (tournamentId: string, payload: {
+    teamAId: string;
+    playerAId: string;
+    teamBId: string;
+    playerBId: string;
+}) => {
+    const [{ data: teamA }, { data: teamB }, { data: playerA }, { data: playerB }] = await Promise.all([
+        supabase.from('teams').select('*').eq('_id', payload.teamAId).single(),
+        supabase.from('teams').select('*').eq('_id', payload.teamBId).single(),
+        supabase.from('players').select('*').eq('_id', payload.playerAId).single(),
+        supabase.from('players').select('*').eq('_id', payload.playerBId).single()
+    ]);
+
+    if (!teamA || !teamB) throw new Error('Teams not found');
+    if (!playerA || !playerB) throw new Error('Players not found');
+
+    const priceA = Number(playerA.sold_price || playerA.current_bid || playerA.base_price || 0);
+    const priceB = Number(playerB.sold_price || playerB.current_bid || playerB.base_price || 0);
+    const priceDiff = priceB - priceA;
+    const diffLarge = Number((priceDiff / 100).toFixed(2));
+
+    const teamASpent = Number(teamA.spent || 0);
+    const teamBSpent = Number(teamB.spent || 0);
+
+    const newTeamASpent = Math.max(0, Number((teamASpent + diffLarge).toFixed(2)));
+    const newTeamBSpent = Math.max(0, Number((teamBSpent - diffLarge).toFixed(2)));
+
+    const p1 = supabase.from('players').update({
+        sold_to_team_id: payload.teamBId,
+        sold_to_team_name: teamB.name,
+        updated_at: new Date().toISOString()
+    }).eq('_id', payload.playerAId);
+
+    const p2 = supabase.from('players').update({
+        sold_to_team_id: payload.teamAId,
+        sold_to_team_name: teamA.name,
+        updated_at: new Date().toISOString()
+    }).eq('_id', payload.playerBId);
+
+    const p3 = supabase.from('teams').update({ spent: newTeamASpent, updated_at: new Date().toISOString() }).eq('_id', payload.teamAId);
+    const p4 = supabase.from('teams').update({ spent: newTeamBSpent, updated_at: new Date().toISOString() }).eq('_id', payload.teamBId);
+
+    const record = {
+        _id: generateId('trf'),
+        tournament_id: tournamentId,
+        type: 'trade',
+        team_a_id: payload.teamAId,
+        team_a_name: teamA.name,
+        player_a_id: payload.playerAId,
+        player_a_name: playerA.name,
+        player_a_price: priceA,
+        team_b_id: payload.teamBId,
+        team_b_name: teamB.name,
+        player_b_id: payload.playerBId,
+        player_b_name: playerB.name,
+        player_b_price: priceB,
+        price_difference: priceDiff,
+        created_at: new Date().toISOString()
+    };
+    const p5 = supabase.from('transfers').insert(record);
+
+    await Promise.all([p1, p2, p3, p4, p5]);
+    return { success: true, record };
+};
+
+export const directMoveInjuredToUnsold = async (tournamentId: string, playerId: string) => {
+    const { data: player } = await supabase.from('players').select('*').eq('_id', playerId).single();
+    if (!player) throw new Error('Player not found');
+
+    const { error } = await supabase.from('players').update({
+        status: 'unsold',
+        is_injured: false,
+        sold_to_team_id: null,
+        sold_to_team_name: null,
+        sold_price: 0,
+        current_bid: Number(player.base_price || 0),
+        current_lead_team_id: null,
+        updated_at: new Date().toISOString()
+    }).eq('_id', playerId);
+
+    if (error) throw new Error(error.message);
+
+    try {
+        const record = {
+            _id: generateId('trf_rec'),
+            tournament_id: tournamentId,
+            type: 'injury_recovered',
+            player_id: playerId,
+            player_name: player.name,
+            player_image: player.image || '',
+            player_category: player.category || '',
+            player_base_price: Number(player.base_price || 0),
+            note: 'Player recovered from injury and moved to Unsold pool for re-auction',
+            created_at: new Date().toISOString()
+        };
+        await supabase.from('transfers').insert(record);
+    } catch {}
+
+    return { success: true };
 };
 

@@ -17,7 +17,8 @@ const defaultData = {
     tournaments: [],
     teams: [],
     players: [],
-    slots: []
+    slots: [],
+    transfers: []
 };
 
 const readData = () => {
@@ -29,6 +30,7 @@ const readData = () => {
         const raw = fs.readFileSync(DB_FILE, 'utf8');
         const parsed = JSON.parse(raw);
         if (!parsed.slots) parsed.slots = [];
+        if (!parsed.transfers) parsed.transfers = [];
         return parsed;
     } catch (err) {
         console.error('Error reading local JSON db:', err);
@@ -439,9 +441,9 @@ const hydrateFromSupabase = async () => {
             category: r.category,
             battingStyle: r.batting_style,
             bowlingStyle: r.bowling_style,
-            basePrice: r.base_price,
-            currentBid: r.current_bid,
-            soldPrice: r.sold_price,
+            basePrice: Number(r.base_price) || 0,
+            currentBid: Number(r.current_bid) || 0,
+            soldPrice: Number(r.sold_price) > 0 ? Number(r.sold_price) : (r.status === 'sold' && Number(r.current_bid) > 0 ? Number(r.current_bid) : (Number(r.sold_price) || 0)),
             status: r.status,
             currentLeadTeamId: r.current_lead_team_id,
             soldToTeamId: r.sold_to_team_id,
@@ -1249,7 +1251,17 @@ const db = {
         const state = readData();
         const filtered = (state.players || [])
             .filter(p => !tournamentId || p.tournamentId === tournamentId)
-            .map(p => (String(p._id || '').startsWith('pl_cap_') && !p.isCaptain ? { ...p, isCaptain: true } : p));
+            .map(p => {
+                let updated = p;
+                if (String(p._id || '').startsWith('pl_cap_') && !p.isCaptain) {
+                    updated = { ...p, isCaptain: true };
+                }
+                if (updated.status === 'sold' && (!updated.soldPrice || Number(updated.soldPrice) === 0)) {
+                    const fallback = Number(updated.currentBid) > 0 ? Number(updated.currentBid) : (Number(updated.basePrice) || 0);
+                    updated = { ...updated, soldPrice: fallback };
+                }
+                return updated;
+            });
         // Team Owner Captains appear FIRST in the player list!
         return filtered.sort((a, b) => {
             if (a.isCaptain && !b.isCaptain) return -1;
@@ -1260,7 +1272,11 @@ const db = {
 
     async getPlayerById(id) {
         const state = readData();
-        return state.players.find(p => p._id === id);
+        const player = state.players.find(p => p._id === id);
+        if (player && player.status === 'sold' && (!player.soldPrice || Number(player.soldPrice) === 0)) {
+            player.soldPrice = Number(player.currentBid) > 0 ? Number(player.currentBid) : (Number(player.basePrice) || 0);
+        }
+        return player;
     },
 
     async createPlayer(data) {
@@ -1541,6 +1557,9 @@ const db = {
         state.players.forEach(p => {
             if (p.tournamentId === tournamentId && (p.status === 'unsold' || p.slotId === unsoldSlot._id)) {
                 p.status = 'pending';
+                if (!p.originalSlotId && p.slotId && p.slotId !== unsoldSlot._id) {
+                    p.originalSlotId = p.slotId;
+                }
                 p.slotId = unsoldSlot._id;
                 p.isReAuction = true;
                 // Preserve each player's original basePrice!
@@ -1741,7 +1760,7 @@ const db = {
                 `"${(p.bowlingStyle || '').replace(/"/g, '""')}"`,
                 p.basePrice || 0,
                 `"${team ? team.name : ''}"`,
-                p.soldPrice || (p.status === 'sold' ? p.currentBid : 0),
+                p.soldPrice || (p.status === 'sold' ? (p.currentBid || p.basePrice || 0) : 0),
                 p.status || 'pending',
                 p.isCaptain ? 'Yes' : 'No',
                 p.age || '',
@@ -1871,6 +1890,219 @@ const db = {
             list = list.filter(b => b.playerId === playerId);
         }
         return list.slice(0, 50);
+    },
+
+    // --- INJURY REPLACEMENTS & PLAYER EXCHANGES ---
+    async replaceInjuredPlayer(tournamentId, { teamId, injuredPlayerId, replacementPlayerId, replacementPrice }) {
+        const state = readData();
+        const team = (state.teams || []).find(t => t._id === teamId || t.id === teamId);
+        if (!team) throw new Error('Team not found');
+
+        const injuredPlayer = (state.players || []).find(p => p._id === injuredPlayerId);
+        if (!injuredPlayer) throw new Error('Injured player not found');
+        if (injuredPlayer.isCaptain) throw new Error('Retained Team Captain cannot be replaced via injury substitution');
+
+        const replacementPlayer = (state.players || []).find(p => p._id === replacementPlayerId);
+        if (!replacementPlayer) throw new Error('Replacement player not found');
+        if (replacementPlayer.status === 'sold') throw new Error('Selected replacement player is already sold to a team');
+
+        const oldSoldPrice = Number(injuredPlayer.soldPrice || injuredPlayer.currentBid || injuredPlayer.basePrice) || 0;
+        const newPrice = replacementPrice !== undefined ? (Number(replacementPrice) || 0) : (Number(replacementPlayer.basePrice) || 0);
+
+        // Check budget if new player costs more than old player
+        const priceDiff = newPrice - oldSoldPrice;
+        const diffInLarge = Number((priceDiff / 100).toFixed(2));
+        const remainingPurse = (Number(team.budget) || 100) - (Number(team.spent) || 0);
+        if (diffInLarge > 0 && diffInLarge > remainingPurse) {
+            throw new Error(`Insufficient budget! Needs ₹${priceDiff} more, but team only has ₹${remainingPurse.toFixed(2)} remaining purse`);
+        }
+
+        // 1. Update injured player
+        injuredPlayer.status = 'injured';
+        injuredPlayer.isInjured = true;
+        injuredPlayer.replacedByPlayerId = replacementPlayer._id;
+        injuredPlayer.replacedByPlayerName = replacementPlayer.name;
+        injuredPlayer.soldToTeamId = null;
+        injuredPlayer.soldToTeamName = null;
+
+        // 2. Update replacement player
+        replacementPlayer.status = 'sold';
+        replacementPlayer.soldToTeamId = team._id;
+        replacementPlayer.soldToTeamName = team.name;
+        replacementPlayer.soldPrice = newPrice;
+        replacementPlayer.currentBid = newPrice;
+        replacementPlayer.isReplacement = true;
+        replacementPlayer.replacedPlayerId = injuredPlayer._id;
+        replacementPlayer.replacedPlayerName = injuredPlayer.name;
+
+        // 3. Update team roster & purse
+        if (!team.players) team.players = [];
+        team.players = team.players.filter(p => (typeof p === 'object' ? p._id : p) !== injuredPlayer._id);
+        if (!team.players.includes(replacementPlayer._id)) {
+            team.players.push(replacementPlayer._id);
+        }
+        team.spent = Number(Math.max(0, (team.spent || 0) + diffInLarge).toFixed(2));
+
+        // 4. Record transfer audit log
+        if (!state.transfers) state.transfers = [];
+        const transferRecord = {
+            _id: 'trf_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+            tournamentId,
+            type: 'injury_replacement',
+            teamId: team._id,
+            teamName: team.name,
+            teamLogo: team.logo,
+            injuredPlayerId: injuredPlayer._id,
+            injuredPlayerName: injuredPlayer.name,
+            injuredPlayerPrice: oldSoldPrice,
+            replacementPlayerId: replacementPlayer._id,
+            replacementPlayerName: replacementPlayer.name,
+            replacementPlayerPrice: newPrice,
+            priceDiff,
+            createdAt: new Date().toISOString()
+        };
+        state.transfers.unshift(transferRecord);
+
+        writeData(state);
+
+        await supaSync.updatePlayer(injuredPlayer._id, injuredPlayer);
+        await supaSync.updatePlayer(replacementPlayer._id, replacementPlayer);
+        await supaSync.updateTeam(team._id, team);
+
+        return {
+            team,
+            injuredPlayer,
+            replacementPlayer,
+            transferRecord
+        };
+    },
+
+    async tradePlayers(tournamentId, { teamAId, playerAId, teamBId, playerBId }) {
+        const state = readData();
+        const teamA = (state.teams || []).find(t => t._id === teamAId || t.id === teamAId);
+        const teamB = (state.teams || []).find(t => t._id === teamBId || t.id === teamBId);
+        if (!teamA || !teamB) throw new Error('Both teams must be specified');
+        if (teamA._id === teamB._id) throw new Error('Cannot trade players within the same team');
+
+        const playerA = (state.players || []).find(p => p._id === playerAId);
+        const playerB = (state.players || []).find(p => p._id === playerBId);
+        if (!playerA || !playerB) throw new Error('Both players must be specified');
+        if (playerA.isCaptain || playerB.isCaptain) throw new Error('Retained Team Captains cannot be traded');
+
+        const pAPrice = Number(playerA.soldPrice || playerA.currentBid || playerA.basePrice) || 0;
+        const pBPrice = Number(playerB.soldPrice || playerB.currentBid || playerB.basePrice) || 0;
+
+        // Team A gives playerA, gets playerB. Net spent change for Team A: (pBPrice - pAPrice) / 100
+        const diffInCroresA = Number(((pBPrice - pAPrice) / 100).toFixed(2));
+        // Team B gives playerB, gets playerA. Net spent change for Team B: (pAPrice - pBPrice) / 100
+        const diffInCroresB = Number(((pAPrice - pBPrice) / 100).toFixed(2));
+
+        const remA = (Number(teamA.budget) || 100) - (Number(teamA.spent) || 0);
+        const remB = (Number(teamB.budget) || 100) - (Number(teamB.spent) || 0);
+
+        if (diffInCroresA > 0 && diffInCroresA > remA) {
+            throw new Error(`${teamA.name} has insufficient purse! Needs ₹${(pBPrice - pAPrice)} more, but only has ₹${remA.toFixed(2)} remaining`);
+        }
+        if (diffInCroresB > 0 && diffInCroresB > remB) {
+            throw new Error(`${teamB.name} has insufficient purse! Needs ₹${(pAPrice - pBPrice)} more, but only has ₹${remB.toFixed(2)} remaining`);
+        }
+
+        // Swap players
+        playerA.soldToTeamId = teamB._id;
+        playerA.soldToTeamName = teamB.name;
+        playerB.soldToTeamId = teamA._id;
+        playerB.soldToTeamName = teamA.name;
+
+        // Update Team A roster
+        teamA.players = (teamA.players || []).filter(p => (typeof p === 'object' ? p._id : p) !== playerA._id);
+        if (!teamA.players.includes(playerB._id)) teamA.players.push(playerB._id);
+        teamA.spent = Number(Math.max(0, (teamA.spent || 0) + diffInCroresA).toFixed(2));
+
+        // Update Team B roster
+        teamB.players = (teamB.players || []).filter(p => (typeof p === 'object' ? p._id : p) !== playerB._id);
+        if (!teamB.players.includes(playerA._id)) teamB.players.push(playerA._id);
+        teamB.spent = Number(Math.max(0, (teamB.spent || 0) + diffInCroresB).toFixed(2));
+
+        // Record transfer log
+        if (!state.transfers) state.transfers = [];
+        const pDiff = Math.abs(pAPrice - pBPrice);
+        const transferRecord = {
+            _id: 'trf_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+            tournamentId,
+            type: 'trade',
+            teamAId: teamA._id,
+            teamAName: teamA.name,
+            teamALogo: teamA.logo,
+            playerAId: playerA._id,
+            playerAName: playerA.name,
+            playerAPrice: pAPrice,
+            teamBId: teamB._id,
+            teamBName: teamB.name,
+            teamBLogo: teamB.logo,
+            playerBId: playerB._id,
+            playerBName: playerB.name,
+            playerBPrice: pBPrice,
+            priceDifference: pDiff,
+            priceDiff: pDiff,
+            createdAt: new Date().toISOString()
+        };
+        state.transfers.unshift(transferRecord);
+
+        writeData(state);
+
+        await supaSync.updatePlayer(playerA._id, playerA);
+        await supaSync.updatePlayer(playerB._id, playerB);
+        await supaSync.updateTeam(teamA._id, teamA);
+        await supaSync.updateTeam(teamB._id, teamB);
+
+        return {
+            teamA,
+            teamB,
+            playerA,
+            playerB,
+            transferRecord
+        };
+    },
+
+    async getTournamentTransfers(tournamentId) {
+        const state = readData();
+        return (state.transfers || []).filter(t => !tournamentId || t.tournamentId === tournamentId);
+    },
+
+    async moveInjuredToUnsold(tournamentId, playerId) {
+        const state = readData();
+        const player = (state.players || []).find(p => p._id === playerId || p.id === playerId);
+        if (!player) throw new Error('Player not found');
+
+        player.status = 'unsold';
+        player.isInjured = false;
+        player.soldToTeamId = null;
+        player.soldToTeamName = null;
+        player.soldPrice = 0;
+        player.currentBid = player.basePrice || 0;
+        player.currentLeadTeamId = null;
+        player.currentLeadTeamName = null;
+
+        // Record audit in transfers
+        if (!state.transfers) state.transfers = [];
+        const transferRecord = {
+            _id: 'trf_rec_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+            tournamentId,
+            type: 'injury_recovered',
+            playerId: player._id,
+            playerName: player.name,
+            playerImage: player.image || '',
+            playerCategory: player.category || '',
+            playerBasePrice: player.basePrice || 0,
+            note: 'Player recovered from injury and moved to Unsold pool for re-auction',
+            timestamp: new Date().toISOString()
+        };
+        state.transfers.unshift(transferRecord);
+
+        writeData(state);
+        await supaSync.updatePlayer(player._id, player);
+
+        return { player, transferRecord };
     }
 };
 

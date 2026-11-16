@@ -9,7 +9,8 @@ import {
     TouchableOpacity,
     Image,
     Platform,
-    Modal
+    Modal,
+    TextInput
 } from 'react-native';
 import {
     Trophy,
@@ -24,7 +25,11 @@ import {
     X,
     AlertCircle,
     Sparkles,
-    Crown
+    Crown,
+    Search,
+    User,
+    Layers,
+    Pause
 } from 'lucide-react-native';
 import socket from '../lib/socket';
 import { apiFetch } from '../lib/api';
@@ -55,7 +60,9 @@ export const SpectatorScreen: React.FC<SpectatorScreenProps> = ({
     const [bidHistory, setBidHistory] = useState<any[]>([]);
     const [isConnected, setIsConnected] = useState<boolean>(false);
 
-    const [activeTab, setActiveTab] = useState<'live' | 'teams' | 'sold' | 'unsold'>('live');
+    const [activeTab, setActiveTab] = useState<'live' | 'teams' | 'slots' | 'sold' | 'unsold'>('live');
+    const [selectedSlotMobile, setSelectedSlotMobile] = useState<string>('all');
+    const [slotMobileSearch, setSlotMobileSearch] = useState<string>('');
     const [viewingTeam, setViewingTeam] = useState<any | null>(null);
     const [announcementModal, setAnnouncementModal] = useState<{ type: 'sold' | 'unsold'; player: any; team?: any; price?: number } | null>(null);
 
@@ -236,16 +243,25 @@ export const SpectatorScreen: React.FC<SpectatorScreenProps> = ({
         };
     }, [tournamentId]);
 
+    // CRITICAL: Always load data immediately when tournamentId changes,
+    // don't wait for socket.connect()!
+    useEffect(() => {
+        if (tournamentId) {
+            fetchTournament();
+        }
+    }, [tournamentId]);
+
     const fetchTournament = async () => {
         try {
             const [tRes, sRes, teamRes, pRes] = await Promise.all([
-                apiFetch(`/api/tournaments/${tournamentId}`).then(r => r.json()),
+                apiFetch(`/api/tournaments/${tournamentId}`).then(r => r.json()).catch(() => null),
                 apiFetch(`/api/tournaments/${tournamentId}/slots`).then(r => r.json()).catch(() => []),
                 apiFetch(`/api/teams/${tournamentId}`).then(r => r.json()).catch(() => []),
                 apiFetch(`/api/players/${tournamentId}`).then(r => r.json()).catch(() => [])
             ]);
-            if (tRes && tRes._id) {
-                setTournament(tRes);
+            const tourneyObj = tRes?.tournament || tRes;
+            if (tourneyObj && (tourneyObj._id || tourneyObj.id)) {
+                setTournament(tourneyObj);
             }
             if (Array.isArray(sRes)) {
                 setSlots(sRes);
@@ -255,7 +271,7 @@ export const SpectatorScreen: React.FC<SpectatorScreenProps> = ({
             }
             if (Array.isArray(pRes)) {
                 setAllPlayers(pRes);
-                const active = pRes.find((p: any) => p._id === tRes?.currentBiddingPlayerId || p.status === 'bidding');
+                const active = pRes.find((p: any) => p._id === tourneyObj?.currentBiddingPlayerId || p.status === 'bidding');
                 if (active) {
                     setCurrentPlayer(active);
                     setCurrentBid(active.currentBid || active.basePrice);
@@ -264,7 +280,7 @@ export const SpectatorScreen: React.FC<SpectatorScreenProps> = ({
                 }
             }
         } catch (err) {
-            console.error('Error fetching tournament/slots:', err);
+            console.error('Error fetching tournament data:', err);
         }
     };
 
@@ -305,7 +321,7 @@ export const SpectatorScreen: React.FC<SpectatorScreenProps> = ({
                     onPress={() => setActiveTab('live')}
                 >
                     <Text style={[styles.tabText, activeTab === 'live' && styles.activeTabText]}>
-                        Live Stage
+                        Live
                     </Text>
                 </TouchableOpacity>
 
@@ -315,6 +331,15 @@ export const SpectatorScreen: React.FC<SpectatorScreenProps> = ({
                 >
                     <Text style={[styles.tabText, activeTab === 'teams' && styles.activeTabText]}>
                         Teams ({teams.length})
+                    </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    style={[styles.tabItem, activeTab === 'slots' && styles.activeTabItem]}
+                    onPress={() => setActiveTab('slots')}
+                >
+                    <Text style={[styles.tabText, activeTab === 'slots' && styles.activeTabText]}>
+                        Slots ({slots.length})
                     </Text>
                 </TouchableOpacity>
 
@@ -340,35 +365,6 @@ export const SpectatorScreen: React.FC<SpectatorScreenProps> = ({
             {/* Content Tabs */}
             {activeTab === 'live' ? (
                 <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-                    {/* Status Banners */}
-                    {tournament?.status === 'completed' && (
-                        <View style={[styles.stateBanner, { backgroundColor: '#fffbeb', borderColor: '#fde68a', paddingVertical: 12 }]}>
-                            <Trophy size={20} color="#d97706" />
-                            <View style={{ flex: 1 }}>
-                                <Text style={[styles.stateBannerText, { color: '#92400e', fontWeight: '900' }]}>
-                                    🏆 AUCTION OFFICIALLY COMPLETED!
-                                </Text>
-                                <Text style={{ fontSize: 11, color: '#b45309', fontWeight: '700', marginTop: 2 }}>
-                                    All squad rosters have been finalized.
-                                </Text>
-                            </View>
-                        </View>
-                    )}
-
-                    {(tournament?.status === 'upcoming' || (biddingState === 'stopped' && tournament?.status !== 'completed')) && (
-                        <View style={styles.stateBanner}>
-                            <Clock size={16} color="#475569" />
-                            <Text style={styles.stateBannerText}>AUCTION HAS NOT STARTED YET - PLEASE STAY TUNED</Text>
-                        </View>
-                    )}
-
-                    {biddingState === 'break' && (
-                        <View style={[styles.stateBanner, { backgroundColor: '#eff6ff', borderColor: '#bfdbfe' }]}>
-                            <Coffee size={16} color="#1d4ed8" />
-                            <Text style={[styles.stateBannerText, { color: '#1d4ed8' }]}>AUCTION IS ON A SHORT BREAK - RESUMING SHORTLY</Text>
-                        </View>
-                    )}
-
                     {/* 10s Timer Call */}
                     {countdownTimer && (
                         <View style={styles.timerBanner}>
@@ -383,11 +379,78 @@ export const SpectatorScreen: React.FC<SpectatorScreenProps> = ({
                     )}
 
                     {/* Main Stage Card */}
-                    {currentPlayer ? (
+                    {tournament?.status === 'completed' ? (
+                        <View style={[styles.card, { alignItems: 'center', paddingVertical: 28 }]}>
+                            <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: '#f3e8ff', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+                                <Trophy size={32} color="#7e22ce" />
+                            </View>
+                            <View style={{ backgroundColor: '#f3e8ff', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12, marginBottom: 8 }}>
+                                <Text style={{ fontSize: 10, fontWeight: '900', color: '#7e22ce', textTransform: 'uppercase' }}>🏆 AUCTION OFFICIALLY COMPLETED</Text>
+                            </View>
+                            <Text style={{ fontSize: 16, fontWeight: '900', color: '#1e1b4b', textAlign: 'center', marginBottom: 4 }}>
+                                {tournament?.name || 'Tournament'} Auction Concluded!
+                            </Text>
+                            <Text style={{ fontSize: 12, color: '#64748b', textAlign: 'center', paddingHorizontal: 16, marginBottom: 16, lineHeight: 18 }}>
+                                All bidding rounds have finished. Final squad rosters are locked!
+                            </Text>
+                            <View style={{ flexDirection: 'row', gap: 10, width: '100%' }}>
+                                <View style={{ flex: 1, backgroundColor: '#f8fafc', padding: 10, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: '#e2e8f0' }}>
+                                    <Text style={{ fontSize: 9, fontWeight: '900', color: '#64748b', textTransform: 'uppercase' }}>Sold</Text>
+                                    <Text style={{ fontSize: 18, fontWeight: '900', color: '#16a34a', marginTop: 2 }}>
+                                        {allPlayers.filter(p => p.status === 'sold').length}
+                                    </Text>
+                                </View>
+                                <View style={{ flex: 1, backgroundColor: '#f8fafc', padding: 10, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: '#e2e8f0' }}>
+                                    <Text style={{ fontSize: 9, fontWeight: '900', color: '#64748b', textTransform: 'uppercase' }}>Unsold</Text>
+                                    <Text style={{ fontSize: 18, fontWeight: '900', color: '#dc2626', marginTop: 2 }}>
+                                        {allPlayers.filter(p => p.status === 'unsold').length}
+                                    </Text>
+                                </View>
+                                <View style={{ flex: 1, backgroundColor: '#f8fafc', padding: 10, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: '#e2e8f0' }}>
+                                    <Text style={{ fontSize: 9, fontWeight: '900', color: '#64748b', textTransform: 'uppercase' }}>Teams</Text>
+                                    <Text style={{ fontSize: 18, fontWeight: '900', color: '#2563eb', marginTop: 2 }}>
+                                        {teams.length}
+                                    </Text>
+                                </View>
+                            </View>
+                        </View>
+                    ) : (tournament?.status === 'upcoming' || (biddingState === 'stopped' && !currentPlayer)) ? (
+                        <View style={[styles.card, { alignItems: 'center', paddingVertical: 28 }]}>
+                            <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: '#eff6ff', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+                                <Clock size={32} color="#2563eb" />
+                            </View>
+                            <View style={{ backgroundColor: '#fef3c7', paddingHorizontal: 10, paddingVertical: 3, borderRadius: 12, marginBottom: 8 }}>
+                                <Text style={{ fontSize: 10, fontWeight: '900', color: '#92400e', textTransform: 'uppercase' }}>Standby Screen</Text>
+                            </View>
+                            <Text style={{ fontSize: 16, fontWeight: '900', color: '#0f172a', textAlign: 'center', marginBottom: 4 }}>
+                                AUCTION HAS NOT STARTED YET
+                            </Text>
+                            <Text style={{ fontSize: 12, color: '#64748b', textAlign: 'center', paddingHorizontal: 16, marginBottom: 16, lineHeight: 18 }}>
+                                The live auction for {tournament?.name || 'this tournament'} will begin shortly. Teams and officials are assembling. Please stay tuned!
+                            </Text>
+                        </View>
+                    ) : (biddingState === 'break') ? (
+                        <View style={[styles.card, { alignItems: 'center', paddingVertical: 28 }]}>
+                            <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: '#eff6ff', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+                                <Coffee size={32} color="#1d4ed8" />
+                            </View>
+                            <View style={{ backgroundColor: '#fef3c7', paddingHorizontal: 10, paddingVertical: 3, borderRadius: 12, marginBottom: 8 }}>
+                                <Text style={{ fontSize: 10, fontWeight: '900', color: '#92400e', textTransform: 'uppercase' }}>Break in Progress</Text>
+                            </View>
+                            <Text style={{ fontSize: 16, fontWeight: '900', color: '#0f172a', textAlign: 'center', marginBottom: 4 }}>
+                                AUCTION IS ON A SHORT BREAK
+                            </Text>
+                            <Text style={{ fontSize: 12, color: '#64748b', textAlign: 'center', paddingHorizontal: 16, marginBottom: 16, lineHeight: 18 }}>
+                                Please wait for a while. The auction will resume shortly after the break!
+                            </Text>
+                        </View>
+                    ) : currentPlayer ? (
                         <View style={styles.card}>
+                            {/* In-Card Paused Notification */}
                             {biddingState === 'paused' && (
-                                <View style={styles.pauseBadge}>
-                                    <Text style={styles.pauseBadgeText}>PAUSED BY AUCTIONEER</Text>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#fef3c7', borderWidth: 1, borderColor: '#fde68a', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 12, marginBottom: 12 }}>
+                                    <Pause size={14} color="#d97706" />
+                                    <Text style={{ fontSize: 11, fontWeight: '900', color: '#92400e' }}>AUCTION BIDDING IS CURRENTLY PAUSED BY AUCTIONEER</Text>
                                 </View>
                             )}
 
@@ -396,6 +459,8 @@ export const SpectatorScreen: React.FC<SpectatorScreenProps> = ({
                                     <SafeImage
                                         uri={currentPlayer.image}
                                         style={styles.avatarImg}
+                                        previewable={true}
+                                        previewTitle={currentPlayer.name}
                                         fallback={<Users size={36} color="#94a3b8" />}
                                     />
                                 </View>
@@ -465,6 +530,8 @@ export const SpectatorScreen: React.FC<SpectatorScreenProps> = ({
                                             uri={b.team?.logo}
                                             style={{ width: '100%', height: '100%', resizeMode: 'contain' }}
                                             fallback={<Text style={styles.streamTeamBadgeTxt}>{b.team?.shortName || b.team?.name?.substring(0, 2) || 'TM'}</Text>}
+                                            previewable={true}
+                                            previewTitle={b.team?.name || 'Team'}
                                         />
                                     </View>
                                     <View style={styles.streamInfo}>
@@ -502,6 +569,8 @@ export const SpectatorScreen: React.FC<SpectatorScreenProps> = ({
                                                     uri={t.logo}
                                                     style={{ width: '100%', height: '100%', resizeMode: 'contain' }}
                                                     fallback={<Text style={styles.teamCardLogoTxt}>{t.shortName || t.name.substring(0, 2)}</Text>}
+                                                    previewable={true}
+                                                    previewTitle={t.name}
                                                 />
                                             </View>
                                             <View>
@@ -522,6 +591,171 @@ export const SpectatorScreen: React.FC<SpectatorScreenProps> = ({
                                 );
                             })}
                         </View>
+                    </View>
+                </ScrollView>
+            ) : activeTab === 'slots' ? (
+                /* Slots Tab */
+                <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+                    <View style={styles.card}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                            <View>
+                                <Text style={styles.sectionTitle}>Slots / Sets Wise Players</Text>
+                                <Text style={styles.sectionSubtitle}>
+                                    Upcoming auction slots and players list
+                                </Text>
+                            </View>
+                            <View style={{ backgroundColor: '#f3e8ff', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 }}>
+                                <Text style={{ fontSize: 11, fontWeight: '800', color: '#7e22ce' }}>
+                                    {slots.length} Slots
+                                </Text>
+                            </View>
+                        </View>
+
+                        {/* Search in Slots */}
+                        <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, marginBottom: 12 }}>
+                            <Search size={14} color="#94a3b8" />
+                            <TextInput
+                                placeholder="Search players in slots..."
+                                placeholderTextColor="#94a3b8"
+                                value={slotMobileSearch}
+                                onChangeText={setSlotMobileSearch}
+                                style={{ flex: 1, fontSize: 12, marginLeft: 6, color: '#0f172a', padding: 0 }}
+                            />
+                        </View>
+
+                        {/* Horizontal Slot Chips */}
+                        {slots.length > 0 && (
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
+                                <TouchableOpacity
+                                    onPress={() => setSelectedSlotMobile('all')}
+                                    style={[{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: '#f1f5f9', marginRight: 6 }, selectedSlotMobile === 'all' && { backgroundColor: '#7e22ce' }]}
+                                >
+                                    <Text style={[{ fontSize: 11, fontWeight: '800', color: '#475569' }, selectedSlotMobile === 'all' && { color: '#ffffff' }]}>
+                                        All Slots ({slots.length})
+                                    </Text>
+                                </TouchableOpacity>
+                                {slots.map(s => {
+                                    const isActive = tournament?.activeSlotId === s._id;
+                                    const isSel = selectedSlotMobile === s._id;
+                                    return (
+                                        <TouchableOpacity
+                                            key={s._id}
+                                            onPress={() => setSelectedSlotMobile(s._id)}
+                                            style={[{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: '#f1f5f9', marginRight: 6 }, isSel && { backgroundColor: '#7e22ce' }]}
+                                        >
+                                            <Text style={[{ fontSize: 11, fontWeight: '800', color: '#475569' }, isSel && { color: '#ffffff' }]}>
+                                                {isActive ? '🔥 ' : ''}{s.name}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    );
+                                })}
+                            </ScrollView>
+                        )}
+
+                        {/* Slot Cards List */}
+                        {(() => {
+                            const filtered = selectedSlotMobile === 'all' ? slots : slots.filter(s => s._id === selectedSlotMobile);
+                            const q = slotMobileSearch.trim().toLowerCase();
+
+                            if (slots.length === 0) {
+                                return (
+                                    <View style={{ padding: 20, alignItems: 'center' }}>
+                                        <Text style={{ fontSize: 12, color: '#94a3b8', fontStyle: 'italic' }}>No custom slots configured for this tournament.</Text>
+                                    </View>
+                                );
+                            }
+
+                            return filtered.map(slot => {
+                                const isUnsoldSlot = slot.isDefaultUnsold || slot.slotType === 'unsold';
+                                const isActive = tournament?.activeSlotId === slot._id;
+                                let sPlayers = allPlayers.filter(p =>
+                                    p.slotId === slot._id ||
+                                    (p as any).originalSlotId === slot._id ||
+                                    (isUnsoldSlot && (p.slotId === slot._id || p.status === 'unsold'))
+                                );
+                                if (q) {
+                                    sPlayers = sPlayers.filter(p => p.name?.toLowerCase().includes(q) || p.category?.toLowerCase().includes(q));
+                                }
+
+                                const sSold = sPlayers.filter(p => p.status === 'sold');
+                                const sPending = sPlayers.filter(p => p.status === 'pending' || (isUnsoldSlot && p.status === 'unsold'));
+
+                                return (
+                                    <View key={slot._id} style={{ marginBottom: 16, borderWidth: 1, borderColor: isActive ? '#c084fc' : '#e2e8f0', borderRadius: 14, overflow: 'hidden', backgroundColor: '#ffffff' }}>
+                                        {/* Slot Header */}
+                                        <View style={{ padding: 10, backgroundColor: isActive ? '#f3e8ff' : '#f8fafc', borderBottomWidth: 1, borderColor: isActive ? '#d8b4fe' : '#e2e8f0', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                                            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 8 }}>
+                                                <View style={{ width: 26, height: 26, borderRadius: 6, backgroundColor: isActive ? '#7e22ce' : '#cbd5e1', justifyContent: 'center', alignItems: 'center', marginRight: 8 }}>
+                                                    <Text style={{ fontSize: 11, fontWeight: '900', color: isActive ? '#ffffff' : '#334155' }}>
+                                                        {isUnsoldSlot ? '🔄' : (slot.order || slot.name?.substring(0, 2))}
+                                                    </Text>
+                                                </View>
+                                                <View style={{ flex: 1 }}>
+                                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                                        <Text style={{ fontSize: 13, fontWeight: '800', color: '#0f172a' }} numberOfLines={1}>{slot.name}</Text>
+                                                        {isActive && (
+                                                            <View style={{ backgroundColor: '#7e22ce', paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4 }}>
+                                                                <Text style={{ fontSize: 8, fontWeight: '900', color: '#ffffff' }}>ACTIVE</Text>
+                                                            </View>
+                                                        )}
+                                                    </View>
+                                                    <Text style={{ fontSize: 10, color: '#64748b', marginTop: 1 }}>
+                                                        Base: ₹{slot.basePrice || 'Player Base'} • {sPlayers.length} total • {sPending.length} upcoming
+                                                    </Text>
+                                                </View>
+                                            </View>
+                                        </View>
+
+                                        {/* Slot Players */}
+                                        {sPlayers.length === 0 ? (
+                                            <View style={{ padding: 14, alignItems: 'center' }}>
+                                                <Text style={{ fontSize: 11, color: '#94a3b8', fontStyle: 'italic' }}>No players found in this slot.</Text>
+                                            </View>
+                                        ) : (
+                                            sPlayers.map((player, pIdx) => {
+                                                const isCur = currentPlayer?._id === player._id;
+                                                const buyer = teams.find(t => t._id === player.soldToTeamId || (t as any).id === player.soldToTeamId);
+
+                                                return (
+                                                    <View key={player._id || pIdx} style={{ flexDirection: 'row', alignItems: 'center', padding: 10, borderBottomWidth: 1, borderColor: '#f1f5f9', backgroundColor: isCur ? '#faf5ff' : '#ffffff' }}>
+                                                        <Text style={{ width: 20, fontSize: 11, color: '#94a3b8', fontWeight: 'bold' }}>{pIdx + 1}</Text>
+                                                        <View style={{ width: 34, height: 34, borderRadius: 8, overflow: 'hidden', backgroundColor: '#f1f5f9', marginRight: 8, justifyContent: 'center', alignItems: 'center' }}>
+                                                            <SafeImage
+                                                                uri={player.image}
+                                                                style={{ width: '100%', height: '100%' }}
+                                                                previewable={true}
+                                                                previewTitle={player.name}
+                                                                fallback={<User size={16} color="#94a3b8" />}
+                                                            />
+                                                        </View>
+                                                        <View style={{ flex: 1, marginRight: 6 }}>
+                                                            <Text style={{ fontSize: 13, fontWeight: '800', color: '#0f172a' }} numberOfLines={1}>{player.name}</Text>
+                                                            <Text style={{ fontSize: 10, color: '#64748b' }}>
+                                                                {player.category} {player.battingStyle ? `• ${player.battingStyle}` : ''}
+                                                            </Text>
+                                                        </View>
+                                                        <View style={{ alignItems: 'flex-end' }}>
+                                                            <Text style={{ fontSize: 11, fontWeight: '700', color: '#475569' }}>₹{player.basePrice || slot.basePrice || 0} {smallUnit}</Text>
+                                                            {player.status === 'sold' ? (
+                                                                <Text style={{ fontSize: 10, fontWeight: '800', color: '#16a34a' }}>
+                                                                    SOLD: ₹{player.soldPrice || player.currentBid || 0} {smallUnit} {buyer?.shortName ? `(${buyer.shortName})` : ''}
+                                                                </Text>
+                                                            ) : isCur ? (
+                                                                <Text style={{ fontSize: 10, fontWeight: '900', color: '#7e22ce' }}>LIVE NOW</Text>
+                                                            ) : player.status === 'unsold' ? (
+                                                                <Text style={{ fontSize: 10, fontWeight: '700', color: '#d97706' }}>UNSOLD</Text>
+                                                            ) : (
+                                                                <Text style={{ fontSize: 10, fontWeight: '700', color: '#64748b' }}>UPCOMING</Text>
+                                                            )}
+                                                        </View>
+                                                    </View>
+                                                );
+                                            })
+                                        )}
+                                    </View>
+                                );
+                            });
+                        })()}
                     </View>
                 </ScrollView>
             ) : activeTab === 'sold' ? (
@@ -551,7 +785,7 @@ export const SpectatorScreen: React.FC<SpectatorScreenProps> = ({
                                         </View>
                                         <View style={{ alignItems: 'flex-end' }}>
                                             <Text style={styles.rowSoldPrice}>
-                                                ₹{formatAmount(p.soldPrice || p.currentBid)}
+                                                ₹{formatAmount(p.soldPrice || p.currentBid || p.basePrice)}
                                             </Text>
                                             <Text style={styles.rowBasePrice}>Base: ₹{p.basePrice}{smallUnit}</Text>
                                         </View>
@@ -617,6 +851,8 @@ export const SpectatorScreen: React.FC<SpectatorScreenProps> = ({
                                                         {viewingTeam.shortName || viewingTeam.name.substring(0, 2)}
                                                     </Text>
                                                 }
+                                                previewable={true}
+                                                previewTitle={viewingTeam.name}
                                             />
                                         </View>
                                         <View style={{ flex: 1, marginLeft: 10 }}>
@@ -643,7 +879,7 @@ export const SpectatorScreen: React.FC<SpectatorScreenProps> = ({
                                                     Acquired: <Text style={{ fontWeight: '900', color: '#0f172a' }}>{teamPlayers.length}</Text> / {tournament?.squadSizeLimit || 25}
                                                 </Text>
                                                 <Text style={styles.modalStatsText}>
-                                                    Total: <Text style={{ fontWeight: '900', color: '#16a34a' }}>₹{teamPlayers.reduce((acc, p) => acc + (p.soldPrice || p.currentBid || 0), 0)} {smallUnit}</Text>
+                                                    Total: <Text style={{ fontWeight: '900', color: '#16a34a' }}>₹{teamPlayers.reduce((acc, p) => acc + (p.soldPrice || p.currentBid || p.basePrice || 0), 0)} {smallUnit}</Text>
                                                 </Text>
                                             </View>
 
@@ -654,6 +890,8 @@ export const SpectatorScreen: React.FC<SpectatorScreenProps> = ({
                                                             uri={viewingTeam.captainPhoto}
                                                             style={{ width: 34, height: 34, borderRadius: 10 }}
                                                             fallback={<Crown size={16} color="#b45309" />}
+                                                            previewable={true}
+                                                            previewTitle={viewingTeam.captainName || 'Team Captain'}
                                                         />
                                                     </View>
                                                     <View style={{ flex: 1 }}>
@@ -682,6 +920,8 @@ export const SpectatorScreen: React.FC<SpectatorScreenProps> = ({
                                                             <SafeImage
                                                                 uri={p.image}
                                                                 style={{ width: 32, height: 32, borderRadius: 8 }}
+                                                                previewable={true}
+                                                                previewTitle={p.name}
                                                                 fallback={<Users size={16} color="#94a3b8" />}
                                                             />
                                                         </View>
@@ -692,7 +932,7 @@ export const SpectatorScreen: React.FC<SpectatorScreenProps> = ({
                                                             </Text>
                                                         </View>
                                                         <View style={{ alignItems: 'flex-end' }}>
-                                                            <Text style={styles.modalPlayerPriceText}>₹{p.soldPrice || p.currentBid} {smallUnit}</Text>
+                                                            <Text style={styles.modalPlayerPriceText}>₹{p.soldPrice || p.currentBid || p.basePrice} {smallUnit}</Text>
                                                             <Text style={styles.modalPlayerBasePrice}>Base: ₹{p.basePrice}{smallUnit}</Text>
                                                         </View>
                                                     </View>
@@ -749,6 +989,8 @@ export const SpectatorScreen: React.FC<SpectatorScreenProps> = ({
                                 <SafeImage
                                     uri={announcementModal.player?.image}
                                     style={{ width: 88, height: 88, borderRadius: 16, marginBottom: 12 }}
+                                    previewable={true}
+                                    previewTitle={announcementModal.player?.name}
                                     fallback={
                                         <View style={{ width: 88, height: 88, borderRadius: 16, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
                                             <Users size={36} color="#94a3b8" />
@@ -766,7 +1008,12 @@ export const SpectatorScreen: React.FC<SpectatorScreenProps> = ({
                                 {announcementModal.type === 'sold' ? (
                                     <View style={{ width: '100%', padding: 14, backgroundColor: '#f0fdf4', borderRadius: 16, borderWidth: 1, borderColor: '#bbf7d0', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, marginRight: 8 }}>
-                                            <SafeImage uri={announcementModal.team?.logo} style={{ width: 34, height: 34, borderRadius: 8, resizeMode: 'contain', backgroundColor: '#ffffff' }} />
+                                            <SafeImage
+                                                uri={announcementModal.team?.logo}
+                                                style={{ width: 34, height: 34, borderRadius: 8, resizeMode: 'contain', backgroundColor: '#ffffff' }}
+                                                previewable={true}
+                                                previewTitle={announcementModal.team?.name || 'Winner Team'}
+                                            />
                                             <View style={{ flex: 1 }}>
                                                 <Text style={{ fontSize: 10, fontWeight: '800', color: '#16a34a', textTransform: 'uppercase' }}>Sold To</Text>
                                                 <Text style={{ fontSize: 15, fontWeight: '900', color: '#0f172a' }} numberOfLines={1}>{announcementModal.team?.name || 'Winner'}</Text>

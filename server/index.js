@@ -338,8 +338,8 @@ io.on('connection', (socket) => {
 
             // Squad limit check: Enforce Admin-fixed squad size limit before finalizing sale
             if (tournamentId) {
-                const maxSquadLimit = tournament?.squadSizeLimit ? Number(tournament.squadSizeLimit) : 25;
                 const tournament = await db.getTournamentById(tournamentId);
+                const maxSquadLimit = tournament?.squadSizeLimit ? Number(tournament.squadSizeLimit) : 25;
                 const currentSquad = (team.players || []).length;
                 if (currentSquad >= maxSquadLimit) {
                     socket.emit('auction_error', {
@@ -349,15 +349,31 @@ io.on('connection', (socket) => {
                 }
             }
 
-            const bidInCrores = Number((player.currentBid || player.basePrice || 0) / 100);
-            team.spent = Number(((team.spent || 0) + bidInCrores).toFixed(2));
+            const winningBid = Number(player.currentBid) > 0 ? Number(player.currentBid) : (Number(player.basePrice) || 0);
+            const bidInLargeUnits = Number((winningBid / 100).toFixed(2));
+            team.spent = Number(((team.spent || 0) + bidInLargeUnits).toFixed(2));
             if (!team.players) team.players = [];
             if (!team.players.includes(player._id)) team.players.push(player._id);
             await db.updateTeam(team._id, team);
 
             player.status = 'sold';
             player.soldToTeamId = team._id;
-            player.soldPrice = player.currentBid || player.basePrice;
+            player.soldToTeamName = team.name;
+            player.soldPrice = winningBid;
+            player.currentBid = winningBid;
+
+            // If player was in re-auction unsold slot, restore slotId to category slot
+            if (player.slotId && (String(player.slotId).includes('slot_unsold_') || player.isReAuction)) {
+                if (player.originalSlotId) {
+                    player.slotId = player.originalSlotId;
+                } else if (tournamentId) {
+                    const allSlots = await db.getTournamentSlots(tournamentId);
+                    const matchingSlot = (allSlots || []).find(s => s.role === player.category || s.name?.toLowerCase().includes(player.category?.toLowerCase()));
+                    if (matchingSlot) {
+                        player.slotId = matchingSlot._id;
+                    }
+                }
+            }
             await db.updatePlayer(playerId, player);
 
             io.to(tournamentId).emit('player_sold', {
@@ -455,12 +471,12 @@ io.on('connection', (socket) => {
             if (!player || player.status !== 'sold') return;
 
             const soldTeamId = player.soldToTeamId;
-            const soldPrice = player.soldPrice || player.currentBid;
+            const soldPrice = Number(player.soldPrice || player.currentBid || player.basePrice) || 0;
 
             if (soldTeamId) {
                 const team = await db.getTeamById(soldTeamId);
                 if (team) {
-                    const refundInCrores = Number(soldPrice / 100);
+                    const refundInCrores = Number((soldPrice / 100).toFixed(2));
                     team.spent = Number(Math.max(0, (team.spent || 0) - refundInCrores).toFixed(2));
                     team.players = (team.players || []).filter(p => p !== playerId);
                     await db.updateTeam(team._id, team);
@@ -470,6 +486,7 @@ io.on('connection', (socket) => {
 
             player.status = 'bidding';
             player.soldToTeamId = null;
+            player.soldToTeamName = null;
             player.soldPrice = 0;
             await db.updatePlayer(playerId, player);
 
@@ -594,7 +611,8 @@ io.on('connection', (socket) => {
                         const leadTeamId = freshPlayer.currentLeadTeamId._id || freshPlayer.currentLeadTeamId;
                         const team = await db.getTeamById(leadTeamId);
                         if (team) {
-                            const autoSoldInCrores = Number((freshPlayer.currentBid || freshPlayer.basePrice || 0) / 100);
+                            const winningBid = Number(freshPlayer.currentBid) > 0 ? Number(freshPlayer.currentBid) : (Number(freshPlayer.basePrice) || 0);
+                            const autoSoldInCrores = Number((winningBid / 100).toFixed(2));
                             team.spent = Number(((team.spent || 0) + autoSoldInCrores).toFixed(2));
                             if (!team.players) team.players = [];
                             if (!team.players.includes(freshPlayer._id)) team.players.push(freshPlayer._id);
@@ -602,7 +620,22 @@ io.on('connection', (socket) => {
 
                             freshPlayer.status = 'sold';
                             freshPlayer.soldToTeamId = team._id;
-                            freshPlayer.soldPrice = freshPlayer.currentBid || freshPlayer.basePrice;
+                            freshPlayer.soldToTeamName = team.name;
+                            freshPlayer.soldPrice = winningBid;
+                            freshPlayer.currentBid = winningBid;
+
+                            // If player was in re-auction unsold slot, restore slotId to category slot
+                            if (freshPlayer.slotId && (String(freshPlayer.slotId).includes('slot_unsold_') || freshPlayer.isReAuction)) {
+                                if (freshPlayer.originalSlotId) {
+                                    freshPlayer.slotId = freshPlayer.originalSlotId;
+                                } else if (tournamentId) {
+                                    const allSlots = await db.getTournamentSlots(tournamentId);
+                                    const matchingSlot = (allSlots || []).find(s => s.role === freshPlayer.category || s.name?.toLowerCase().includes(freshPlayer.category?.toLowerCase()));
+                                    if (matchingSlot) {
+                                        freshPlayer.slotId = matchingSlot._id;
+                                    }
+                                }
+                            }
                             await db.updatePlayer(targetPlayerId, freshPlayer);
 
                             io.to(tournamentId).emit('player_sold', {

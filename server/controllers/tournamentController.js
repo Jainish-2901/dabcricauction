@@ -291,6 +291,69 @@ const getTournamentBids = async (req, res) => {
     }
 };
 
+const replaceInjuredPlayer = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await db.replaceInjuredPlayer(id, req.body);
+        const io = req.app.get('socketio') || req.app.get('io');
+        if (io) {
+            io.to(id).emit('player_replaced', result);
+            io.to(id).emit('sync_state');
+        }
+        res.json({ message: 'Injured player replaced successfully', ...result });
+    } catch (err) {
+        console.error('replaceInjuredPlayer error:', err);
+        res.status(400).json({ message: err.message });
+    }
+};
+
+const tradePlayers = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await db.tradePlayers(id, req.body);
+        const io = req.app.get('socketio') || req.app.get('io');
+        if (io) {
+            io.to(id).emit('players_traded', result);
+            io.to(id).emit('sync_state');
+        }
+        res.json({ message: 'Players traded successfully between teams', ...result });
+    } catch (err) {
+        console.error('tradePlayers error:', err);
+        res.status(400).json({ message: err.message });
+    }
+};
+
+const getTournamentTransfers = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const transfers = await db.getTournamentTransfers(id);
+        res.json(transfers);
+    } catch (err) {
+        console.error('getTournamentTransfers error:', err);
+        res.status(500).json({ message: err.message });
+    }
+};
+
+const moveInjuredToUnsold = async (req, res) => {
+    try {
+        const { id, playerId } = req.params;
+        const targetPlayerId = playerId || req.body?.playerId;
+        if (!targetPlayerId) {
+            return res.status(400).json({ message: 'Player ID is required' });
+        }
+        const result = await db.moveInjuredToUnsold(id, targetPlayerId);
+        const io = req.app.get('socketio') || req.app.get('io');
+        if (io) {
+            io.to(id).emit('player_recovered', result);
+            io.to(id).emit('sync_state');
+        }
+        res.json({ message: 'Player moved from injured to unsold pool successfully', ...result });
+    } catch (err) {
+        console.error('moveInjuredToUnsold error:', err);
+        res.status(400).json({ message: err.message });
+    }
+};
+
 module.exports = {
     createTournament,
     getTournaments,
@@ -311,5 +374,9 @@ module.exports = {
     reopenUnsoldPlayersToSlot,
     exportTournamentPlayersCSV,
     exportTournamentSummaryCSV,
-    getTournamentBids
+    getTournamentBids,
+    replaceInjuredPlayer,
+    tradePlayers,
+    getTournamentTransfers,
+    moveInjuredToUnsold
 };

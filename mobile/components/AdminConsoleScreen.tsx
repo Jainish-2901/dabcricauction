@@ -98,9 +98,10 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
     const [notice, setNotice] = useState<string | null>(null);
     const [bidLogs, setBidLogs] = useState<any[]>([]);
     const [announcementModal, setAnnouncementModal] = useState<{ type: 'sold' | 'unsold'; player: any; team?: any; price?: number } | null>(null);
-    const [consoleTab, setConsoleTab] = useState<'stage' | 'players'>('stage');
+    const [consoleTab, setConsoleTab] = useState<'stage' | 'players' | 'slots'>('stage');
     const [playerFilter, setPlayerFilter] = useState<'all' | 'remaining' | 'pending' | 'passed' | 'unsold' | 'sold'>('all');
     const [playerSearch, setPlayerSearch] = useState('');
+    const [slotAdminSearch, setSlotAdminSearch] = useState('');
     const [onlyActiveSlotInQueue, setOnlyActiveSlotInQueue] = useState(false);
 
     useEffect(() => {
@@ -322,18 +323,28 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
         };
     }, [tournamentId]);
 
+    // CRITICAL: Always load data immediately when tournamentId changes,
+    // don't wait for socket.connect()!
+    useEffect(() => {
+        if (tournamentId) {
+            fetchAuctionData();
+            fetchTournament();
+        }
+    }, [tournamentId]);
+
     const fetchTournament = async () => {
         try {
             const [tRes, sRes] = await Promise.all([
-                apiFetch(`/api/tournaments/${tournamentId}`).then(r => r.json()),
+                apiFetch(`/api/tournaments/${tournamentId}`).then(r => r.json()).catch(() => null),
                 apiFetch(`/api/tournaments/${tournamentId}/slots`).then(r => r.json()).catch(() => [])
             ]);
-            if (tRes && tRes._id) {
-                setTournament(tRes);
-                if (tRes.activeSlotId) {
-                    setActiveSlotId(tRes.activeSlotId);
+            const tourneyObj = tRes?.tournament || tRes;
+            if (tourneyObj && (tourneyObj._id || tourneyObj.id)) {
+                setTournament(tourneyObj);
+                if (tourneyObj.activeSlotId) {
+                    setActiveSlotId(tourneyObj.activeSlotId);
                 } else if (Array.isArray(sRes) && sRes.length > 0 && !activeSlotId) {
-                    setActiveSlotId(sRes[0]._id);
+                    setActiveSlotId(sRes[0]._id || sRes[0].id);
                 }
             }
             if (Array.isArray(sRes)) {
@@ -865,7 +876,7 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                     </TouchableOpacity>
                 </View>
 
-                {/* Console View Tab Bar: Stage vs Players Pool */}
+                {/* Console View Tab Bar: Stage vs Players Pool vs Slots */}
                 <View style={styles.consoleTabRow}>
                     <TouchableOpacity
                         style={[styles.consoleTabBtn, consoleTab === 'stage' && styles.consoleTabBtnActive]}
@@ -882,7 +893,16 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                     >
                         <Users size={13} color={consoleTab === 'players' ? '#ffffff' : '#64748b'} />
                         <Text style={[styles.consoleTabText, consoleTab === 'players' && styles.consoleTabTextActive]}>
-                            Players List ({players.length})
+                            Players ({players.length})
+                        </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[styles.consoleTabBtn, consoleTab === 'slots' && styles.consoleTabBtnActive]}
+                        onPress={() => setConsoleTab('slots')}
+                    >
+                        <Layers size={13} color={consoleTab === 'slots' ? '#ffffff' : '#64748b'} />
+                        <Text style={[styles.consoleTabText, consoleTab === 'slots' && styles.consoleTabTextActive]}>
+                            Slots ({slots.length})
                         </Text>
                     </TouchableOpacity>
                 </View>
@@ -1013,18 +1033,26 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                                             <SafeImage
                                                 uri={p.image}
                                                 style={styles.poolPlayerAvatarImg}
+                                                previewable={true}
+                                                previewTitle={p.name}
                                                 fallback={<Text style={styles.poolPlayerInitial}>{p.name?.substring(0, 1) || 'P'}</Text>}
                                             />
                                         </View>
 
                                         <View style={{ flex: 1 }}>
                                             <Text style={styles.poolPlayerName} numberOfLines={1}>{p.name}</Text>
-                                            <Text style={styles.poolPlayerMeta} numberOfLines={1}>
-                                                {p.category} • Base ₹{p.basePrice}{smallUnit}
-                                            </Text>
+                                            {p.status === 'sold' ? (
+                                                <Text style={[styles.poolPlayerMeta, { color: '#15803d', fontWeight: '800' }]} numberOfLines={1}>
+                                                    {p.category} • Sold ₹{p.soldPrice || p.currentBid || p.basePrice}{smallUnit} (Base ₹{p.basePrice}{smallUnit})
+                                                </Text>
+                                            ) : (
+                                                <Text style={styles.poolPlayerMeta} numberOfLines={1}>
+                                                    {p.category} • Base ₹{p.basePrice}{smallUnit}
+                                                </Text>
+                                            )}
                                             {p.status === 'sold' && (
                                                 <Text style={styles.poolPlayerSoldInfo} numberOfLines={1}>
-                                                    Sold to {soldTeam?.name || 'Team'} • ₹{p.soldPrice || p.currentBid}{smallUnit}
+                                                    Sold to {soldTeam?.name || 'Team'} • ₹{p.soldPrice || p.currentBid || p.basePrice}{smallUnit}
                                                 </Text>
                                             )}
                                         </View>
@@ -1044,7 +1072,7 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                                                     p.status === 'unsold' ? { color: '#dc2626' } :
                                                     isPassed ? { color: '#b45309' } : { color: '#475569' }
                                                 ]}>
-                                                    {isCurrent ? 'LIVE' : isPassed ? 'PASSED' : (p.status || 'pending').toUpperCase()}
+                                                    {isCurrent ? 'LIVE' : p.status === 'sold' ? `SOLD (₹${p.soldPrice || p.currentBid || p.basePrice}${smallUnit})` : isPassed ? 'PASSED' : (p.status || 'pending').toUpperCase()}
                                                 </Text>
                                             </View>
 
@@ -1069,6 +1097,155 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                             })}
                         </View>
                     )}
+                </ScrollView>
+            ) : consoleTab === 'slots' ? (
+                /* Slots View for Auctioneer */
+                <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+                    <View style={styles.card}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                            <View>
+                                <Text style={{ fontSize: 15, fontWeight: '900', color: '#0f172a' }}>Slots / Sets Manager & Players</Text>
+                                <Text style={{ fontSize: 11, color: '#64748b', fontWeight: '600', marginTop: 2 }}>
+                                    Browse players slot-by-slot and bring to auction
+                                </Text>
+                            </View>
+                            <TouchableOpacity
+                                onPress={() => { setSlotModalContext('manual'); setShowSlotModal(true); }}
+                                style={{ backgroundColor: '#7e22ce', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 }}
+                            >
+                                <Text style={{ fontSize: 11, fontWeight: '800', color: '#ffffff' }}>
+                                    Active: {slots.find(s => s._id === activeSlotId)?.name || 'General'} ⚙️
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        {/* Search in Slots */}
+                        <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, marginBottom: 12 }}>
+                            <Search size={14} color="#94a3b8" />
+                            <TextInput
+                                placeholder="Search players across slots..."
+                                placeholderTextColor="#94a3b8"
+                                value={slotAdminSearch}
+                                onChangeText={setSlotAdminSearch}
+                                style={{ flex: 1, fontSize: 12, marginLeft: 6, color: '#0f172a', padding: 0 }}
+                            />
+                        </View>
+
+                        {/* Slot Cards */}
+                        {slots.length === 0 ? (
+                            <View style={{ padding: 24, alignItems: 'center' }}>
+                                <Text style={{ fontSize: 13, color: '#94a3b8', fontStyle: 'italic' }}>No custom slots created for this tournament.</Text>
+                            </View>
+                        ) : (
+                            slots.map(slot => {
+                                const isUnsoldSlot = slot.isDefaultUnsold || slot.slotType === 'unsold';
+                                const isCurrent = activeSlotId === slot._id;
+                                let sPlayers = players.filter(p =>
+                                    p.slotId === slot._id ||
+                                    (p as any).originalSlotId === slot._id ||
+                                    (isUnsoldSlot && (p.slotId === slot._id || p.status === 'unsold'))
+                                );
+
+                                const q = slotAdminSearch.trim().toLowerCase();
+                                if (q) {
+                                    sPlayers = sPlayers.filter(p => p.name?.toLowerCase().includes(q) || p.category?.toLowerCase().includes(q));
+                                }
+
+                                const sSold = sPlayers.filter(p => p.status === 'sold');
+                                const sPending = sPlayers.filter(p => p.status === 'pending' || (isUnsoldSlot && p.status === 'unsold'));
+
+                                return (
+                                    <View key={slot._id} style={{ marginBottom: 16, borderWidth: 1, borderColor: isCurrent ? '#c084fc' : '#e2e8f0', borderRadius: 14, overflow: 'hidden', backgroundColor: '#ffffff' }}>
+                                        {/* Slot Header */}
+                                        <View style={{ padding: 10, backgroundColor: isCurrent ? '#f3e8ff' : '#f8fafc', borderBottomWidth: 1, borderColor: isCurrent ? '#d8b4fe' : '#e2e8f0', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                                            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 8 }}>
+                                                <View style={{ width: 26, height: 26, borderRadius: 6, backgroundColor: isCurrent ? '#7e22ce' : '#cbd5e1', justifyContent: 'center', alignItems: 'center', marginRight: 8 }}>
+                                                    <Text style={{ fontSize: 11, fontWeight: '900', color: isCurrent ? '#ffffff' : '#334155' }}>
+                                                        {isUnsoldSlot ? '🔄' : (slot.order || slot.name?.substring(0, 2))}
+                                                    </Text>
+                                                </View>
+                                                <View style={{ flex: 1 }}>
+                                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                                        <Text style={{ fontSize: 13, fontWeight: '800', color: '#0f172a' }} numberOfLines={1}>{slot.name}</Text>
+                                                        {isCurrent && (
+                                                            <View style={{ backgroundColor: '#7e22ce', paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4 }}>
+                                                                <Text style={{ fontSize: 8, fontWeight: '900', color: '#ffffff' }}>ACTIVE</Text>
+                                                            </View>
+                                                        )}
+                                                    </View>
+                                                    <Text style={{ fontSize: 10, color: '#64748b', marginTop: 1 }}>
+                                                        Base: ₹{slot.basePrice || 'Player Base'} • {sPlayers.length} total • {sPending.length} upcoming
+                                                    </Text>
+                                                </View>
+                                            </View>
+
+                                            {!isCurrent && (
+                                                <TouchableOpacity
+                                                    onPress={() => handleSelectSlot(slot._id)}
+                                                    style={{ backgroundColor: '#7e22ce', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }}
+                                                >
+                                                    <Text style={{ fontSize: 10, fontWeight: '800', color: '#ffffff' }}>Set Active</Text>
+                                                </TouchableOpacity>
+                                            )}
+                                        </View>
+
+                                        {/* Slot Players */}
+                                        {sPlayers.length === 0 ? (
+                                            <View style={{ padding: 14, alignItems: 'center' }}>
+                                                <Text style={{ fontSize: 11, color: '#94a3b8', fontStyle: 'italic' }}>No players found in this slot.</Text>
+                                            </View>
+                                        ) : (
+                                            sPlayers.map((p, pIdx) => {
+                                                const isCur = currentPlayer?._id === p._id;
+                                                return (
+                                                    <View key={p._id || pIdx} style={{ flexDirection: 'row', alignItems: 'center', padding: 10, borderBottomWidth: 1, borderColor: '#f1f5f9', backgroundColor: isCur ? '#faf5ff' : '#ffffff' }}>
+                                                        <Text style={{ width: 20, fontSize: 11, color: '#94a3b8', fontWeight: 'bold' }}>{pIdx + 1}</Text>
+                                                        <View style={{ width: 34, height: 34, borderRadius: 8, overflow: 'hidden', backgroundColor: '#f1f5f9', marginRight: 8, justifyContent: 'center', alignItems: 'center' }}>
+                                                            <SafeImage
+                                                                uri={p.image}
+                                                                style={{ width: '100%', height: '100%' }}
+                                                                previewable={true}
+                                                                previewTitle={p.name}
+                                                                fallback={<Text style={{ fontSize: 12, fontWeight: 'bold', color: '#94a3b8' }}>{p.name?.substring(0, 1)}</Text>}
+                                                            />
+                                                        </View>
+                                                        <View style={{ flex: 1, marginRight: 6 }}>
+                                                            <Text style={{ fontSize: 13, fontWeight: '800', color: '#0f172a' }} numberOfLines={1}>{p.name}</Text>
+                                                            <Text style={{ fontSize: 10, color: '#64748b' }}>
+                                                                {p.category} • ₹{p.basePrice || slot.basePrice || 0}{smallUnit}
+                                                            </Text>
+                                                        </View>
+                                                        <View style={{ alignItems: 'flex-end', gap: 2 }}>
+                                                            {isCur ? (
+                                                                <View style={{ backgroundColor: '#7e22ce', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                                                                    <Text style={{ fontSize: 9, fontWeight: '900', color: '#ffffff' }}>LIVE NOW</Text>
+                                                                </View>
+                                                            ) : p.status === 'sold' ? (
+                                                                <Text style={{ fontSize: 10, fontWeight: '800', color: '#16a34a' }}>
+                                                                    SOLD ₹{p.soldPrice || p.currentBid || p.basePrice}{smallUnit}
+                                                                </Text>
+                                                            ) : (
+                                                                <TouchableOpacity
+                                                                    onPress={() => {
+                                                                        selectPlayer(p);
+                                                                        setConsoleTab('stage');
+                                                                        showNotice(`Brought ${p.name} to Live Stage!`);
+                                                                    }}
+                                                                    style={{ backgroundColor: '#2563eb', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }}
+                                                                >
+                                                                    <Text style={{ fontSize: 10, fontWeight: '900', color: '#ffffff' }}>Auction ➔</Text>
+                                                                </TouchableOpacity>
+                                                            )}
+                                                        </View>
+                                                    </View>
+                                                );
+                                            })
+                                        )}
+                                    </View>
+                                );
+                            })
+                        )}
+                    </View>
                 </ScrollView>
             ) : (
             <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -1181,11 +1358,28 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                 {/* Stage Player Card */}
                 {currentPlayer ? (
                     <View style={styles.card}>
+                        {/* In-Card Paused Notification */}
+                        {biddingState === 'paused' && (
+                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#fef3c7', borderWidth: 1, borderColor: '#fde68a', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 12, marginBottom: 12 }}>
+                                <Pause size={14} color="#d97706" />
+                                <Text style={{ fontSize: 11, fontWeight: '900', color: '#92400e' }}>AUCTION BIDDING IS CURRENTLY PAUSED BY AUCTIONEER</Text>
+                            </View>
+                        )}
+                        {/* In-Card Break Notification */}
+                        {biddingState === 'break' && (
+                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#eff6ff', borderWidth: 1, borderColor: '#bfdbfe', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 12, marginBottom: 12 }}>
+                                <Coffee size={14} color="#1d4ed8" />
+                                <Text style={{ fontSize: 11, fontWeight: '900', color: '#1d4ed8' }}>AUCTION IS ON A SHORT BREAK - RESUMING SHORTLY</Text>
+                            </View>
+                        )}
+
                         <View style={styles.playerStage}>
                             <View style={styles.avatarBox}>
                                 <SafeImage
                                     uri={currentPlayer.image}
                                     style={styles.avatar}
+                                    previewable={true}
+                                    previewTitle={currentPlayer.name}
                                     fallback={<Users size={32} color="#94a3b8" />}
                                 />
                             </View>
@@ -1258,7 +1452,12 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                             <Text style={styles.bidBoxAmount}>₹ {currentBid} <Text style={styles.bidBoxUnit}>{smallUnit}</Text></Text>
                             {leadTeam ? (
                                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 4 }}>
-                                    <SafeImage uri={leadTeam.logo} style={{ width: 18, height: 18, borderRadius: 4, resizeMode: 'contain' }} />
+                                    <SafeImage
+                                        uri={leadTeam.logo}
+                                        style={{ width: 18, height: 18, borderRadius: 4, resizeMode: 'contain' }}
+                                        previewable={true}
+                                        previewTitle={leadTeam.name}
+                                    />
                                     <Text style={styles.leaderHighlight}>
                                         Leader: <Text style={styles.leaderName}>{leadTeam.name}</Text>
                                     </Text>
@@ -1451,6 +1650,8 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                                             uri={t.logo}
                                             style={{ width: '100%', height: '100%', resizeMode: 'contain' }}
                                             fallback={<Text style={styles.teamTagText}>{t.shortName || t.name.substring(0, 2)}</Text>}
+                                            previewable={true}
+                                            previewTitle={t.name}
                                         />
                                     </View>
                                     <View style={{ flex: 1 }}>
@@ -1768,6 +1969,8 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                                                         {viewingTeam.shortName || viewingTeam.name.substring(0, 2)}
                                                     </Text>
                                                 }
+                                                previewable={true}
+                                                previewTitle={viewingTeam.name}
                                             />
                                         </View>
                                         <View style={{ flex: 1, marginLeft: 10 }}>
@@ -1794,7 +1997,7 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                                                     Acquired: <Text style={styles.squadModalStatsBold}>{teamPlayers.length}</Text> / {tournament?.squadSizeLimit || 25}
                                                 </Text>
                                                 <Text style={styles.squadModalStatsText}>
-                                                    Total Spent: <Text style={styles.squadModalStatsBold}>₹{teamPlayers.reduce((acc, p) => acc + (Number(p.soldPrice) || 0), 0)} {smallUnit}</Text>
+                                                    Total Spent: <Text style={styles.squadModalStatsBold}>₹{teamPlayers.reduce((acc, p) => acc + (Number(p.soldPrice || p.currentBid || p.basePrice) || 0), 0)} {smallUnit}</Text>
                                                 </Text>
                                             </View>
 
@@ -1819,7 +2022,7 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                                                             </Text>
                                                         </View>
                                                         <View style={styles.squadModalPlayerPrice}>
-                                                            <Text style={styles.squadModalPlayerPriceText}>₹{p.soldPrice || p.currentBid} {smallUnit}</Text>
+                                                            <Text style={styles.squadModalPlayerPriceText}>₹{p.soldPrice || p.currentBid || p.basePrice} {smallUnit}</Text>
                                                             <Text style={styles.squadModalPlayerBasePrice}>Base: ₹{p.basePrice}{smallUnit}</Text>
                                                         </View>
                                                     </View>
@@ -1876,6 +2079,8 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                                 <SafeImage
                                     uri={announcementModal.player?.image}
                                     style={{ width: 88, height: 88, borderRadius: 16, marginBottom: 12 }}
+                                    previewable={true}
+                                    previewTitle={announcementModal.player?.name}
                                     fallback={
                                         <View style={{ width: 88, height: 88, borderRadius: 16, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
                                             <Users size={36} color="#94a3b8" />
@@ -1893,7 +2098,12 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                                 {announcementModal.type === 'sold' ? (
                                     <View style={{ width: '100%', padding: 14, backgroundColor: '#f0fdf4', borderRadius: 16, borderWidth: 1, borderColor: '#bbf7d0', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, marginRight: 8 }}>
-                                            <SafeImage uri={announcementModal.team?.logo} style={{ width: 34, height: 34, borderRadius: 8, resizeMode: 'contain', backgroundColor: '#ffffff' }} />
+                                            <SafeImage
+                                                uri={announcementModal.team?.logo}
+                                                style={{ width: 34, height: 34, borderRadius: 8, resizeMode: 'contain', backgroundColor: '#ffffff' }}
+                                                previewable={true}
+                                                previewTitle={announcementModal.team?.name || 'Winner Team'}
+                                            />
                                             <View style={{ flex: 1 }}>
                                                 <Text style={{ fontSize: 10, fontWeight: '800', color: '#16a34a', textTransform: 'uppercase' }}>Sold To</Text>
                                                 <Text style={{ fontSize: 15, fontWeight: '900', color: '#0f172a' }} numberOfLines={1}>{announcementModal.team?.name || 'Winner'}</Text>

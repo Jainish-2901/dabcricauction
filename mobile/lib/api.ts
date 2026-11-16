@@ -1,26 +1,23 @@
 import { Platform } from 'react-native';
 import * as db from './supabaseService';
 
-const LAN_IP = '10.216.88.61'; // Current Wi-Fi IP for local debugging
+const LAN_IP = '10.46.73.61'; // Current Wi-Fi IP for local debugging
 
 export const getCandidateUrls = (): string[] => {
     const list: string[] = [];
     const envUrl = process.env.EXPO_PUBLIC_API_URL;
 
-    // Only add remote HTTPS URLs to avoid Android CLEARTEXT policy blocks
-    if (envUrl && envUrl.startsWith('https://')) {
+    if (envUrl) {
         list.push(envUrl.replace(/\/$/, ''));
     }
 
-    if (__DEV__) {
-        if (Platform.OS === 'android') {
-            list.push(`http://${LAN_IP}:5001`);
-            list.push('http://10.0.2.2:5001');
-        } else if (Platform.OS === 'web') {
-            list.push(envUrl || 'http://localhost:5001');
-        } else {
-            list.push(`http://${LAN_IP}:5001`);
-        }
+    if (Platform.OS === 'android') {
+        list.push(`http://${LAN_IP}:5001`);
+        list.push('http://10.0.2.2:5001');
+    } else if (Platform.OS === 'web') {
+        list.push(envUrl || 'http://localhost:5001');
+    } else {
+        list.push(`http://${LAN_IP}:5001`);
     }
 
     return Array.from(new Set(list.filter(Boolean)));
@@ -97,11 +94,11 @@ export const handleDirectSupabaseApi = async (endpoint: string, options?: Reques
             const tId = tourMatch[1];
             if (method === 'GET') {
                 const result = await db.directGetTournament(tId);
-                return createMockResponse({ tournament: result }, 200, true);
+                return createMockResponse(result ? { ...result, tournament: result } : null, 200, true);
             }
             if (method === 'PUT') {
                 const result = await db.directUpdateTournament(tId, body);
-                return createMockResponse({ tournament: result }, 200, true);
+                return createMockResponse(result ? { ...result, tournament: result } : null, 200, true);
             }
             if (method === 'DELETE') {
                 const result = await db.directDeleteTournament(tId);
@@ -248,6 +245,36 @@ export const handleDirectSupabaseApi = async (endpoint: string, options?: Reques
             const tId = bidPostMatch[1];
             const result = await db.directRecordBid(tId, body);
             return createMockResponse(result, 201, true);
+        }
+
+        // 9. Transfers, Replacements & Trades
+        const transfersMatch = path.match(/^\/api\/tournaments\/([^/?#]+)\/transfers$/);
+        if (transfersMatch && method === 'GET') {
+            const tId = transfersMatch[1];
+            const result = await db.directGetTransfers(tId);
+            return createMockResponse(result, 200, true);
+        }
+
+        const replaceMatch = path.match(/^\/api\/tournaments\/([^/?#]+)\/replace-injured$/);
+        if (replaceMatch && method === 'POST') {
+            const tId = replaceMatch[1];
+            const result = await db.directReplaceInjuredPlayer(tId, body);
+            return createMockResponse(result, 200, true);
+        }
+
+        const tradeMatch = path.match(/^\/api\/tournaments\/([^/?#]+)\/trade-players$/);
+        if (tradeMatch && method === 'POST') {
+            const tId = tradeMatch[1];
+            const result = await db.directTradePlayers(tId, body);
+            return createMockResponse(result, 200, true);
+        }
+
+        const recoverMatch = path.match(/^\/api\/tournaments\/([^/?#]+)\/(?:players\/([^/?#]+)\/move-injured-to-unsold|move-injured-to-unsold)$/);
+        if (recoverMatch && method === 'POST') {
+            const tId = recoverMatch[1];
+            const pId = recoverMatch[2] || body.playerId;
+            const result = await db.directMoveInjuredToUnsold(tId, pId);
+            return createMockResponse(result, 200, true);
         }
 
         // Fallback for unhandled endpoints

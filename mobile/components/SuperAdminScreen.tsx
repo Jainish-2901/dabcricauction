@@ -51,13 +51,17 @@ import {
     Camera,
     Upload,
     User,
-    TrendingUp
+    TrendingUp,
+    HeartPulse,
+    ArrowLeftRight
 } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import TournamentHubModal from './TournamentHubModal';
 import ManageCredentialsModal from './ManageCredentialsModal';
 import AddTeamModal from './AddTeamModal';
 import AddPlayerModal from './AddPlayerModal';
+import ReplaceInjuredModal from './ReplaceInjuredModal';
+import TradePlayersModal from './TradePlayersModal';
 import { apiFetch, getApiUrl } from '../lib/api';
 import { getBudgetUnits } from '../lib/currency';
 import { checkForAppUpdates } from '../lib/updateManager';
@@ -78,7 +82,7 @@ const DEFAULT_SLABS_K_L = [
     { upTo: 999999, increment: 100, label: 'Above ₹10 L (> 1000 K)' }
 ];
 
-export type SuperAdminTab = 'tournaments' | 'teams' | 'players' | 'slots' | 'credentials';
+export type SuperAdminTab = 'tournaments' | 'teams' | 'players' | 'slots' | 'credentials' | 'transfers';
 
 export interface SuperAdminScreenProps {
     onLogout: () => void;
@@ -126,6 +130,11 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
     const [captainPrice, setCaptainPrice] = useState('15');
     const [viewingSquadTeam, setViewingSquadTeam] = useState<any>(null);
     const [squadModalVisible, setSquadModalVisible] = useState(false);
+    const [transfers, setTransfers] = useState<any[]>([]);
+    const [replaceModalVisible, setReplaceModalVisible] = useState(false);
+    const [replaceTeam, setReplaceTeam] = useState<any>(null);
+    const [replacePlayer, setReplacePlayer] = useState<any>(null);
+    const [tradeModalVisible, setTradeModalVisible] = useState(false);
 
     // Players Tab States
     const [playerSearchQuery, setPlayerSearchQuery] = useState('');
@@ -265,15 +274,17 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
 
     const fetchTournamentDetails = async (tId: string) => {
         try {
-            const [teamRes, playRes, slotRes, credRes] = await Promise.all([
+            const [teamRes, playRes, slotRes, credRes, transRes] = await Promise.all([
                 apiFetch(`/api/teams/${tId}`).then(r => r.json()).catch(() => []),
                 apiFetch(`/api/players/${tId}`).then(r => r.json()).catch(() => []),
                 apiFetch(`/api/tournaments/${tId}/slots`).then(r => r.json()).catch(() => []),
-                apiFetch(`/api/tournaments/${tId}/credentials`).then(r => r.json()).catch(() => ({ credentials: [] }))
+                apiFetch(`/api/tournaments/${tId}/credentials`).then(r => r.json()).catch(() => ({ credentials: [] })),
+                apiFetch(`/api/tournaments/${tId}/transfers`).then(r => r.json()).catch(() => [])
             ]);
 
             if (Array.isArray(teamRes)) setTeams(teamRes);
             if (Array.isArray(playRes)) setPlayers(playRes);
+            if (Array.isArray(transRes)) setTransfers(transRes);
             
             if (Array.isArray(slotRes)) {
                 setSlots(slotRes);
@@ -600,6 +611,35 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
         ]);
     };
 
+    const handleMoveInjuredToUnsold = async (player: any) => {
+        if (!selectedTournament?._id || !player?._id) return;
+        Alert.alert(
+            'Move to Unsold Pool',
+            `Move "${player.name}" from Injured to Unsold pool for re-auction?`,
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Move to Unsold',
+                    style: 'default',
+                    onPress: async () => {
+                        try {
+                            const res = await apiFetch(`/api/tournaments/${selectedTournament._id}/players/${player._id}/move-injured-to-unsold`, {
+                                method: 'POST'
+                            });
+                            const data = await res.json();
+                            if (!res.ok) throw new Error(data.message || 'Failed to move player');
+
+                            toast.success('Moved to Unsold', `"${player.name}" is now in the unsold pool.`);
+                            fetchTournamentDetails(selectedTournament._id);
+                        } catch (err: any) {
+                            toast.error('Error', err.message || 'Failed to move player');
+                        }
+                    }
+                }
+            ]
+        );
+    };
+
     const handleOpenEditPlayer = (p: any) => {
         setEditingPlayer(p);
         setEditPlayerName(p.name || '');
@@ -919,10 +959,15 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                 p => (p.isCaptain || String(p._id || '').startsWith('pl_cap_')) && (p.soldToTeamId === t._id || p.soldToTeamId === t.id)
             );
             if (alreadyInPlayers) return null;
+            const ownerCred = (credentialsList || []).find(
+                c => (c.teamId === t._id || c.teamId === t.id || c.team_id === t._id || c.team_id === t.id) && c.role === 'team_owner'
+            );
+            const capPhoto = t.captainPhoto || t.captain_photo || ownerCred?.captainPhoto || ownerCred?.captain_photo || '';
+            const capName = t.captainName || t.captain_name || ownerCred?.captainName || ownerCred?.captain_name || `${t.name} Captain`;
             return {
                 _id: `owner_cap_${t._id}`,
-                name: t.captainName || `${t.name} Captain`,
-                image: t.captainPhoto || '',
+                name: capName,
+                image: capPhoto,
                 category: 'Captain (All-Rounder)',
                 battingStyle: 'Right-Hand Bat',
                 bowlingStyle: 'Right-Arm Medium',
@@ -933,7 +978,8 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                 isDirectOwnerCaptain: true,
                 soldToTeamId: t._id,
                 soldToTeamName: t.name,
-                teamCode: t.shortName
+                teamCode: t.shortName,
+                teamLogo: t.logo || (t as any).team_logo || ''
             };
         })
         .filter(Boolean);
@@ -949,7 +995,8 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
         if (playerStatusFilter !== 'ALL') {
             if (playerStatusFilter === 'Sold' && p.status !== 'sold' && !p.isCaptain) return false;
             if (playerStatusFilter === 'Unsold' && p.status !== 'unsold') return false;
-            if (playerStatusFilter === 'Available' && (p.status === 'sold' || p.status === 'unsold' || p.isCaptain)) return false;
+            if (playerStatusFilter === 'Injured' && p.status !== 'injured') return false;
+            if (playerStatusFilter === 'Available' && (p.status === 'sold' || p.status === 'unsold' || p.status === 'injured' || p.isCaptain)) return false;
         }
         return true;
     });
@@ -1028,9 +1075,9 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                 </TouchableOpacity>
             </View>
 
-            {/* 5-Tab Bar (100% Screen Width - Zero Horizontal Cutoff) */}
+            {/* Navigation Tab Bar with Trades / Replacements */}
             <View style={styles.tabBarContainer}>
-                <View style={styles.tabBarRow}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabScroll}>
                     <TouchableOpacity
                         style={[styles.tabItem, activeTab === 'tournaments' && styles.tabItemActive]}
                         onPress={() => setActiveTab('tournaments')}
@@ -1062,6 +1109,16 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                     </TouchableOpacity>
 
                     <TouchableOpacity
+                        style={[styles.tabItem, activeTab === 'transfers' && styles.tabItemActiveIndigo]}
+                        onPress={() => setActiveTab('transfers')}
+                    >
+                        <ArrowLeftRight size={14} color={activeTab === 'transfers' ? '#4f46e5' : '#64748b'} />
+                        <Text style={[styles.tabText, activeTab === 'transfers' && { color: '#4f46e5', fontWeight: '900' }]} numberOfLines={1}>
+                            Trades ({transfers.length})
+                        </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
                         style={[styles.tabItem, activeTab === 'slots' && styles.tabItemActivePurple]}
                         onPress={() => setActiveTab('slots')}
                     >
@@ -1080,7 +1137,7 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                             Logins ({credentialsList.length})
                         </Text>
                     </TouchableOpacity>
-                </View>
+                </ScrollView>
             </View>
 
             <KeyboardAvoidingView
@@ -1353,6 +1410,13 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                                     <Text style={{ fontSize: 11, fontWeight: '800', color: '#ffffff' }}>Summary CSV</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
+                                    style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#4f46e5', paddingHorizontal: 10, paddingVertical: 8, borderRadius: 10 }}
+                                    onPress={() => setTradeModalVisible(true)}
+                                >
+                                    <ArrowLeftRight size={13} color="#ffffff" />
+                                    <Text style={{ fontSize: 11, fontWeight: '800', color: '#ffffff' }}>Trade</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
                                     style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#2563eb', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 }}
                                     onPress={() => {
                                         setEditingTeamData(null);
@@ -1383,6 +1447,8 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                                                         uri={tm.logo}
                                                         style={styles.teamLogoImg}
                                                         fallback={<Text style={styles.teamLogoFallbackText}>{tm.shortName || tm.name?.substring(0, 3)}</Text>}
+                                                        previewable={true}
+                                                        previewTitle={tm.name}
                                                     />
                                                 </View>
                                                 <View style={{ flex: 1 }}>
@@ -1413,18 +1479,25 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                                         </View>
 
                                         {/* Captain Banner */}
-                                        {tm.isOwnerCaptain && (
-                                            <View style={styles.captainBanner}>
-                                                <SafeImage
-                                                    uri={tm.captainPhoto}
-                                                    style={{ width: 20, height: 20, borderRadius: 10, marginRight: 6 }}
-                                                    fallback={<Crown size={12} color="#b45309" />}
-                                                />
-                                                <Text style={styles.captainBannerText}>
-                                                    Captain: <Text style={{ fontWeight: '900' }}>{tm.captainName || `${tm.name} Captain`}</Text> (₹{tm.captainPrice || (isKtoL ? 3 : 15)} {smallUnit} Retained)
-                                                </Text>
-                                            </View>
-                                        )}
+                                        {tm.isOwnerCaptain && (() => {
+                                            const ownerCred = (credentialsList || []).find(c => (c.teamId === tm._id || c.teamId === tm.id || c.team_id === tm._id || c.team_id === tm.id) && c.role === 'team_owner');
+                                            const tmCapPhoto = tm.captainPhoto || (tm as any).captain_photo || ownerCred?.captainPhoto || ownerCred?.captain_photo || '';
+                                            const tmCapName = tm.captainName || (tm as any).captain_name || ownerCred?.captainName || ownerCred?.captain_name || `${tm.name} Captain`;
+                                            return (
+                                                <View style={styles.captainBanner}>
+                                                    <SafeImage
+                                                        uri={tmCapPhoto}
+                                                        style={{ width: 22, height: 22, borderRadius: 11, marginRight: 6 }}
+                                                        fallback={<Crown size={12} color="#b45309" />}
+                                                        previewable={true}
+                                                        previewTitle={tmCapName}
+                                                    />
+                                                    <Text style={styles.captainBannerText}>
+                                                        Captain: <Text style={{ fontWeight: '900' }}>{tmCapName}</Text> (₹{tm.captainPrice || (isKtoL ? 3 : 15)} {smallUnit} Retained)
+                                                    </Text>
+                                                </View>
+                                            );
+                                        })()}
 
                                         {/* Financial Grid */}
                                         <View style={styles.statsStrip}>
@@ -1490,6 +1563,46 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                                     ))
                                 )}
                             </View>
+
+                            {/* Injured Players Section */}
+                            <View style={{ marginTop: 20 }}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                                    <HeartPulse size={15} color="#e11d48" />
+                                    <Text style={styles.listTitle}>Injured Players ({players.filter(p => p.status === 'injured').length})</Text>
+                                </View>
+                                <Text style={[styles.listHint, { marginBottom: 10 }]}>
+                                    Players substituted due to injury. If fit again, they can be shifted back to Unsold for re-auction.
+                                </Text>
+
+                                {players.filter(p => p.status === 'injured').length === 0 ? (
+                                    <View style={styles.emptySlotBox}>
+                                        <Text style={styles.emptySlotText}>No injured players in this tournament.</Text>
+                                    </View>
+                                ) : (
+                                    players.filter(p => p.status === 'injured').map(p => (
+                                        <View key={p._id} style={[styles.unsoldPlayerCard, { borderLeftWidth: 3, borderLeftColor: '#e11d48', alignItems: 'center' }]}>
+                                            <View style={{ flex: 1 }}>
+                                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                                    <Text style={styles.unsoldPlayerName}>{p.name}</Text>
+                                                    <View style={{ backgroundColor: '#ffe4e6', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 }}>
+                                                        <Text style={{ fontSize: 9, fontWeight: '800', color: '#e11d48' }}>INJURED</Text>
+                                                    </View>
+                                                </View>
+                                                <Text style={styles.unsoldPlayerMeta}>
+                                                    {p.category} • Base: ₹{p.basePrice || 0} {smallUnit}
+                                                </Text>
+                                            </View>
+                                            <TouchableOpacity
+                                                onPress={() => handleMoveInjuredToUnsold(p)}
+                                                style={{ backgroundColor: '#f59e0b', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                                            >
+                                                <ArrowRight size={11} color="#ffffff" />
+                                                <Text style={{ fontSize: 11, fontWeight: '800', color: '#ffffff' }}>Move to Unsold</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    ))
+                                )}
+                            </View>
                         </View>
                     )}
 
@@ -1537,7 +1650,7 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                             </ScrollView>
 
                             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterChipScroll}>
-                                {['ALL', 'Available', 'Sold', 'Unsold'].map(status => (
+                                {['ALL', 'Available', 'Sold', 'Unsold', 'Injured'].map(status => (
                                     <TouchableOpacity
                                         key={status}
                                         style={[styles.statusFilterChip, playerStatusFilter === status && styles.statusFilterChipActive]}
@@ -1584,7 +1697,9 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
 
                             {filteredPlayers.map(p => {
                                 const isCap = p.isCaptain || p.isDirectOwnerCaptain;
-                                const teamAssigned = p.soldToTeamName || (p.soldToTeamId && teams.find(t => t._id === p.soldToTeamId)?.name);
+                                const assignedTeamObj = teams.find(t => t._id === p.soldToTeamId || t.id === p.soldToTeamId);
+                                const teamAssigned = p.soldToTeamName || assignedTeamObj?.name;
+                                const teamLogo = (p as any).teamLogo || assignedTeamObj?.logo || (assignedTeamObj as any)?.team_logo || '';
 
                                 return (
                                     <View key={p._id} style={[styles.card, isCap && styles.captainCard]}>
@@ -1594,6 +1709,8 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                                                     <SafeImage
                                                         uri={p.image}
                                                         style={styles.playerAvatarImg}
+                                                        previewable={true}
+                                                        previewTitle={p.name}
                                                         fallback={isCap ? <Crown size={20} color="#b45309" /> : <User size={20} color="#94a3b8" />}
                                                     />
                                                 </View>
@@ -1608,12 +1725,12 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                                                         )}
                                                     </View>
                                                     <Text style={styles.cardSub}>
-                                                        Role: {p.category} • {isCap ? `Fee: ₹${p.soldPrice || p.basePrice} ${smallUnit}` : `Base: ₹${p.basePrice} ${smallUnit}`}
+                                                        Role: {p.category} • {isCap ? `Fee: ₹${p.soldPrice || p.basePrice} ${smallUnit}` : p.status === 'sold' ? `Sold: ₹${p.soldPrice || p.currentBid || p.basePrice} ${smallUnit} (Base: ₹${p.basePrice} ${smallUnit})` : `Base: ₹${p.basePrice} ${smallUnit}`}
                                                     </Text>
 
                                                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
                                                         <View style={{
-                                                            backgroundColor: isCap ? '#fef3c7' : p.status === 'sold' ? '#dcfce7' : p.status === 'unsold' ? '#fee2e2' : '#f1f5f9',
+                                                            backgroundColor: isCap ? '#fef3c7' : p.status === 'sold' ? '#dcfce7' : p.status === 'unsold' ? '#fee2e2' : p.status === 'injured' ? '#ffe4e6' : '#f1f5f9',
                                                             paddingHorizontal: 7,
                                                             paddingVertical: 2,
                                                             borderRadius: 6
@@ -1621,13 +1738,30 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                                                             <Text style={{
                                                                 fontSize: 10,
                                                                 fontWeight: '800',
-                                                                color: isCap ? '#92400e' : p.status === 'sold' ? '#15803d' : p.status === 'unsold' ? '#b91c1c' : '#64748b'
+                                                                color: isCap ? '#92400e' : p.status === 'sold' ? '#15803d' : p.status === 'unsold' ? '#b91c1c' : p.status === 'injured' ? '#e11d48' : '#64748b'
                                                             }}>
-                                                                {isCap ? `🚫 DIRECT SQUAD (₹${p.soldPrice || p.basePrice} ${smallUnit})` : `${(p.status || 'AVAILABLE').toUpperCase()}${p.soldPrice ? ` (₹${p.soldPrice} ${smallUnit})` : ''}`}
+                                                                {isCap ? `🚫 DIRECT SQUAD (₹${p.soldPrice || p.basePrice} ${smallUnit})` : p.status === 'sold' ? `SOLD • ₹${p.soldPrice || p.currentBid || p.basePrice} ${smallUnit}` : p.status === 'injured' ? `🚑 INJURED` : `${(p.status || 'AVAILABLE').toUpperCase()}`}
                                                             </Text>
                                                         </View>
+                                                        {p.status === 'injured' && (
+                                                            <TouchableOpacity
+                                                                onPress={() => handleMoveInjuredToUnsold(p)}
+                                                                style={{ backgroundColor: '#fffbeb', borderColor: '#fde68a', borderWidth: 1, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, flexDirection: 'row', alignItems: 'center', gap: 3 }}
+                                                            >
+                                                                <ArrowRight size={10} color="#d97706" />
+                                                                <Text style={{ fontSize: 10, fontWeight: '800', color: '#b45309' }}>Move to Unsold</Text>
+                                                            </TouchableOpacity>
+                                                        )}
                                                         {teamAssigned && (
-                                                            <View style={{ backgroundColor: '#eff6ff', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 }}>
+                                                            <View style={{ backgroundColor: '#eff6ff', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                                                {teamLogo ? (
+                                                                    <SafeImage
+                                                                        uri={teamLogo}
+                                                                        style={{ width: 14, height: 14, borderRadius: 3, resizeMode: 'contain' }}
+                                                                        previewable={true}
+                                                                        previewTitle={teamAssigned}
+                                                                    />
+                                                                ) : null}
                                                                 <Text style={{ fontSize: 10, fontWeight: '800', color: '#1d4ed8' }}>
                                                                     {teamAssigned}
                                                                 </Text>
@@ -2075,6 +2209,258 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                             )}
                         </View>
                     )}
+
+                    {/* ========================================================================= */}
+                    {/* TAB 6: TRADES & INJURY REPLACEMENTS */}
+                    {/* ========================================================================= */}
+                    {activeTab === 'transfers' && (
+                        <View>
+                            <View style={[styles.scopeBanner, { backgroundColor: '#eef2ff', borderColor: '#c7d2fe' }]}>
+                                <ArrowLeftRight size={14} color="#4f46e5" />
+                                <Text style={[styles.scopeBannerText, { color: '#3730a3' }]} numberOfLines={1}>
+                                    Trades & Replacements for: <Text style={{ fontWeight: '900' }}>{selectedTournament?.name}</Text>
+                                </Text>
+                            </View>
+
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.listTitle}>Transfer Events ({transfers.length})</Text>
+                                    <Text style={styles.listHint}>Post-auction trades & injury substitutions</Text>
+                                </View>
+                                <TouchableOpacity
+                                    style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#4f46e5', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 }}
+                                    onPress={() => setTradeModalVisible(true)}
+                                >
+                                    <ArrowLeftRight size={14} color="#ffffff" />
+                                    <Text style={{ fontSize: 11, fontWeight: '800', color: '#ffffff' }}>Execute Trade</Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            {/* KPI Metrics */}
+                            <View style={styles.kpiGrid}>
+                                <View style={styles.kpiCard}>
+                                    <View style={styles.kpiHeader}>
+                                        <Text style={styles.kpiLabel}>TOTAL TRANSFERS</Text>
+                                        <ArrowLeftRight size={14} color="#4f46e5" />
+                                    </View>
+                                    <Text style={styles.kpiValue}>{transfers.length}</Text>
+                                    <Text style={styles.kpiSub}>Recorded actions</Text>
+                                </View>
+
+                                <View style={styles.kpiCard}>
+                                    <View style={styles.kpiHeader}>
+                                        <Text style={styles.kpiLabel}>TRADES</Text>
+                                        <Shield size={14} color="#2563eb" />
+                                    </View>
+                                    <Text style={[styles.kpiValue, { color: '#4f46e5' }]}>
+                                        {transfers.filter(t => t.type === 'trade').length}
+                                    </Text>
+                                    <Text style={styles.kpiSub}>Franchise swaps</Text>
+                                </View>
+
+                                <View style={styles.kpiCard}>
+                                    <View style={styles.kpiHeader}>
+                                        <Text style={styles.kpiLabel}>INJURY SUBS</Text>
+                                        <HeartPulse size={14} color="#e11d48" />
+                                    </View>
+                                    <Text style={[styles.kpiValue, { color: '#e11d48' }]}>
+                                        {transfers.filter(t => t.type === 'injury_replacement' || t.type === 'replacement').length}
+                                    </Text>
+                                    <Text style={styles.kpiSub}>From unsold pool</Text>
+                                </View>
+
+                                <View style={styles.kpiCard}>
+                                    <View style={styles.kpiHeader}>
+                                        <Text style={styles.kpiLabel}>RECOVERIES</Text>
+                                        <RefreshCw size={14} color="#d97706" />
+                                    </View>
+                                    <Text style={[styles.kpiValue, { color: '#d97706' }]}>
+                                        {transfers.filter(t => t.type === 'injury_recovered').length}
+                                    </Text>
+                                    <Text style={styles.kpiSub}>Back in unsold</Text>
+                                </View>
+                            </View>
+
+                            {/* Transfers Feed */}
+                            {transfers.length === 0 ? (
+                                <View style={styles.emptySlotBox}>
+                                    <ArrowLeftRight size={32} color="#cbd5e1" style={{ marginBottom: 8 }} />
+                                    <Text style={styles.emptySlotText}>No trades or player replacements recorded yet.</Text>
+                                    <Text style={[styles.listHint, { textAlign: 'center', marginTop: 4 }]}>
+                                        When players are replaced due to injury or traded between teams, they will appear here.
+                                    </Text>
+                                    <TouchableOpacity
+                                        onPress={() => setTradeModalVisible(true)}
+                                        style={{ marginTop: 12, backgroundColor: '#4f46e5', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 }}
+                                    >
+                                        <Text style={{ color: '#ffffff', fontSize: 11, fontWeight: '800' }}>Execute First Trade</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            ) : (
+                                transfers.map((tx) => {
+                                    const isInjury = tx.type === 'injury_replacement' || tx.type === 'replacement';
+                                    const isRecovery = tx.type === 'injury_recovered';
+                                    const isTrade = tx.type === 'trade' || (!isInjury && !isRecovery && tx.teamAName);
+                                    const dateStr = (tx.timestamp || tx.createdAt) ? new Date(tx.timestamp || tx.createdAt).toLocaleString('en-IN', {
+                                        day: 'numeric',
+                                        month: 'short',
+                                        hour: '2-digit',
+                                        minute: '2-digit'
+                                    }) : 'Recent';
+
+                                    if (isInjury) {
+                                        return (
+                                            <View key={tx.id || tx._id} style={[styles.card, { borderLeftWidth: 4, borderLeftColor: '#e11d48', marginBottom: 12 }]}>
+                                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                                        <View style={{ backgroundColor: '#ffe4e6', paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                                                            <HeartPulse size={11} color="#e11d48" />
+                                                            <Text style={{ color: '#e11d48', fontSize: 10, fontWeight: '800' }}>INJURY REPLACEMENT</Text>
+                                                        </View>
+                                                        <Text style={{ fontSize: 11, fontWeight: '800', color: '#0f172a' }}>{tx.teamName}</Text>
+                                                    </View>
+                                                    <Text style={{ fontSize: 10, color: '#94a3b8' }}>{dateStr}</Text>
+                                                </View>
+
+                                                <View style={{ flexDirection: 'row', gap: 8, marginVertical: 6 }}>
+                                                    {/* Injured Out */}
+                                                    <View style={{ flex: 1, backgroundColor: '#fff1f2', borderRadius: 10, padding: 8, borderWidth: 1, borderColor: '#fecdd3' }}>
+                                                        <Text style={{ fontSize: 9, fontWeight: '900', color: '#be123c' }}>OUT (INJURED)</Text>
+                                                        <Text style={{ fontSize: 12, fontWeight: '800', color: '#0f172a', marginTop: 2 }}>{tx.injuredPlayerName}</Text>
+                                                        <Text style={{ fontSize: 10, color: '#16a34a', fontWeight: '700', marginTop: 2 }}>
+                                                            Refund: +₹{tx.refundAmount || tx.injuredPlayerPrice || 0} {smallUnit}
+                                                        </Text>
+                                                    </View>
+
+                                                    {/* Replacement In */}
+                                                    <View style={{ flex: 1, backgroundColor: '#f0fdf4', borderRadius: 10, padding: 8, borderWidth: 1, borderColor: '#bbf7d0' }}>
+                                                        <Text style={{ fontSize: 9, fontWeight: '900', color: '#15803d' }}>IN (NEW SQUAD)</Text>
+                                                        <Text style={{ fontSize: 12, fontWeight: '800', color: '#0f172a', marginTop: 2 }}>{tx.replacementPlayerName}</Text>
+                                                        <Text style={{ fontSize: 10, color: '#dc2626', fontWeight: '700', marginTop: 2 }}>
+                                                            Fee: -₹{tx.replacementFee || tx.replacementPlayerPrice || 0} {smallUnit}
+                                                        </Text>
+                                                    </View>
+                                                </View>
+
+                                                <Text style={{ fontSize: 10, color: '#64748b', fontWeight: '600', marginTop: 4 }}>
+                                                    Purse re-balanced for {tx.teamName}
+                                                </Text>
+                                            </View>
+                                        );
+                                    }
+
+                                    if (isRecovery) {
+                                        return (
+                                            <View key={tx.id || tx._id} style={[styles.card, { borderLeftWidth: 4, borderLeftColor: '#f59e0b', marginBottom: 12 }]}>
+                                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                                        <View style={{ backgroundColor: '#fef3c7', paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                                                            <RefreshCw size={11} color="#d97706" />
+                                                            <Text style={{ color: '#d97706', fontSize: 10, fontWeight: '800' }}>INJURY RECOVERED</Text>
+                                                        </View>
+                                                        <Text style={{ fontSize: 11, fontWeight: '800', color: '#0f172a' }}>Moved to Unsold</Text>
+                                                    </View>
+                                                    <Text style={{ fontSize: 10, color: '#94a3b8' }}>{dateStr}</Text>
+                                                </View>
+
+                                                <View style={{ backgroundColor: '#fffbeb', borderRadius: 10, padding: 10, borderWidth: 1, borderColor: '#fde68a', marginVertical: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+                                                        {tx.playerImage ? (
+                                                            <Image source={{ uri: tx.playerImage }} style={{ width: 38, height: 38, borderRadius: 8 }} />
+                                                        ) : (
+                                                            <View style={{ width: 38, height: 38, borderRadius: 8, backgroundColor: '#fef3c7', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#fde68a' }}>
+                                                                <Text style={{ fontSize: 14, fontWeight: '900', color: '#b45309' }}>
+                                                                    {tx.playerName ? tx.playerName.charAt(0).toUpperCase() : 'P'}
+                                                                </Text>
+                                                            </View>
+                                                        )}
+                                                        <View style={{ flex: 1 }}>
+                                                            <Text style={{ fontSize: 9, fontWeight: '900', color: '#b45309', textTransform: 'uppercase' }}>
+                                                                {tx.playerCategory || 'Player'}
+                                                            </Text>
+                                                            <Text style={{ fontSize: 13, fontWeight: '800', color: '#0f172a', marginTop: 1 }}>{tx.playerName}</Text>
+                                                            <Text style={{ fontSize: 10, color: '#64748b', fontWeight: '700', marginTop: 1 }}>
+                                                                Base Price: ₹{tx.playerBasePrice || 0} {smallUnit}
+                                                            </Text>
+                                                        </View>
+                                                    </View>
+                                                    <View style={{ backgroundColor: '#dcfce7', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: '#bbf7d0' }}>
+                                                        <Text style={{ fontSize: 9, fontWeight: '800', color: '#16a34a' }}>IN UNSOLD POOL</Text>
+                                                    </View>
+                                                </View>
+
+                                                <Text style={{ fontSize: 10, color: '#64748b', fontWeight: '600', marginTop: 4 }}>
+                                                    {tx.note || 'Player recovered from injury and moved to Unsold pool for re-auction.'}
+                                                </Text>
+                                            </View>
+                                        );
+                                    }
+
+                                    if (isTrade) {
+                                        return (
+                                        <View key={tx.id || tx._id} style={[styles.card, { borderLeftWidth: 4, borderLeftColor: '#4f46e5', marginBottom: 12 }]}>
+                                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                                    <View style={{ backgroundColor: '#eef2ff', paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                                                        <ArrowLeftRight size={11} color="#4f46e5" />
+                                                        <Text style={{ color: '#4f46e5', fontSize: 10, fontWeight: '800' }}>TRADE</Text>
+                                                    </View>
+                                                    <Text style={{ fontSize: 11, fontWeight: '800', color: '#0f172a' }}>
+                                                        {tx.teamAName} ↔ {tx.teamBName}
+                                                    </Text>
+                                                </View>
+                                                <Text style={{ fontSize: 10, color: '#94a3b8' }}>{dateStr}</Text>
+                                            </View>
+
+                                            <View style={{ flexDirection: 'row', gap: 8, marginVertical: 6 }}>
+                                                <View style={{ flex: 1, backgroundColor: '#f8fafc', borderRadius: 10, padding: 8, borderWidth: 1, borderColor: '#e2e8f0' }}>
+                                                    <Text style={{ fontSize: 9, fontWeight: '900', color: '#2563eb' }}>{tx.teamAName}</Text>
+                                                    <Text style={{ fontSize: 12, fontWeight: '800', color: '#0f172a', marginTop: 2 }}>{tx.playerAName}</Text>
+                                                    <Text style={{ fontSize: 10, color: '#64748b', fontWeight: '600' }}>Sold: ₹{tx.playerAPrice || 0} {smallUnit}</Text>
+                                                    <Text style={{ fontSize: 9, color: '#4f46e5', fontWeight: '800', marginTop: 3 }}>→ {tx.teamBName}</Text>
+                                                </View>
+
+                                                <View style={{ flex: 1, backgroundColor: '#f8fafc', borderRadius: 10, padding: 8, borderWidth: 1, borderColor: '#e2e8f0' }}>
+                                                    <Text style={{ fontSize: 9, fontWeight: '900', color: '#059669' }}>{tx.teamBName}</Text>
+                                                    <Text style={{ fontSize: 12, fontWeight: '800', color: '#0f172a', marginTop: 2 }}>{tx.playerBName}</Text>
+                                                    <Text style={{ fontSize: 10, color: '#64748b', fontWeight: '600' }}>Sold: ₹{tx.playerBPrice || 0} {smallUnit}</Text>
+                                                    <Text style={{ fontSize: 9, color: '#2563eb', fontWeight: '800', marginTop: 3 }}>→ {tx.teamAName}</Text>
+                                                </View>
+                                            </View>
+
+                                            {(() => {
+                                                const diff = tx.priceDifference !== undefined
+                                                    ? Math.abs(tx.priceDifference)
+                                                    : Math.abs((Number(tx.playerAPrice) || 0) - (Number(tx.playerBPrice) || 0));
+                                                const pA = Number(tx.playerAPrice) || 0;
+                                                const pB = Number(tx.playerBPrice) || 0;
+                                                const higherTeam = pA > pB ? tx.teamBName : tx.teamAName;
+                                                const refundedTeam = pA > pB ? tx.teamAName : tx.teamBName;
+                                                return (
+                                                    <View style={{ marginTop: 5, paddingTop: 5, borderTopWidth: 1, borderColor: '#f1f5f9' }}>
+                                                        <Text style={{ fontSize: 11, color: '#0f172a', fontWeight: '800' }}>
+                                                            Price Differential: ₹{diff} {smallUnit}
+                                                        </Text>
+                                                        {diff > 0 && (
+                                                            <Text style={{ fontSize: 10, color: '#64748b', fontWeight: '700', marginTop: 1 }}>
+                                                                {refundedTeam} (+₹{diff}{smallUnit}) • {higherTeam} (-₹{diff}{smallUnit})
+                                                            </Text>
+                                                        )}
+                                                        <Text style={{ fontSize: 10, color: '#059669', fontWeight: '800', marginTop: 2 }}>
+                                                            ✓ Team purses successfully re-balanced
+                                                        </Text>
+                                                    </View>
+                                                );
+                                            })()}
+                                        </View>
+                                    );
+                                }
+
+                                return null;
+                            })
+                        )}
+                        </View>
+                    )}
                 </ScrollView>
             </KeyboardAvoidingView>
 
@@ -2095,6 +2481,8 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                                             uri={viewingSquadTeam?.logo}
                                             style={styles.teamLogoImg}
                                             fallback={<Text style={styles.teamLogoFallbackTextSmall}>{viewingSquadTeam?.shortName}</Text>}
+                                            previewable={true}
+                                            previewTitle={viewingSquadTeam?.name}
                                         />
                                     </View>
                                     <View>
@@ -2126,6 +2514,8 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                                     <SafeImage
                                         uri={viewingSquadTeam?.captainPhoto}
                                         style={{ width: 28, height: 28, borderRadius: 14, marginRight: 8 }}
+                                        previewable={true}
+                                        previewTitle={viewingSquadTeam?.captainName || `${viewingSquadTeam?.name} Captain`}
                                         fallback={<Crown size={14} color="#b45309" />}
                                     />
                                     <View style={{ flex: 1, marginLeft: 6 }}>
@@ -2151,12 +2541,41 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                             ) : (
                                 players.filter(p => p.soldToTeamId === viewingSquadTeam?._id || p.soldToTeamId === viewingSquadTeam?.id).map(p => (
                                     <View key={p._id} style={styles.squadPlayerCard}>
+                                        <View style={{ width: 34, height: 34, borderRadius: 8, overflow: 'hidden', backgroundColor: '#f1f5f9', marginRight: 8, justifyContent: 'center', alignItems: 'center' }}>
+                                            <SafeImage
+                                                uri={p.image}
+                                                style={{ width: '100%', height: '100%' }}
+                                                previewable={true}
+                                                previewTitle={p.name}
+                                                fallback={<User size={16} color="#94a3b8" />}
+                                            />
+                                        </View>
                                         <View style={{ flex: 1 }}>
                                             <Text style={styles.cardTitle}>{p.name}</Text>
                                             <Text style={styles.cardSub}>{p.category} • {p.battingStyle || 'Right-Hand Bat'}</Text>
                                         </View>
-                                        <View style={styles.soldPriceBadge}>
-                                            <Text style={styles.soldPriceText}>Sold: ₹{p.soldPrice || p.basePrice} {smallUnit}</Text>
+                                        <View style={{ alignItems: 'flex-end', gap: 4 }}>
+                                            <View style={styles.soldPriceBadge}>
+                                                <Text style={styles.soldPriceText}>Sold: ₹{p.soldPrice || p.currentBid || p.basePrice} {smallUnit}</Text>
+                                            </View>
+                                            {p.status === 'injured' ? (
+                                                <View style={{ backgroundColor: '#ffe4e6', paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                                                    <HeartPulse size={11} color="#e11d48" />
+                                                    <Text style={{ color: '#e11d48', fontSize: 10, fontWeight: '800' }}>INJURED</Text>
+                                                </View>
+                                            ) : (
+                                                <TouchableOpacity
+                                                    onPress={() => {
+                                                        setReplaceTeam(viewingSquadTeam);
+                                                        setReplacePlayer(p);
+                                                        setReplaceModalVisible(true);
+                                                    }}
+                                                    style={{ backgroundColor: '#fff1f2', borderColor: '#fecdd3', borderWidth: 1, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, flexDirection: 'row', alignItems: 'center', gap: 3 }}
+                                                >
+                                                    <HeartPulse size={11} color="#e11d48" />
+                                                    <Text style={{ color: '#e11d48', fontSize: 10, fontWeight: '800' }}>Replace</Text>
+                                                </TouchableOpacity>
+                                            )}
                                         </View>
                                     </View>
                                 ))
@@ -2235,6 +2654,40 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                 initialData={editingPlayerData}
                 isEdit={!!editingPlayerData}
                 onAdded={() => {
+                    if (selectedTournament?._id) {
+                        fetchTournamentDetails(selectedTournament._id);
+                    }
+                }}
+            />
+
+            {/* Injury Replacement Modal */}
+            <ReplaceInjuredModal
+                visible={replaceModalVisible}
+                onClose={() => {
+                    setReplaceModalVisible(false);
+                    setReplacePlayer(null);
+                    setReplaceTeam(null);
+                }}
+                tournament={selectedTournament}
+                team={replaceTeam}
+                preSelectedPlayer={replacePlayer}
+                players={players}
+                onReplaced={() => {
+                    if (selectedTournament?._id) {
+                        fetchTournamentDetails(selectedTournament._id);
+                    }
+                    setSquadModalVisible(false);
+                }}
+            />
+
+            {/* Franchise Player Trade / Exchange Modal */}
+            <TradePlayersModal
+                visible={tradeModalVisible}
+                onClose={() => setTradeModalVisible(false)}
+                tournament={selectedTournament}
+                teams={teams}
+                players={players}
+                onTraded={() => {
                     if (selectedTournament?._id) {
                         fetchTournamentDetails(selectedTournament._id);
                     }
@@ -2971,6 +3424,9 @@ const styles = StyleSheet.create({
     },
     tabItemActive: {
         borderBottomColor: '#2563eb',
+    },
+    tabItemActiveIndigo: {
+        borderBottomColor: '#4f46e5',
     },
     tabItemActivePurple: {
         borderBottomColor: '#7c3aed',

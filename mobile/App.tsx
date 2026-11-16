@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, TouchableOpacity, Text, SafeAreaView, AppState, AppStateStatus, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Text, SafeAreaView, AppState, AppStateStatus, ActivityIndicator, BackHandler, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { safeStorage } from './lib/storage';
 import LoginScreen from './components/LoginScreen';
@@ -11,13 +11,14 @@ import PlayerRegistrationScreen from './components/PlayerRegistrationScreen';
 import { Shield, Award, Users, Eye, UserPlus } from 'lucide-react-native';
 import { checkForAppUpdates } from './lib/updateManager';
 import { ToastOverlay } from './lib/toast';
+import { apiFetch } from './lib/api';
 
 const SESSION_STORAGE_KEY = '@dab_cric_auction_active_session_v1';
 
 export default function App() {
     const [user, setUser] = useState<any>(null);
     const [currentScreen, setCurrentScreen] = useState<'login' | 'admin' | 'console' | 'bidding' | 'spectator' | 'player_registration'>('login');
-    const [activeTournamentId, setActiveTournamentId] = useState<string>('tourney_ipl_2026');
+    const [activeTournamentId, setActiveTournamentId] = useState<string>('');
     const [prevScreen, setPrevScreen] = useState<'login' | 'admin'>('login');
     const [isRestoringSession, setIsRestoringSession] = useState<boolean>(true);
 
@@ -34,8 +35,10 @@ export default function App() {
                     if (parsed.user) {
                         setUser(parsed.user);
 
-                        if (parsed.activeTournamentId) {
+                        if (parsed.activeTournamentId && parsed.activeTournamentId !== 'tourney_ipl_2026') {
                             setActiveTournamentId(parsed.activeTournamentId);
+                        } else if (parsed.user?.tournamentId || parsed.user?.tournament_id) {
+                            setActiveTournamentId(parsed.user?.tournamentId || parsed.user?.tournament_id);
                         }
 
                         if (parsed.prevScreen) {
@@ -117,10 +120,70 @@ export default function App() {
         };
     }, [user, currentScreen, activeTournamentId, prevScreen]);
 
-    const handleLoginSuccess = (userData: any) => {
+    // Hardware Back Button Protection: Never allow team owner or auctioneer to fall back to admin dashboard
+    useEffect(() => {
+        const onBackPress = () => {
+            if (currentScreen === 'bidding') {
+                if (user?.role === 'superadmin') {
+                    setCurrentScreen('admin');
+                    return true;
+                }
+                Alert.alert('Logout', 'Are you sure you want to sign out from the Owner Room?', [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Logout', style: 'destructive', onPress: handleLogout }
+                ]);
+                return true;
+            }
+            if (currentScreen === 'console' && user?.role !== 'superadmin') {
+                Alert.alert('Logout', 'Are you sure you want to sign out from the Auction Console?', [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Logout', style: 'destructive', onPress: handleLogout }
+                ]);
+                return true;
+            }
+            return false;
+        };
+
+        const backHandler = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+        return () => backHandler.remove();
+    }, [currentScreen, user]);
+
+    // Auto-resolve active tournament ID if missing or placeholder
+    useEffect(() => {
+        const resolveActiveTournament = async () => {
+            if (!activeTournamentId || activeTournamentId === 'tourney_ipl_2026') {
+                try {
+                    const res = await apiFetch('/api/tournaments');
+                    if (res.ok) {
+                        const tours = await res.json();
+                        if (Array.isArray(tours) && tours.length > 0) {
+                            const latest = tours[0]._id || tours[0].id;
+                            if (latest) setActiveTournamentId(latest);
+                        }
+                    }
+                } catch (e) {
+                    // ignore
+                }
+            }
+        };
+        resolveActiveTournament();
+    }, [activeTournamentId]);
+
+    const handleLoginSuccess = async (userData: any) => {
         setUser(userData);
-        const tId = userData?.tournamentId || 'tourney_ipl_2026';
-        setActiveTournamentId(tId);
+        let tId = userData?.tournamentId || userData?.tournament_id;
+        if (!tId || tId === 'tourney_ipl_2026') {
+            try {
+                const res = await apiFetch('/api/tournaments');
+                if (res.ok) {
+                    const tours = await res.json();
+                    if (Array.isArray(tours) && tours.length > 0) {
+                        tId = tours[0]._id || tours[0].id;
+                    }
+                }
+            } catch {}
+        }
+        if (tId) setActiveTournamentId(tId);
 
         let nextScreen: 'login' | 'admin' | 'console' | 'bidding' | 'spectator' | 'player_registration' = 'spectator';
         if (userData?.role === 'superadmin') {
@@ -146,9 +209,9 @@ export default function App() {
     const team = user?.teamId && typeof user.teamId === 'object'
         ? user.teamId
         : {
-            _id: user?.teamId || 'team_default',
-            name: user?.username ? `${user.username}'s Team` : 'My Team',
-            shortName: 'MT',
+            _id: user?.teamId || user?.team_id || 'team_default',
+            name: user?.teamName || user?.team_name || (user?.username ? `${user.username}'s Team` : 'My Team'),
+            shortName: user?.teamShortName || 'MT',
             budget: 100,
             spent: 0
         };
@@ -201,7 +264,6 @@ export default function App() {
                     onLogout={handleLogout}
                     canSwitchRole={canSwitchRoles}
                     onSwitchRole={() => setCurrentScreen('admin')}
-                    onBackToDashboard={() => setCurrentScreen('admin')}
                 />
             )}
 

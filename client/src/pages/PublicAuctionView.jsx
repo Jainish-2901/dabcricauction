@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
 import { 
     User, ArrowLeft, Trophy, Clock, Timer, Coffee, Radio, Shield, 
-    AlertCircle, Sparkles, Layers, Users, Wallet, ChevronRight, X, ExternalLink, Crown
+    AlertCircle, Sparkles, Layers, Users, Wallet, ChevronRight, X, ExternalLink, Crown, Search
 } from 'lucide-react';
 import socket from '../socket';
 import { getBudgetUnits } from '../utils/currency';
@@ -28,7 +28,9 @@ const PublicAuctionView = () => {
     const [countdownTimer, setCountdownTimer] = useState(null);
 
     // Navigation and modals
-    const [activeTab, setActiveTab] = useState('live'); // 'live' | 'teams' | 'sold' | 'unsold'
+    const [activeTab, setActiveTab] = useState('live'); // 'live' | 'teams' | 'slots' | 'sold' | 'unsold'
+    const [selectedSlotFilter, setSelectedSlotFilter] = useState('all');
+    const [slotSearchQuery, setSlotSearchQuery] = useState('');
     const [viewingTeam, setViewingTeam] = useState(null);
     const [announcementModal, setAnnouncementModal] = useState(null);
 
@@ -326,6 +328,15 @@ const PublicAuctionView = () => {
                         Teams & Purses ({teams.length})
                     </button>
                     <button
+                        onClick={() => setActiveTab('slots')}
+                        className={`px-3.5 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                            activeTab === 'slots' ? 'bg-white text-purple-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                    >
+                        <Layers className="w-3.5 h-3.5 text-purple-600" />
+                        Slots / Sets ({slots.length})
+                    </button>
+                    <button
                         onClick={() => setActiveTab('sold')}
                         className={`px-3.5 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer whitespace-nowrap ${
                             activeTab === 'sold' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
@@ -474,6 +485,8 @@ const PublicAuctionView = () => {
                                             <SafeImage
                                                 src={currentPlayer.image}
                                                 alt={currentPlayer.name}
+                                                previewable={true}
+                                                previewTitle={currentPlayer.name}
                                                 className="w-full h-full rounded-xl object-cover"
                                                 fallback={<div className="w-full h-full flex items-center justify-center text-slate-400"><User className="w-20 h-20" /></div>}
                                             />
@@ -556,7 +569,14 @@ const PublicAuctionView = () => {
                                                         <p className="text-lg font-black text-slate-900 leading-none">{currentLeadTeam.name}</p>
                                                     </div>
                                                     <div className="w-14 h-14 bg-white rounded-xl flex items-center justify-center font-black text-base text-blue-700 shadow-sm border border-slate-200 uppercase overflow-hidden">
-                                                        <SafeImage src={currentLeadTeam.logo} alt={currentLeadTeam.name || 'Team'} className="w-full h-full object-cover" fallback={currentLeadTeam.shortName || 'TM'} />
+                                                        <SafeImage
+                                                            src={currentLeadTeam.logo}
+                                                            alt={currentLeadTeam.name || 'Team'}
+                                                            className="w-full h-full object-cover"
+                                                            fallback={currentLeadTeam.shortName || 'TM'}
+                                                            previewable={true}
+                                                            previewTitle={currentLeadTeam.name}
+                                                        />
                                                     </div>
                                                 </div>
                                             ) : (
@@ -607,7 +627,14 @@ const PublicAuctionView = () => {
                                         <div key={i} className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-xl">
                                             <div className="flex items-center gap-2.5">
                                                 <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold text-slate-700 shadow-2xs bg-white border border-slate-200 overflow-hidden">
-                                                    <SafeImage src={bid.team?.logo} alt={bid.team?.name || 'Team'} className="w-full h-full object-cover" fallback={bid.team?.shortName || 'TM'} />
+                                                    <SafeImage
+                                                        src={bid.team?.logo}
+                                                        alt={bid.team?.name || 'Team'}
+                                                        className="w-full h-full object-cover"
+                                                        fallback={bid.team?.shortName || 'TM'}
+                                                        previewable={true}
+                                                        previewTitle={bid.team?.name || 'Team'}
+                                                    />
                                                 </div>
                                                 <div>
                                                     <span className="font-bold text-slate-900 block text-xs">{bid.team?.name || 'Unknown Team'}</span>
@@ -649,6 +676,8 @@ const PublicAuctionView = () => {
                                                     alt={t.name}
                                                     className="w-full h-full object-cover"
                                                     fallback={t.shortName || t.name?.substring(0, 2)}
+                                                    previewable={true}
+                                                    previewTitle={t.name}
                                                 />
                                             </div>
                                             <div>
@@ -690,7 +719,275 @@ const PublicAuctionView = () => {
                 </div>
             )}
 
-            {/* TAB 3: SOLD PLAYERS LOG */}
+            {/* TAB 3: SLOTS / SETS WISE PLAYERS */}
+            {activeTab === 'slots' && (
+                <div className="max-w-7xl mx-auto space-y-6">
+                    <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-5">
+                            <div>
+                                <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                                    <Layers className="w-5 h-5 text-purple-600" />
+                                    Slots / Sets Wise Players List
+                                </h3>
+                                <p className="text-xs text-slate-500 mt-0.5">
+                                    Browse players by configured auction slots, upcoming sets, and live bidding status.
+                                </p>
+                            </div>
+                            <span className="px-3 py-1 bg-purple-50 text-purple-700 border border-purple-200 rounded-xl text-xs font-black">
+                                {slots.length} Slots Configured
+                            </span>
+                        </div>
+
+                        {/* Search & Slot filter */}
+                        <div className="flex flex-col md:flex-row gap-2.5 items-stretch md:items-center justify-between mb-5">
+                            <div className="relative flex-1">
+                                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                                <input
+                                    type="text"
+                                    placeholder="Search players by name, role or style across slots..."
+                                    value={slotSearchQuery}
+                                    onChange={(e) => setSlotSearchQuery(e.target.value)}
+                                    className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+                                />
+                            </div>
+                            {slots.length > 0 && (
+                                <div className="flex gap-1.5 overflow-x-auto pb-1 text-xs shrink-0 max-w-full">
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectedSlotFilter('all')}
+                                        className={`px-3 py-2 rounded-xl font-bold text-xs transition-all cursor-pointer shrink-0 ${
+                                            selectedSlotFilter === 'all'
+                                                ? 'bg-purple-600 text-white shadow-xs'
+                                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                        }`}
+                                    >
+                                        All Slots ({slots.length})
+                                    </button>
+                                    {slots.map(s => {
+                                        const isCurrentActive = tournament?.activeSlotId === s._id;
+                                        return (
+                                            <button
+                                                key={s._id}
+                                                type="button"
+                                                onClick={() => setSelectedSlotFilter(s._id)}
+                                                className={`px-3 py-2 rounded-xl font-bold text-xs transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
+                                                    selectedSlotFilter === s._id
+                                                        ? 'bg-purple-600 text-white shadow-xs'
+                                                        : isCurrentActive
+                                                        ? 'bg-purple-100 text-purple-800 border border-purple-300'
+                                                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                                }`}
+                                            >
+                                                {isCurrentActive && <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />}
+                                                <span>{s.name}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Displaying Slots and their players */}
+                        {(() => {
+                            const filteredSlots = selectedSlotFilter === 'all'
+                                ? slots
+                                : slots.filter(s => s._id === selectedSlotFilter);
+
+                            const q = slotSearchQuery.trim().toLowerCase();
+
+                            if (slots.length === 0) {
+                                const displayPlayers = allPlayers.filter(p => !q || p.name?.toLowerCase().includes(q) || p.category?.toLowerCase().includes(q));
+                                return (
+                                    <div className="bg-slate-50 border border-slate-200 rounded-2xl p-8 text-center">
+                                        <Layers className="w-10 h-10 text-slate-400 mx-auto mb-2" />
+                                        <p className="font-bold text-slate-700 text-sm">No custom slots configured for this tournament yet.</p>
+                                        <p className="text-xs text-slate-500 mt-1">Showing all {displayPlayers.length} tournament players in general pool.</p>
+                                    </div>
+                                );
+                            }
+
+                            return (
+                                <div className="space-y-4">
+                                    {filteredSlots.map(slot => {
+                                        const isUnsoldSlot = slot.isDefaultUnsold || slot.slotType === 'unsold';
+                                        const isActive = tournament?.activeSlotId === slot._id;
+                                        let sPlayers = allPlayers.filter(p =>
+                                            p.slotId === slot._id ||
+                                            p.originalSlotId === slot._id ||
+                                            (isUnsoldSlot && (p.slotId === slot._id || p.status === 'unsold'))
+                                        );
+
+                                        if (q) {
+                                            sPlayers = sPlayers.filter(p =>
+                                                p.name?.toLowerCase().includes(q) ||
+                                                p.category?.toLowerCase().includes(q) ||
+                                                p.battingStyle?.toLowerCase().includes(q) ||
+                                                p.bowlingStyle?.toLowerCase().includes(q)
+                                            );
+                                        }
+
+                                        const sSold = sPlayers.filter(p => p.status === 'sold');
+                                        const sPending = sPlayers.filter(p => p.status === 'pending' || (isUnsoldSlot && p.status === 'unsold'));
+
+                                        return (
+                                            <div
+                                                key={slot._id}
+                                                className={`border rounded-2xl overflow-hidden transition-all ${
+                                                    isActive
+                                                        ? 'border-purple-300 bg-purple-50/20 shadow-sm'
+                                                        : 'border-slate-200 bg-white'
+                                                }`}
+                                            >
+                                                {/* Slot Header */}
+                                                <div className={`p-4 border-b flex flex-wrap items-center justify-between gap-3 ${
+                                                    isActive ? 'bg-purple-50 border-purple-200' : 'bg-slate-50 border-slate-200'
+                                                }`}>
+                                                    <div className="flex items-center gap-3">
+                                                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-xs shrink-0 ${
+                                                            isActive ? 'bg-purple-600 text-white' : 'bg-slate-200 text-slate-700'
+                                                        }`}>
+                                                            {isUnsoldSlot ? '🔄' : (slot.order || slot.name.substring(0, 2))}
+                                                        </div>
+                                                        <div>
+                                                            <div className="flex items-center gap-2">
+                                                                <h4 className="font-black text-slate-900 text-sm">{slot.name}</h4>
+                                                                {isActive && (
+                                                                    <span className="px-2 py-0.5 bg-purple-600 text-white rounded text-[10px] font-black uppercase flex items-center gap-1">
+                                                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                                                        Active Slot Now
+                                                                    </span>
+                                                                )}
+                                                                {slot.role && (
+                                                                    <span className="px-2 py-0.5 bg-slate-200 text-slate-700 rounded text-[10px] font-bold">
+                                                                        {slot.role}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                                                                Base Price: <strong className="text-slate-800">₹{slot.basePrice ? `${slot.basePrice} ${smallUnit}` : 'Player Base Price'}</strong>
+                                                                {slot.description ? ` • ${slot.description}` : ''}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="flex items-center gap-2 text-[11px] font-bold">
+                                                        <span className="px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-slate-700">
+                                                            Total: {sPlayers.length}
+                                                        </span>
+                                                        <span className="px-2.5 py-1 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-800">
+                                                            Sold: {sSold.length}
+                                                        </span>
+                                                        <span className="px-2.5 py-1 bg-amber-50 border border-amber-200 rounded-lg text-amber-800">
+                                                            Upcoming: {sPending.length}
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                {/* Slot Players Table */}
+                                                {sPlayers.length === 0 ? (
+                                                    <div className="p-6 text-center text-slate-400 text-xs italic">
+                                                        No players found in this slot matching criteria.
+                                                    </div>
+                                                ) : (
+                                                    <div className="overflow-x-auto">
+                                                        <table className="w-full text-left text-xs border-collapse">
+                                                            <thead className="bg-slate-50/60 text-slate-500 uppercase tracking-wider text-[10px] font-bold border-b border-slate-100">
+                                                                <tr>
+                                                                    <th className="p-3 w-10">#</th>
+                                                                    <th className="p-3">Player</th>
+                                                                    <th className="p-3">Role / Styles</th>
+                                                                    <th className="p-3 text-right">Base Price</th>
+                                                                    <th className="p-3 text-right">Status / Price</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody className="divide-y divide-slate-100">
+                                                                {sPlayers.map((p, idx) => {
+                                                                    const isCurrent = currentPlayer?._id === p._id;
+                                                                    const buyerTeam = teams.find(t => t._id === p.soldToTeamId || t.id === p.soldToTeamId);
+
+                                                                    return (
+                                                                        <tr
+                                                                            key={p._id || idx}
+                                                                            className={`hover:bg-slate-50 transition-colors ${
+                                                                                isCurrent ? 'bg-purple-50/60 font-semibold' : ''
+                                                                            }`}
+                                                                        >
+                                                                            <td className="p-3 text-slate-400 font-bold">{idx + 1}</td>
+                                                                            <td className="p-3 font-extrabold text-slate-900 flex items-center gap-2.5">
+                                                                                <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center shrink-0">
+                                                                                    <SafeImage
+                                                                                        src={p.image}
+                                                                                        alt={p.name}
+                                                                                        previewable={true}
+                                                                                        previewTitle={p.name}
+                                                                                        className="w-full h-full object-cover"
+                                                                                        fallback={<User className="w-4 h-4 text-slate-400" />}
+                                                                                    />
+                                                                                </div>
+                                                                                <span>{p.name}</span>
+                                                                                {isCurrent && (
+                                                                                    <span className="px-2 py-0.5 bg-purple-600 text-white rounded text-[9px] font-black uppercase animate-pulse">
+                                                                                        Live Now
+                                                                                    </span>
+                                                                                )}
+                                                                            </td>
+                                                                            <td className="p-3 text-slate-600">
+                                                                                <span className="font-bold text-slate-800">{p.category}</span>
+                                                                                <div className="text-[10px] text-slate-400">
+                                                                                    {[p.battingStyle, p.bowlingStyle].filter(Boolean).join(' • ') || 'All-Rounder'}
+                                                                                </div>
+                                                                            </td>
+                                                                            <td className="p-3 text-right font-bold text-slate-700">
+                                                                                ₹{p.basePrice || slot.basePrice || 0} {smallUnit}
+                                                                            </td>
+                                                                            <td className="p-3 text-right">
+                                                                                {p.status === 'sold' ? (
+                                                                                    <div>
+                                                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-black text-[11px]">
+                                                                                            SOLD ₹{p.soldPrice || p.currentBid || 0} {smallUnit}
+                                                                                        </span>
+                                                                                        {buyerTeam && (
+                                                                                            <span className="block text-[10px] font-bold text-emerald-700 mt-0.5">
+                                                                                                → {buyerTeam.name}
+                                                                                            </span>
+                                                                                        )}
+                                                                                    </div>
+                                                                                ) : isCurrent ? (
+                                                                                    <span className="px-2 py-0.5 rounded-md bg-purple-100 text-purple-800 font-black text-[11px]">
+                                                                                        BIDDING: ₹{currentBid} {smallUnit}
+                                                                                    </span>
+                                                                                ) : p.status === 'unsold' ? (
+                                                                                    <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 font-bold text-[11px]">
+                                                                                        UNSOLD
+                                                                                    </span>
+                                                                                ) : p.status === 'injured' ? (
+                                                                                    <span className="px-2 py-0.5 rounded-md bg-rose-100 text-rose-800 font-bold text-[11px]">
+                                                                                        INJURED
+                                                                                    </span>
+                                                                                ) : (
+                                                                                    <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 font-bold text-[11px]">
+                                                                                        UPCOMING
+                                                                                    </span>
+                                                                                )}
+                                                                            </td>
+                                                                        </tr>
+                                                                    );
+                                                                })}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            );
+                        })()}
+                    </div>
+                </div>
+            )}
+
+            {/* TAB 4: SOLD PLAYERS LOG */}
             {activeTab === 'sold' && (
                 <div className="max-w-7xl mx-auto bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
                     <div className="flex justify-between items-center mb-5">
@@ -718,7 +1015,14 @@ const PublicAuctionView = () => {
                                         <tr key={p._id} className="hover:bg-slate-50 transition-colors">
                                             <td className="p-3.5 font-bold text-slate-900 flex items-center gap-3">
                                                 <div className="w-9 h-9 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center shrink-0">
-                                                    <SafeImage src={p.image} alt={p.name} className="w-full h-full object-cover" fallback={<User size={16} className="text-slate-400" />} />
+                                                    <SafeImage
+                                                        src={p.image}
+                                                        alt={p.name}
+                                                        previewable={true}
+                                                        previewTitle={p.name}
+                                                        className="w-full h-full object-cover"
+                                                        fallback={<User size={16} className="text-slate-400" />}
+                                                    />
                                                 </div>
                                                 <span className="font-black text-sm">{p.name}</span>
                                             </td>
@@ -736,7 +1040,7 @@ const PublicAuctionView = () => {
                                                 </div>
                                             </td>
                                             <td className="p-3.5 text-right font-black text-emerald-700 text-sm">
-                                                ₹{formatAmount(p.soldPrice || p.currentBid)}
+                                                ₹{formatAmount(p.soldPrice || p.currentBid || p.basePrice)}
                                             </td>
                                         </tr>
                                     );
@@ -776,7 +1080,14 @@ const PublicAuctionView = () => {
                                     <tr key={p._id} className="hover:bg-slate-50 transition-colors">
                                         <td className="p-3.5 font-bold text-slate-900 flex items-center gap-3">
                                             <div className="w-9 h-9 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center shrink-0">
-                                                <SafeImage src={p.image} alt={p.name} className="w-full h-full object-cover grayscale" fallback={<User size={16} className="text-slate-400" />} />
+                                                <SafeImage
+                                                    src={p.image}
+                                                    alt={p.name}
+                                                    previewable={true}
+                                                    previewTitle={p.name}
+                                                    className="w-full h-full object-cover grayscale"
+                                                    fallback={<User size={16} className="text-slate-400" />}
+                                                />
                                             </div>
                                             <div>
                                                 <span className="font-black text-sm block">{p.name}</span>
@@ -819,6 +1130,8 @@ const PublicAuctionView = () => {
                                         alt={viewingTeam.name}
                                         className="w-full h-full object-cover"
                                         fallback={viewingTeam.shortName || viewingTeam.name?.substring(0, 2)}
+                                        previewable={true}
+                                        previewTitle={viewingTeam.name}
                                     />
                                 </div>
                                 <div>
@@ -857,7 +1170,7 @@ const PublicAuctionView = () => {
                                                 Acquired Players: <strong className="text-slate-900 font-black">{teamSquad.length}</strong> / {tournament.squadSizeLimit || 25}
                                             </span>
                                             <span className="text-xs font-bold text-slate-600">
-                                                Total Spent: <strong className="text-emerald-700 font-black">₹{teamSquad.reduce((acc, p) => acc + (Number(p.soldPrice) || 0), 0)} {smallUnit}</strong>
+                                                Total Spent: <strong className="text-emerald-700 font-black">₹{teamSquad.reduce((acc, p) => acc + (Number(p.soldPrice || p.currentBid || p.basePrice) || 0), 0)} {smallUnit}</strong>
                                             </span>
                                         </div>
 
@@ -870,6 +1183,8 @@ const PublicAuctionView = () => {
                                                                 <SafeImage
                                                                     src={viewingTeam.captainPhoto}
                                                                     alt="Captain"
+                                                                    previewable={true}
+                                                                    previewTitle={viewingTeam.captainName || 'Team Captain'}
                                                                     className="w-full h-full object-cover"
                                                                     fallback={<Crown className="w-5 h-5 text-amber-600" />}
                                                                 />
@@ -897,6 +1212,8 @@ const PublicAuctionView = () => {
                                                                 <SafeImage
                                                                     src={p.image}
                                                                     alt={p.name}
+                                                                    previewable={true}
+                                                                    previewTitle={p.name}
                                                                     className="w-full h-full object-cover"
                                                                     fallback={<User className="w-5 h-5 text-slate-400" />}
                                                                 />
@@ -918,7 +1235,7 @@ const PublicAuctionView = () => {
 
                                                         <div className="text-right shrink-0">
                                                             <div className="text-sm font-black text-slate-900 tabular-nums">
-                                                                ₹{p.soldPrice || p.currentBid || 0} {smallUnit}
+                                                                ₹{p.soldPrice || p.currentBid || p.basePrice || 0} {smallUnit}
                                                             </div>
                                                             <div className="text-[10px] text-slate-400">
                                                                 Base: ₹{p.basePrice || 0} {smallUnit}
@@ -986,6 +1303,8 @@ const PublicAuctionView = () => {
                                         <SafeImage
                                             src={announcementModal.player?.image}
                                             alt={announcementModal.player?.name}
+                                            previewable={true}
+                                            previewTitle={announcementModal.player?.name}
                                             className="w-full h-full object-cover"
                                             fallback={
                                                 <div className="w-full h-full flex items-center justify-center text-slate-400">
@@ -1009,6 +1328,8 @@ const PublicAuctionView = () => {
                                                     alt={announcementModal.team?.name}
                                                     className="w-full h-full object-cover"
                                                     fallback={announcementModal.team?.shortName || announcementModal.team?.name?.substring(0, 2)}
+                                                    previewable={true}
+                                                    previewTitle={announcementModal.team?.name || 'Winner Team'}
                                                 />
                                             </div>
                                             <div>
@@ -1036,6 +1357,8 @@ const PublicAuctionView = () => {
                                         <SafeImage
                                             src={announcementModal.player?.image}
                                             alt={announcementModal.player?.name}
+                                            previewable={true}
+                                            previewTitle={announcementModal.player?.name}
                                             className="w-full h-full object-cover grayscale"
                                             fallback={
                                                 <div className="w-full h-full flex items-center justify-center text-slate-400">

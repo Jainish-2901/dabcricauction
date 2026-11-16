@@ -10,9 +10,10 @@ import {
     StatusBar,
     Alert,
     Platform,
-    Modal
+    Modal,
+    TextInput
 } from 'react-native';
-import { Shield, Users, Pause, LogOut, CheckCircle2, AlertCircle, ArrowLeft, Timer, Coffee, Clock, Gavel, X, ChevronRight, Wallet, Radio } from 'lucide-react-native';
+import { Shield, Users, Pause, LogOut, CheckCircle2, AlertCircle, ArrowLeft, Timer, Coffee, Clock, Gavel, X, ChevronRight, Wallet, Radio, Trophy, Layers, Search, User } from 'lucide-react-native';
 import socket from '../lib/socket';
 import { apiFetch } from '../lib/api';
 import { getBudgetUnits } from '../lib/currency';
@@ -48,6 +49,9 @@ export interface Player {
     battingStyle?: string;
     bowlingStyle?: string;
     status?: string;
+    slotId?: string;
+    isCaptain?: boolean;
+    isOwnerCaptain?: boolean;
     stats?: {
         matches: number;
         runs: number;
@@ -70,7 +74,6 @@ export interface LiveBiddingRoomProps {
     onLogout: () => void;
     onSwitchRole?: () => void;
     canSwitchRole?: boolean;
-    onBackToDashboard?: () => void;
 }
 
 export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
@@ -78,8 +81,7 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
     tournamentId,
     onLogout,
     onSwitchRole,
-    canSwitchRole = false,
-    onBackToDashboard
+    canSwitchRole = false
 }) => {
     const [teamData, setTeamData] = useState<TeamData>(team);
     const [currentPlayer, setCurrentPlayer] = useState<Player | null>(null);
@@ -94,7 +96,9 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
     const [allPlayers, setAllPlayers] = useState<Player[]>([]);
     const [otherTeams, setOtherTeams] = useState<TeamData[]>([]);
     const [viewingTeam, setViewingTeam] = useState<TeamData | null>(null);
-    const [activeTab, setActiveTab] = useState<'auction' | 'squad' | 'teams' | 'unsold'>('auction');
+    const [activeTab, setActiveTab] = useState<'auction' | 'squad' | 'slots' | 'teams' | 'unsold'>('auction');
+    const [slotMobileSearch, setSlotMobileSearch] = useState('');
+    const [selectedSlotMobile, setSelectedSlotMobile] = useState<string>('all');
     const [notice, setNotice] = useState<string | null>(null);
     const [bidLogs, setBidLogs] = useState<any[]>([]);
     const [announcementModal, setAnnouncementModal] = useState<{ type: 'sold' | 'unsold'; player: any; team?: any; price?: number } | null>(null);
@@ -325,52 +329,68 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
         };
     }, [tournamentId, team._id]);
 
+    // CRITICAL: Always load data immediately when tournamentId changes,
+    // don't wait for socket.connect()!
+    useEffect(() => {
+        if (tournamentId) {
+            fetchTournament();
+        }
+    }, [tournamentId, team._id]);
+
     const fetchTournament = async () => {
         try {
             const [tRes, sRes, pRes, teamRes] = await Promise.all([
-                apiFetch(`/api/tournaments/${tournamentId}`).then(r => r.json()),
+                apiFetch(`/api/tournaments/${tournamentId}`).then(r => r.json()).catch(() => null),
                 apiFetch(`/api/tournaments/${tournamentId}/slots`).then(r => r.json()).catch(() => []),
                 apiFetch(`/api/players/${tournamentId}`).then(r => r.json()).catch(() => []),
                 apiFetch(`/api/teams/${tournamentId}`).then(r => r.json()).catch(() => [])
             ]);
-            if (tRes && tRes._id) {
-                setTournament(tRes);
-                if (tRes.biddingState) {
-                    setBiddingState(tRes.biddingState);
-                } else if (tRes.status === 'live') {
+
+            const tourneyObj = tRes?.tournament || tRes;
+            if (tourneyObj && (tourneyObj._id || tourneyObj.id)) {
+                setTournament(tourneyObj);
+                if (tourneyObj.biddingState) {
+                    setBiddingState(tourneyObj.biddingState);
+                } else if (tourneyObj.status === 'live') {
                     setBiddingState('active');
                 }
-
-                // Sync all players and my squad
-                const playerList = Array.isArray(pRes) ? pRes : [];
-                setAllPlayers(playerList);
-                const mySquad = playerList.filter((p: any) => p.soldToTeamId === team._id);
-                setSquad(mySquad);
-
-                // Sync current bidding player
-                let active = null;
-                if (tRes.currentBiddingPlayerId) {
-                    active = playerList.find((p: any) => p._id === tRes.currentBiddingPlayerId);
-                }
-                if (!active) {
-                    active = playerList.find((p: any) => p.status === 'bidding');
-                }
-                if (active) {
-                    setCurrentPlayer(active);
-                    setCurrentBid(active.currentBid || active.basePrice);
-                    if (active.currentLeadTeamId) {
-                        setLeadTeam(active.currentLeadTeamId);
-                    }
-                    fetchBidsForPlayer(active._id);
-                }
             }
+
+            // Sync all players and my squad (OUTSIDE tournament if-check)
+            const playerList = Array.isArray(pRes) ? pRes : [];
+            setAllPlayers(playerList);
+
+            const myTeamId = team?._id || (team as any)?.id || teamData?._id;
+            const mySquad = playerList.filter((p: any) => {
+                const soldId = typeof p.soldToTeamId === 'object' && p.soldToTeamId ? (p.soldToTeamId._id || p.soldToTeamId.id) : p.soldToTeamId;
+                return soldId && (soldId === myTeamId || soldId === team?._id || soldId === teamData?._id);
+            });
+            setSquad(mySquad);
+
+            // Sync current bidding player
+            let active = null;
+            if (tourneyObj?.currentBiddingPlayerId) {
+                active = playerList.find((p: any) => (p._id && p._id === tourneyObj.currentBiddingPlayerId) || (p.id && p.id === tourneyObj.currentBiddingPlayerId));
+            }
+            if (!active) {
+                active = playerList.find((p: any) => p.status === 'bidding');
+            }
+            if (active) {
+                setCurrentPlayer(active);
+                setCurrentBid(active.currentBid || active.basePrice);
+                if (active.currentLeadTeamId) {
+                    setLeadTeam(active.currentLeadTeamId);
+                }
+                fetchBidsForPlayer(active._id || active.id);
+            }
+
             if (Array.isArray(sRes)) {
                 setSlots(sRes);
             }
             if (Array.isArray(teamRes)) {
-                const currentTeam = teamRes.find((t: any) => t._id === team._id);
-                if (currentTeam) setTeamData(currentTeam);
-                setOtherTeams(teamRes.filter((t: any) => t._id !== team._id));
+                const currentTeam = teamRes.find((t: any) => (t._id && t._id === myTeamId) || (t.id && t.id === myTeamId));
+                if (currentTeam) setTeamData(prev => ({ ...prev, ...currentTeam }));
+                setOtherTeams(teamRes.filter((t: any) => t._id !== myTeamId && t.id !== myTeamId));
             }
         } catch (err) {
             console.error('Error fetching tournament/slots:', err);
@@ -442,16 +462,13 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
             {/* Header: Team & Purse Overview */}
             <View style={styles.header}>
                 <View style={styles.teamInfo}>
-                    {onBackToDashboard && (
-                        <TouchableOpacity onPress={onBackToDashboard} style={[styles.iconButton, { marginRight: 8, backgroundColor: '#f1f5f9' }]}>
-                            <ArrowLeft size={16} color="#0f172a" />
-                        </TouchableOpacity>
-                    )}
                     <View style={styles.teamLogoBadge}>
                         <SafeImage
                             uri={teamData.logo}
                             style={{ width: '100%', height: '100%', resizeMode: 'contain' }}
                             fallback={<Text style={styles.teamLogoText}>{teamData.shortName || teamData.name.substring(0, 2)}</Text>}
+                            previewable={true}
+                            previewTitle={teamData.name}
                         />
                     </View>
                     <View>
@@ -493,6 +510,14 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
                     </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
+                    style={[styles.tabItem, activeTab === 'slots' && styles.activeTabItem]}
+                    onPress={() => setActiveTab('slots')}
+                >
+                    <Text style={[styles.tabText, activeTab === 'slots' && styles.activeTabText]}>
+                        Slots ({slots.length})
+                    </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
                     style={[styles.tabItem, activeTab === 'teams' && styles.activeTabItem]}
                     onPress={() => setActiveTab('teams')}
                 >
@@ -518,30 +543,6 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
                 </View>
             )}
 
-            {/* Upcoming / Not Started State Notification */}
-            {(tournament?.status === 'upcoming' || biddingState === 'stopped') && (
-                <View style={styles.upcomingBanner}>
-                    <Clock size={14} color="#475569" />
-                    <Text style={styles.upcomingText}>AUCTION HAS NOT STARTED YET - PLEASE STAY TUNED</Text>
-                </View>
-            )}
-
-            {/* Short Break State Notification */}
-            {biddingState === 'break' && (
-                <View style={styles.breakBanner}>
-                    <Coffee size={14} color="#1d4ed8" />
-                    <Text style={styles.breakText}>AUCTION IS ON A SHORT BREAK - RESUMING SHORTLY</Text>
-                </View>
-            )}
-
-            {/* Paused State Notification */}
-            {biddingState === 'paused' && (
-                <View style={styles.pausedBanner}>
-                    <Pause size={14} color="#d97706" />
-                    <Text style={styles.pausedText}>BIDDING IS CURRENTLY PAUSED BY AUCTIONEER</Text>
-                </View>
-            )}
-
             {/* Final Call 10s Countdown Banner */}
             {countdownTimer && (
                 <View style={styles.countdownBanner}>
@@ -557,14 +558,88 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
 
             {activeTab === 'auction' ? (
                 <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-                    {currentPlayer ? (
+                    {tournament?.status === 'completed' ? (
+                        <View style={[styles.card, { alignItems: 'center', paddingVertical: 28 }]}>
+                            <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: '#f3e8ff', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+                                <Trophy size={32} color="#7e22ce" />
+                            </View>
+                            <View style={{ backgroundColor: '#f3e8ff', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12, marginBottom: 8 }}>
+                                <Text style={{ fontSize: 10, fontWeight: '900', color: '#7e22ce', textTransform: 'uppercase' }}>🏆 AUCTION OFFICIALLY COMPLETED</Text>
+                            </View>
+                            <Text style={{ fontSize: 16, fontWeight: '900', color: '#1e1b4b', textAlign: 'center', marginBottom: 4 }}>
+                                AUCTION OFFICIALLY COMPLETED
+                            </Text>
+                            <Text style={{ fontSize: 12, color: '#64748b', textAlign: 'center', paddingHorizontal: 16, marginBottom: 16, lineHeight: 18 }}>
+                                All bidding rounds have finished for {tournament?.name || 'this tournament'}. Final rosters are locked!
+                            </Text>
+                            <View style={{ flexDirection: 'row', gap: 10, width: '100%' }}>
+                                <View style={{ flex: 1, backgroundColor: '#f8fafc', padding: 10, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: '#e2e8f0' }}>
+                                    <Text style={{ fontSize: 9, fontWeight: '900', color: '#64748b', textTransform: 'uppercase' }}>Sold</Text>
+                                    <Text style={{ fontSize: 18, fontWeight: '900', color: '#16a34a', marginTop: 2 }}>
+                                        {allPlayers.filter(p => p.status === 'sold').length}
+                                    </Text>
+                                </View>
+                                <View style={{ flex: 1, backgroundColor: '#f8fafc', padding: 10, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: '#e2e8f0' }}>
+                                    <Text style={{ fontSize: 9, fontWeight: '900', color: '#64748b', textTransform: 'uppercase' }}>Unsold</Text>
+                                    <Text style={{ fontSize: 18, fontWeight: '900', color: '#dc2626', marginTop: 2 }}>
+                                        {allPlayers.filter(p => p.status === 'unsold').length}
+                                    </Text>
+                                </View>
+                                <View style={{ flex: 1, backgroundColor: '#f8fafc', padding: 10, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: '#e2e8f0' }}>
+                                    <Text style={{ fontSize: 9, fontWeight: '900', color: '#64748b', textTransform: 'uppercase' }}>Teams</Text>
+                                    <Text style={{ fontSize: 18, fontWeight: '900', color: '#2563eb', marginTop: 2 }}>
+                                        {otherTeams.length + 1}
+                                    </Text>
+                                </View>
+                            </View>
+                        </View>
+                    ) : (tournament?.status === 'upcoming' || (biddingState === 'stopped' && !currentPlayer)) ? (
+                        <View style={[styles.card, { alignItems: 'center', paddingVertical: 28 }]}>
+                            <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: '#eff6ff', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+                                <Clock size={32} color="#2563eb" />
+                            </View>
+                            <View style={{ backgroundColor: '#fef3c7', paddingHorizontal: 10, paddingVertical: 3, borderRadius: 12, marginBottom: 8 }}>
+                                <Text style={{ fontSize: 10, fontWeight: '900', color: '#92400e', textTransform: 'uppercase' }}>Standby Screen</Text>
+                            </View>
+                            <Text style={{ fontSize: 16, fontWeight: '900', color: '#0f172a', textAlign: 'center', marginBottom: 4 }}>
+                                AUCTION HAS NOT STARTED YET
+                            </Text>
+                            <Text style={{ fontSize: 12, color: '#64748b', textAlign: 'center', paddingHorizontal: 16, marginBottom: 16, lineHeight: 18 }}>
+                                The live auction for {tournament?.name || 'this tournament'} will begin shortly. Teams and officials are assembling. Please stay tuned!
+                            </Text>
+                        </View>
+                    ) : (biddingState === 'break') ? (
+                        <View style={[styles.card, { alignItems: 'center', paddingVertical: 28 }]}>
+                            <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: '#eff6ff', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+                                <Coffee size={32} color="#1d4ed8" />
+                            </View>
+                            <View style={{ backgroundColor: '#fef3c7', paddingHorizontal: 10, paddingVertical: 3, borderRadius: 12, marginBottom: 8 }}>
+                                <Text style={{ fontSize: 10, fontWeight: '900', color: '#92400e', textTransform: 'uppercase' }}>Break in Progress</Text>
+                            </View>
+                            <Text style={{ fontSize: 16, fontWeight: '900', color: '#0f172a', textAlign: 'center', marginBottom: 4 }}>
+                                AUCTION IS ON A SHORT BREAK
+                            </Text>
+                            <Text style={{ fontSize: 12, color: '#64748b', textAlign: 'center', paddingHorizontal: 16, marginBottom: 16, lineHeight: 18 }}>
+                                Please wait for a while. The auction will resume shortly after the break!
+                            </Text>
+                        </View>
+                    ) : currentPlayer ? (
                         <View style={styles.card}>
+                            {/* In-Card Paused Notification */}
+                            {biddingState === 'paused' && (
+                                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#fef3c7', borderWidth: 1, borderColor: '#fde68a', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 12, marginBottom: 12 }}>
+                                    <Pause size={14} color="#d97706" />
+                                    <Text style={{ fontSize: 11, fontWeight: '900', color: '#92400e' }}>AUCTION BIDDING IS CURRENTLY PAUSED BY AUCTIONEER</Text>
+                                </View>
+                            )}
                             {/* Player Header & Avatar */}
                             <View style={styles.playerHero}>
                                 <View style={styles.avatarContainer}>
                                     <SafeImage
                                         uri={currentPlayer.image}
                                         style={styles.avatar}
+                                        previewable={true}
+                                        previewTitle={currentPlayer.name}
                                         fallback={
                                             <View style={styles.avatarFallback}>
                                                 <Users size={36} color="#94a3b8" />
@@ -633,7 +708,7 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
                                     style={[
                                         styles.hammerMainButton,
                                         isLeading && styles.hammerMainButtonLeading,
-                                        (biddingState === 'paused' || biddingState === 'break' || ((tournament?.status === 'upcoming' || biddingState === 'stopped') && !currentPlayer)) && styles.hammerMainButtonDisabled
+                                        (biddingState !== 'active') && styles.hammerMainButtonDisabled
                                     ]}
                                     onPress={() => handlePlaceBid()}
                                     disabled={isLeading || biddingState !== 'active'}
@@ -774,6 +849,8 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
                                                                 {t.shortName?.substring(0, 3) || t.name.substring(0, 2)}
                                                             </Text>
                                                         }
+                                                        previewable={true}
+                                                        previewTitle={t.name}
                                                     />
                                                 </View>
                                                 <View>
@@ -802,8 +879,25 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
                 <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
                     <View style={styles.card}>
                         <View style={styles.squadHeader}>
-                            <Text style={styles.squadTitle}>Acquired Squad ({squad.length})</Text>
-                            <Text style={styles.squadSpent}>Total Spent: ₹{teamData.spent} {largeUnit}</Text>
+                            <View>
+                                <Text style={styles.squadTitle}>Acquired Squad ({squad.length} / {tournament?.squadSizeLimit || 25})</Text>
+                                <Text style={{ fontSize: 11, color: '#64748b', fontWeight: '600', marginTop: 2 }}>
+                                    Full Acquisition Ledger & Balance Statement
+                                </Text>
+                            </View>
+                            <View style={{ backgroundColor: '#ecfdf5', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: '#a7f3d0' }}>
+                                <Text style={{ fontSize: 11, fontWeight: '800', color: '#065f46' }}>
+                                    Remaining: ₹{Math.max(0, (Number(teamData.budget) || 100) - (Number(teamData.spent) || 0)).toFixed(2)} {largeUnit}
+                                </Text>
+                            </View>
+                        </View>
+
+                        {/* Excel-like Table Header */}
+                        <View style={styles.excelTableHeader}>
+                            <Text style={[styles.excelColHeader, { width: 24 }]}>#</Text>
+                            <Text style={[styles.excelColHeader, { flex: 1 }]}>PLAYER & ROLE</Text>
+                            <Text style={[styles.excelColHeader, { width: 75, textAlign: 'right' }]}>BASE</Text>
+                            <Text style={[styles.excelColHeader, { width: 85, textAlign: 'right' }]}>SOLD</Text>
                         </View>
 
                         {squad.length === 0 ? (
@@ -812,20 +906,234 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
                             </View>
                         ) : (
                             squad.map((player, idx) => (
-                                <View key={player._id || idx} style={styles.squadRow}>
-                                    <View style={styles.squadIndex}>
-                                        <Text style={styles.squadIndexText}>{idx + 1}</Text>
+                                <View key={player._id || idx} style={styles.excelTableRow}>
+                                    <Text style={styles.excelIndexText}>{idx + 1}</Text>
+                                    <View style={{ width: 28, height: 28, borderRadius: 6, overflow: 'hidden', backgroundColor: '#f1f5f9', marginHorizontal: 4, justifyContent: 'center', alignItems: 'center' }}>
+                                        <SafeImage
+                                            uri={player.image}
+                                            style={{ width: '100%', height: '100%' }}
+                                            previewable={true}
+                                            previewTitle={player.name}
+                                            fallback={<User size={14} color="#94a3b8" />}
+                                        />
                                     </View>
-                                    <View style={styles.squadInfo}>
-                                        <Text style={styles.squadName}>{player.name}</Text>
-                                        <Text style={styles.squadCategory}>{player.category}</Text>
+                                    <View style={{ flex: 1, paddingHorizontal: 4 }}>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                            <Text style={styles.excelPlayerName} numberOfLines={1}>{player.name}</Text>
+                                            {player.isCaptain && (
+                                                <View style={{ backgroundColor: '#fef3c7', paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 }}>
+                                                    <Text style={{ fontSize: 8, fontWeight: '900', color: '#92400e' }}>👑 C</Text>
+                                                </View>
+                                            )}
+                                        </View>
+                                        <Text style={styles.excelPlayerCategory}>{player.category}</Text>
                                     </View>
-                                    <View style={styles.squadPrice}>
-                                        <Text style={styles.squadPriceText}>₹ {player.soldPrice || player.currentBid} {smallUnit}</Text>
-                                    </View>
+                                    <Text style={styles.excelBasePriceText}>₹{player.basePrice || 0} {smallUnit}</Text>
+                                    <Text style={styles.excelSoldPriceText}>₹{player.soldPrice || player.currentBid || player.basePrice || 0} {smallUnit}</Text>
                                 </View>
                             ))
                         )}
+
+                        {/* Excel Sheet Financial Balance Statement Footer */}
+                        {squad.length > 0 && (() => {
+                            const totalBase = squad.reduce((sum, p) => sum + (Number(p.basePrice) || 0), 0);
+                            const totalSold = squad.reduce((sum, p) => sum + (Number(p.soldPrice || p.currentBid || p.basePrice) || 0), 0);
+                            const budgetLarge = Number(teamData.budget) || 100;
+                            const spentLarge = Number(teamData.spent) || 0;
+                            const remainingLarge = Math.max(0, budgetLarge - spentLarge).toFixed(2);
+
+                            return (
+                                <View style={styles.excelFooterCard}>
+                                    <View style={styles.excelFooterRow}>
+                                        <Text style={styles.excelFooterLabel}>TOTAL SQUAD VALUE ({squad.length} PLAYERS):</Text>
+                                        <View style={{ flexDirection: 'row', gap: 10 }}>
+                                            <Text style={styles.excelFooterSub}>Base: ₹{totalBase} {smallUnit}</Text>
+                                            <Text style={styles.excelFooterTotalSold}>Sold: ₹{totalSold} {smallUnit}</Text>
+                                        </View>
+                                    </View>
+
+                                    <View style={styles.excelBalanceStrip}>
+                                        <View style={styles.excelBalanceItem}>
+                                            <Text style={styles.excelBalanceTag}>TOTAL BUDGET</Text>
+                                            <Text style={styles.excelBalanceVal}>₹{budgetLarge} {largeUnit}</Text>
+                                        </View>
+                                        <View style={styles.excelBalanceItem}>
+                                            <Text style={styles.excelBalanceTag}>TOTAL SPENT</Text>
+                                            <Text style={[styles.excelBalanceVal, { color: '#dc2626' }]}>₹{spentLarge.toFixed(2)} {largeUnit}</Text>
+                                        </View>
+                                        <View style={[styles.excelBalanceItem, styles.excelBalanceHighlight]}>
+                                            <Text style={[styles.excelBalanceTag, { color: '#166534' }]}>REMAINING</Text>
+                                            <Text style={[styles.excelBalanceVal, { color: '#15803d', fontWeight: '900' }]}>₹{remainingLarge} {largeUnit}</Text>
+                                        </View>
+                                    </View>
+                                </View>
+                            );
+                        })()}
+                    </View>
+                </ScrollView>
+            ) : activeTab === 'slots' ? (
+                /* Slots Tab */
+                <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+                    <View style={styles.card}>
+                        <View style={styles.squadHeader}>
+                            <View>
+                                <Text style={styles.squadTitle}>Slots / Sets Wise Players</Text>
+                                <Text style={{ fontSize: 11, color: '#64748b', fontWeight: '600', marginTop: 2 }}>
+                                    Upcoming auction slots and players list
+                                </Text>
+                            </View>
+                            <View style={{ backgroundColor: '#f3e8ff', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 }}>
+                                <Text style={{ fontSize: 11, fontWeight: '800', color: '#7e22ce' }}>
+                                    {slots.length} Slots
+                                </Text>
+                            </View>
+                        </View>
+
+                        {/* Search in Slots */}
+                        <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, marginBottom: 12 }}>
+                            <Search size={14} color="#94a3b8" />
+                            <TextInput
+                                placeholder="Search players in slots..."
+                                placeholderTextColor="#94a3b8"
+                                value={slotMobileSearch}
+                                onChangeText={setSlotMobileSearch}
+                                style={{ flex: 1, fontSize: 12, marginLeft: 6, color: '#0f172a', padding: 0 }}
+                            />
+                        </View>
+
+                        {/* Horizontal Slot Chips */}
+                        {slots.length > 0 && (
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
+                                <TouchableOpacity
+                                    onPress={() => setSelectedSlotMobile('all')}
+                                    style={[{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: '#f1f5f9', marginRight: 6 }, selectedSlotMobile === 'all' && { backgroundColor: '#7e22ce' }]}
+                                >
+                                    <Text style={[{ fontSize: 11, fontWeight: '800', color: '#475569' }, selectedSlotMobile === 'all' && { color: '#ffffff' }]}>
+                                        All Slots ({slots.length})
+                                    </Text>
+                                </TouchableOpacity>
+                                {slots.map(s => {
+                                    const isActive = tournament?.activeSlotId === s._id;
+                                    const isSel = selectedSlotMobile === s._id;
+                                    return (
+                                        <TouchableOpacity
+                                            key={s._id}
+                                            onPress={() => setSelectedSlotMobile(s._id)}
+                                            style={[{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: '#f1f5f9', marginRight: 6 }, isSel && { backgroundColor: '#7e22ce' }]}
+                                        >
+                                            <Text style={[{ fontSize: 11, fontWeight: '800', color: '#475569' }, isSel && { color: '#ffffff' }]}>
+                                                {isActive ? '🔥 ' : ''}{s.name}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    );
+                                })}
+                            </ScrollView>
+                        )}
+
+                        {/* Slot Cards List */}
+                        {(() => {
+                            const filtered = selectedSlotMobile === 'all' ? slots : slots.filter(s => s._id === selectedSlotMobile);
+                            const q = slotMobileSearch.trim().toLowerCase();
+
+                            if (slots.length === 0) {
+                                return (
+                                    <View style={styles.emptySquad}>
+                                        <Text style={styles.emptySquadText}>No custom slots configured for this tournament.</Text>
+                                    </View>
+                                );
+                            }
+
+                            return filtered.map(slot => {
+                                const isUnsoldSlot = slot.isDefaultUnsold || slot.slotType === 'unsold';
+                                const isActive = tournament?.activeSlotId === slot._id;
+                                let sPlayers = allPlayers.filter(p =>
+                                    p.slotId === slot._id ||
+                                    (p as any).originalSlotId === slot._id ||
+                                    (isUnsoldSlot && (p.slotId === slot._id || p.status === 'unsold'))
+                                );
+                                if (q) {
+                                    sPlayers = sPlayers.filter(p => p.name?.toLowerCase().includes(q) || p.category?.toLowerCase().includes(q));
+                                }
+
+                                const sSold = sPlayers.filter(p => p.status === 'sold');
+                                const sPending = sPlayers.filter(p => p.status === 'pending' || (isUnsoldSlot && p.status === 'unsold'));
+
+                                return (
+                                    <View key={slot._id} style={{ marginBottom: 16, borderWidth: 1, borderColor: isActive ? '#c084fc' : '#e2e8f0', borderRadius: 14, overflow: 'hidden', backgroundColor: '#ffffff' }}>
+                                        {/* Slot Header */}
+                                        <View style={{ padding: 10, backgroundColor: isActive ? '#f3e8ff' : '#f8fafc', borderBottomWidth: 1, borderColor: isActive ? '#d8b4fe' : '#e2e8f0', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                                            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 8 }}>
+                                                <View style={{ width: 26, height: 26, borderRadius: 6, backgroundColor: isActive ? '#7e22ce' : '#cbd5e1', justifyContent: 'center', alignItems: 'center', marginRight: 8 }}>
+                                                    <Text style={{ fontSize: 11, fontWeight: '900', color: isActive ? '#ffffff' : '#334155' }}>
+                                                        {isUnsoldSlot ? '🔄' : (slot.order || slot.name?.substring(0, 2))}
+                                                    </Text>
+                                                </View>
+                                                <View style={{ flex: 1 }}>
+                                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                                        <Text style={{ fontSize: 13, fontWeight: '800', color: '#0f172a' }} numberOfLines={1}>{slot.name}</Text>
+                                                        {isActive && (
+                                                            <View style={{ backgroundColor: '#7e22ce', paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4 }}>
+                                                                <Text style={{ fontSize: 8, fontWeight: '900', color: '#ffffff' }}>ACTIVE</Text>
+                                                            </View>
+                                                        )}
+                                                    </View>
+                                                    <Text style={{ fontSize: 10, color: '#64748b', marginTop: 1 }}>
+                                                        Base: ₹{slot.basePrice || 'Player Base'} • {sPlayers.length} total • {sPending.length} upcoming
+                                                    </Text>
+                                                </View>
+                                            </View>
+                                        </View>
+
+                                        {/* Slot Players */}
+                                        {sPlayers.length === 0 ? (
+                                            <View style={{ padding: 14, alignItems: 'center' }}>
+                                                <Text style={{ fontSize: 11, color: '#94a3b8', fontStyle: 'italic' }}>No players found in this slot.</Text>
+                                            </View>
+                                        ) : (
+                                            sPlayers.map((player, pIdx) => {
+                                                const isCur = currentPlayer?._id === player._id;
+                                                const buyer = otherTeams.find(t => t._id === player.soldToTeamId) || (teamData._id === player.soldToTeamId ? teamData : null);
+
+                                                return (
+                                                    <View key={player._id || pIdx} style={{ flexDirection: 'row', alignItems: 'center', padding: 10, borderBottomWidth: 1, borderColor: '#f1f5f9', backgroundColor: isCur ? '#faf5ff' : '#ffffff' }}>
+                                                        <Text style={{ width: 20, fontSize: 11, color: '#94a3b8', fontWeight: 'bold' }}>{pIdx + 1}</Text>
+                                                        <View style={{ width: 34, height: 34, borderRadius: 8, overflow: 'hidden', backgroundColor: '#f1f5f9', marginRight: 8, justifyContent: 'center', alignItems: 'center' }}>
+                                                            <SafeImage
+                                                                uri={player.image}
+                                                                style={{ width: '100%', height: '100%' }}
+                                                                previewable={true}
+                                                                previewTitle={player.name}
+                                                                fallback={<User size={16} color="#94a3b8" />}
+                                                            />
+                                                        </View>
+                                                        <View style={{ flex: 1, marginRight: 6 }}>
+                                                            <Text style={{ fontSize: 13, fontWeight: '800', color: '#0f172a' }} numberOfLines={1}>{player.name}</Text>
+                                                            <Text style={{ fontSize: 10, color: '#64748b' }}>
+                                                                {player.category} {player.battingStyle ? `• ${player.battingStyle}` : ''}
+                                                            </Text>
+                                                        </View>
+                                                        <View style={{ alignItems: 'flex-end' }}>
+                                                            <Text style={{ fontSize: 11, fontWeight: '700', color: '#475569' }}>₹{player.basePrice || slot.basePrice || 0} {smallUnit}</Text>
+                                                            {player.status === 'sold' ? (
+                                                                <Text style={{ fontSize: 10, fontWeight: '800', color: '#16a34a' }}>
+                                                                    SOLD: ₹{player.soldPrice || player.currentBid || 0}{smallUnit} {buyer?.shortName ? `(${buyer.shortName})` : ''}
+                                                                </Text>
+                                                            ) : isCur ? (
+                                                                <Text style={{ fontSize: 10, fontWeight: '900', color: '#7e22ce' }}>LIVE NOW</Text>
+                                                            ) : player.status === 'unsold' ? (
+                                                                <Text style={{ fontSize: 10, fontWeight: '700', color: '#d97706' }}>UNSOLD</Text>
+                                                            ) : (
+                                                                <Text style={{ fontSize: 10, fontWeight: '700', color: '#64748b' }}>UPCOMING</Text>
+                                                            )}
+                                                        </View>
+                                                    </View>
+                                                );
+                                            })
+                                        )}
+                                    </View>
+                                );
+                            });
+                        })()}
                     </View>
                 </ScrollView>
             ) : activeTab === 'teams' ? (
@@ -897,6 +1205,15 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
                                     <View style={styles.squadIndex}>
                                         <Text style={styles.squadIndexText}>{idx + 1}</Text>
                                     </View>
+                                    <View style={{ width: 34, height: 34, borderRadius: 8, overflow: 'hidden', backgroundColor: '#f1f5f9', marginRight: 8, justifyContent: 'center', alignItems: 'center' }}>
+                                        <SafeImage
+                                            uri={player.image}
+                                            style={{ width: '100%', height: '100%' }}
+                                            previewable={true}
+                                            previewTitle={player.name}
+                                            fallback={<User size={16} color="#94a3b8" />}
+                                        />
+                                    </View>
                                     <View style={styles.squadInfo}>
                                         <Text style={styles.squadName}>{player.name}</Text>
                                         <Text style={styles.squadCategory}>
@@ -936,6 +1253,8 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
                                                         {viewingTeam.shortName || viewingTeam.name.substring(0, 2)}
                                                     </Text>
                                                 }
+                                                previewable={true}
+                                                previewTitle={viewingTeam.name}
                                             />
                                         </View>
                                         <View style={{ flex: 1, marginLeft: 10 }}>
@@ -962,7 +1281,7 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
                                                     Acquired: <Text style={styles.modalStatsBold}>{teamPlayers.length}</Text> / {tournament?.squadSizeLimit || 25}
                                                 </Text>
                                                 <Text style={styles.modalStatsText}>
-                                                    Total Spent: <Text style={styles.modalStatsBold}>₹{teamPlayers.reduce((acc, p) => acc + (Number(p.soldPrice) || 0), 0)} {smallUnit}</Text>
+                                                    Total Spent: <Text style={styles.modalStatsBold}>₹{teamPlayers.reduce((acc, p) => acc + (Number(p.soldPrice || p.currentBid || p.basePrice) || 0), 0)} {smallUnit}</Text>
                                                 </Text>
                                             </View>
 
@@ -987,7 +1306,7 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
                                                             </Text>
                                                         </View>
                                                         <View style={styles.modalPlayerPrice}>
-                                                            <Text style={styles.modalPlayerPriceText}>₹{p.soldPrice || p.currentBid} {smallUnit}</Text>
+                                                            <Text style={styles.modalPlayerPriceText}>₹{p.soldPrice || p.currentBid || p.basePrice} {smallUnit}</Text>
                                                             <Text style={styles.modalPlayerBasePrice}>Base: ₹{p.basePrice}{smallUnit}</Text>
                                                         </View>
                                                     </View>
@@ -1044,6 +1363,8 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
                                 <SafeImage
                                     uri={announcementModal.player?.image}
                                     style={{ width: 88, height: 88, borderRadius: 16, marginBottom: 12 }}
+                                    previewable={true}
+                                    previewTitle={announcementModal.player?.name}
                                     fallback={
                                         <View style={{ width: 88, height: 88, borderRadius: 16, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
                                             <Users size={36} color="#94a3b8" />
@@ -1061,7 +1382,12 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
                                 {announcementModal.type === 'sold' ? (
                                     <View style={{ width: '100%', padding: 14, backgroundColor: '#f0fdf4', borderRadius: 16, borderWidth: 1, borderColor: '#bbf7d0', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, marginRight: 8 }}>
-                                            <SafeImage uri={announcementModal.team?.logo} style={{ width: 34, height: 34, borderRadius: 8, resizeMode: 'contain', backgroundColor: '#ffffff' }} />
+                                            <SafeImage
+                                                uri={announcementModal.team?.logo}
+                                                style={{ width: 34, height: 34, borderRadius: 8, resizeMode: 'contain', backgroundColor: '#ffffff' }}
+                                                previewable={true}
+                                                previewTitle={announcementModal.team?.name || 'Winner Team'}
+                                            />
                                             <View style={{ flex: 1 }}>
                                                 <Text style={{ fontSize: 10, fontWeight: '800', color: '#16a34a', textTransform: 'uppercase' }}>Sold To</Text>
                                                 <Text style={{ fontSize: 15, fontWeight: '900', color: '#0f172a' }} numberOfLines={1}>{announcementModal.team?.name || 'Winner'}</Text>
@@ -1671,6 +1997,120 @@ const styles = StyleSheet.create({
         fontSize: 13,
         fontWeight: '900',
         color: '#15803d',
+    },
+    excelTableHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#f1f5f9',
+        paddingVertical: 8,
+        paddingHorizontal: 8,
+        borderRadius: 8,
+        marginBottom: 6,
+    },
+    excelColHeader: {
+        fontSize: 10,
+        fontWeight: '900',
+        color: '#475569',
+        letterSpacing: 0.5,
+    },
+    excelTableRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 10,
+        paddingHorizontal: 8,
+        borderBottomWidth: 1,
+        borderBottomColor: '#f1f5f9',
+    },
+    excelIndexText: {
+        width: 24,
+        fontSize: 11,
+        fontWeight: '700',
+        color: '#94a3b8',
+    },
+    excelPlayerName: {
+        fontSize: 13,
+        fontWeight: '800',
+        color: '#0f172a',
+    },
+    excelPlayerCategory: {
+        fontSize: 11,
+        color: '#64748b',
+        fontWeight: '600',
+        marginTop: 1,
+    },
+    excelBasePriceText: {
+        width: 75,
+        fontSize: 11,
+        fontWeight: '700',
+        color: '#64748b',
+        textAlign: 'right',
+    },
+    excelSoldPriceText: {
+        width: 85,
+        fontSize: 12,
+        fontWeight: '900',
+        color: '#15803d',
+        textAlign: 'right',
+    },
+    excelFooterCard: {
+        backgroundColor: '#f8fafc',
+        borderRadius: 14,
+        borderWidth: 1.5,
+        borderColor: '#cbd5e1',
+        padding: 12,
+        marginTop: 16,
+    },
+    excelFooterRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        borderBottomWidth: 1,
+        borderBottomColor: '#e2e8f0',
+        paddingBottom: 8,
+        marginBottom: 10,
+    },
+    excelFooterLabel: {
+        fontSize: 10,
+        fontWeight: '900',
+        color: '#334155',
+    },
+    excelFooterSub: {
+        fontSize: 11,
+        fontWeight: '700',
+        color: '#64748b',
+    },
+    excelFooterTotalSold: {
+        fontSize: 12,
+        fontWeight: '900',
+        color: '#047857',
+    },
+    excelBalanceStrip: {
+        flexDirection: 'row',
+        gap: 6,
+    },
+    excelBalanceItem: {
+        flex: 1,
+        backgroundColor: '#ffffff',
+        padding: 8,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: '#e2e8f0',
+    },
+    excelBalanceHighlight: {
+        backgroundColor: '#f0fdf4',
+        borderColor: '#86efac',
+    },
+    excelBalanceTag: {
+        fontSize: 8,
+        fontWeight: '900',
+        color: '#64748b',
+        letterSpacing: 0.5,
+    },
+    excelBalanceVal: {
+        fontSize: 11,
+        fontWeight: '800',
+        color: '#0f172a',
+        marginTop: 2,
     },
     sectionHeaderRow: {
         flexDirection: 'row',

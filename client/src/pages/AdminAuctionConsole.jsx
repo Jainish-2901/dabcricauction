@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { 
     Gavel, ArrowRight, User, Users, CheckCircle2, AlertCircle, 
-    Pause, Play, RotateCcw, Shuffle, Undo2, ArrowLeft, Timer, Coffee, Sparkles, TrendingUp, Layers, X, Flag, Trophy, Crown, FileText
+    Pause, Play, RotateCcw, Shuffle, Undo2, ArrowLeft, Timer, Coffee, Sparkles, TrendingUp, Layers, X, Flag, Trophy, Crown, FileText, Search
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import socket from '../socket';
@@ -55,6 +55,7 @@ const AdminAuctionConsole = () => {
     const [viewingTeam, setViewingTeam] = useState(null);
     const [countdownTimer, setCountdownTimer] = useState(null);
     const [announcementModal, setAnnouncementModal] = useState(null);
+    const [slotConsoleSearch, setSlotConsoleSearch] = useState('');
 
     useEffect(() => {
         if (announcementModal) {
@@ -1019,6 +1020,8 @@ const AdminAuctionConsole = () => {
                                     <SafeImage
                                         src={currentPlayer.image}
                                         alt={currentPlayer.name}
+                                        previewable={true}
+                                        previewTitle={currentPlayer.name}
                                         className="w-full h-full object-cover"
                                         fallback={
                                             <div className="w-full h-full flex items-center justify-center text-slate-400">
@@ -1194,10 +1197,10 @@ const AdminAuctionConsole = () => {
                 {/* Sidebar: Teams & Player Queue Tabs */}
                 <div className="lg:col-span-4 bg-white border border-slate-200 rounded-3xl p-5 flex flex-col overflow-hidden shadow-sm">
                     {/* Tab Selector */}
-                    <div className="flex p-1 bg-slate-100 rounded-xl mb-4">
+                    <div className="flex p-1 bg-slate-100 rounded-xl mb-4 gap-1 overflow-x-auto">
                         <button
                             onClick={() => setSidebarTab('teams')}
-                            className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
+                            className={`flex-1 py-2 px-2 text-xs font-bold rounded-lg transition-all shrink-0 ${
                                 sidebarTab === 'teams' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'
                             }`}
                         >
@@ -1205,15 +1208,23 @@ const AdminAuctionConsole = () => {
                         </button>
                         <button
                             onClick={() => setSidebarTab('players')}
-                            className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
+                            className={`flex-1 py-2 px-2 text-xs font-bold rounded-lg transition-all shrink-0 ${
                                 sidebarTab === 'players' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'
                             }`}
                         >
                             Queue ({filteredPlayers.length})
                         </button>
                         <button
+                            onClick={() => setSidebarTab('slots')}
+                            className={`flex-1 py-2 px-2 text-xs font-bold rounded-lg transition-all shrink-0 ${
+                                sidebarTab === 'slots' ? 'bg-white text-purple-700 shadow-sm' : 'text-slate-500 hover:text-slate-900'
+                            }`}
+                        >
+                            Slots ({slots.length})
+                        </button>
+                        <button
                             onClick={() => setSidebarTab('unsold')}
-                            className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
+                            className={`flex-1 py-2 px-2 text-xs font-bold rounded-lg transition-all shrink-0 ${
                                 sidebarTab === 'unsold' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'
                             }`}
                         >
@@ -1221,7 +1232,7 @@ const AdminAuctionConsole = () => {
                         </button>
                         <button
                             onClick={() => setSidebarTab('bids')}
-                            className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
+                            className={`flex-1 py-2 px-2 text-xs font-bold rounded-lg transition-all shrink-0 ${
                                 sidebarTab === 'bids' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-900'
                             }`}
                         >
@@ -1266,6 +1277,8 @@ const AdminAuctionConsole = () => {
                                                     alt={team.name}
                                                     className="w-full h-full object-cover"
                                                     fallback={team.shortName || team.name?.substring(0, 2)}
+                                                    previewable={true}
+                                                    previewTitle={team.name}
                                                 />
                                             </div>
                                             <div>
@@ -1406,14 +1419,24 @@ const AdminAuctionConsole = () => {
                                                         <SafeImage
                                                             src={p.image}
                                                             alt={p.name}
+                                                            previewable={true}
+                                                            previewTitle={p.name}
                                                             className="w-full h-full object-cover"
                                                             fallback={p.name.substring(0, 1)}
                                                         />
                                                     </div>
                                                     <div className="min-w-0">
                                                         <div className="text-xs font-bold text-slate-900 truncate">{p.name}</div>
-                                                        <div className="text-[11px] text-slate-500 truncate">
-                                                            {p.category} • ₹{p.basePrice}{smallUnit}
+                                                        <div className="text-[11px] truncate">
+                                                            {p.status === 'sold' ? (
+                                                                <span className="text-emerald-700 font-bold">
+                                                                    {p.category} • Sold ₹{p.soldPrice || p.currentBid || p.basePrice}{smallUnit}
+                                                                </span>
+                                                            ) : (
+                                                                <span className="text-slate-500">
+                                                                    {p.category} • Base ₹{p.basePrice}{smallUnit}
+                                                                </span>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 </div>
@@ -1444,8 +1467,174 @@ const AdminAuctionConsole = () => {
                                                             ? 'bg-amber-50 text-amber-700 border border-amber-200'
                                                             : 'bg-slate-100 text-slate-600'
                                                     }`}>
-                                                        {isCurrent ? 'LIVE' : isPassed ? 'PASSED' : p.status}
+                                                        {isCurrent ? 'LIVE' : isPassed ? 'PASSED' : p.status === 'sold' ? `SOLD (₹${p.soldPrice || p.currentBid || p.basePrice}${smallUnit})` : p.status}
                                                     </span>
+                                                </div>
+                                            </div>
+                                        );
+                                    })
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Tab: Slots / Sets List for Auctioneer */}
+                    {sidebarTab === 'slots' && (
+                        <div className="flex flex-col flex-1 overflow-hidden space-y-3">
+                            {/* Search & Active Slot Switcher Quick Button */}
+                            <div className="space-y-2">
+                                <div className="relative">
+                                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                                    <input
+                                        type="text"
+                                        placeholder="Search players across slots..."
+                                        value={slotConsoleSearch}
+                                        onChange={(e) => setSlotConsoleSearch(e.target.value)}
+                                        className="w-full pl-8 pr-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+                                    />
+                                </div>
+                                <button
+                                    onClick={() => { setSlotModalContext('switch'); setShowSlotModal(true); }}
+                                    className="w-full py-1.5 px-3 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded-xl text-xs font-black flex items-center justify-between transition-all cursor-pointer"
+                                >
+                                    <span className="flex items-center gap-1.5">
+                                        <Layers className="w-3.5 h-3.5" />
+                                        <span>Current: {activeSlotObj?.name || 'All Players Queue'}</span>
+                                    </span>
+                                    <span className="text-[10px] bg-purple-600 text-white px-1.5 py-0.5 rounded font-black">
+                                        Switch Slot ⚙️
+                                    </span>
+                                </button>
+                            </div>
+
+                            {/* Slot Cards List */}
+                            <div className="space-y-3 overflow-y-auto flex-1 pr-1">
+                                {slots.length === 0 ? (
+                                    <div className="text-xs text-slate-400 text-center py-8 italic">
+                                        No custom slots created for this tournament.
+                                    </div>
+                                ) : (
+                                    slots.map(slot => {
+                                        const isUnsoldSlot = slot.isDefaultUnsold || slot.slotType === 'unsold';
+                                        const isCurrent = activeSlotId === slot._id;
+                                        let sPlayers = players.filter(p =>
+                                            p.slotId === slot._id ||
+                                            p.originalSlotId === slot._id ||
+                                            (isUnsoldSlot && (p.slotId === slot._id || p.status === 'unsold'))
+                                        );
+
+                                        const q = slotConsoleSearch.trim().toLowerCase();
+                                        if (q) {
+                                            sPlayers = sPlayers.filter(p =>
+                                                p.name?.toLowerCase().includes(q) ||
+                                                p.category?.toLowerCase().includes(q)
+                                            );
+                                        }
+
+                                        const sSold = sPlayers.filter(p => p.status === 'sold');
+                                        const sPending = sPlayers.filter(p => p.status === 'pending' || (isUnsoldSlot && p.status === 'unsold'));
+
+                                        return (
+                                            <div
+                                                key={slot._id}
+                                                className={`rounded-2xl border transition-all overflow-hidden ${
+                                                    isCurrent
+                                                        ? 'border-purple-400 bg-purple-50/30 shadow-xs'
+                                                        : 'border-slate-200 bg-white'
+                                                }`}
+                                            >
+                                                {/* Slot Header */}
+                                                <div className={`p-2.5 border-b flex items-center justify-between gap-2 ${
+                                                    isCurrent ? 'bg-purple-100/70 border-purple-200' : 'bg-slate-50 border-slate-100'
+                                                }`}>
+                                                    <div className="flex items-center gap-2 min-w-0">
+                                                        <div className={`w-6 h-6 rounded-lg flex items-center justify-center font-black text-[10px] shrink-0 ${
+                                                            isCurrent ? 'bg-purple-600 text-white' : 'bg-slate-200 text-slate-700'
+                                                        }`}>
+                                                            {isUnsoldSlot ? '🔄' : (slot.order || slot.name.substring(0, 2))}
+                                                        </div>
+                                                        <div className="min-w-0">
+                                                            <div className="flex items-center gap-1.5">
+                                                                <span className="font-extrabold text-xs text-slate-900 truncate">{slot.name}</span>
+                                                                {isCurrent && (
+                                                                    <span className="px-1.5 py-0.5 bg-purple-600 text-white rounded text-[9px] font-black uppercase">Active</span>
+                                                                )}
+                                                            </div>
+                                                            <span className="text-[10px] text-slate-500 font-semibold block">
+                                                                {sPlayers.length} Players • {sPending.length} Upcoming • {sSold.length} Sold
+                                                            </span>
+                                                        </div>
+                                                    </div>
+
+                                                    {!isCurrent && (
+                                                        <button
+                                                            onClick={() => handleSelectSlot(slot._id)}
+                                                            className="text-[10px] font-black px-2 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-all shrink-0 cursor-pointer active:scale-95"
+                                                        >
+                                                            Set Active
+                                                        </button>
+                                                    )}
+                                                </div>
+
+                                                {/* Player List */}
+                                                <div className="divide-y divide-slate-100 p-1.5 space-y-1">
+                                                    {sPlayers.length === 0 ? (
+                                                        <div className="text-[11px] text-slate-400 text-center py-2 italic">
+                                                            No players in this slot
+                                                        </div>
+                                                    ) : (
+                                                        sPlayers.map(p => {
+                                                            const isCur = currentPlayer?._id === p._id;
+                                                            return (
+                                                                <div
+                                                                    key={p._id}
+                                                                    className={`p-2 rounded-xl flex items-center justify-between gap-2 transition-all ${
+                                                                        isCur ? 'bg-purple-100/60 border border-purple-300' : 'hover:bg-slate-50'
+                                                                    }`}
+                                                                >
+                                                                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                                                                        <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-600 border border-slate-200 shrink-0 overflow-hidden">
+                                                                            <SafeImage
+                                                                                src={p.image}
+                                                                                alt={p.name}
+                                                                                previewable={true}
+                                                                                previewTitle={p.name}
+                                                                                className="w-full h-full object-cover"
+                                                                                fallback={p.name.substring(0, 1)}
+                                                                            />
+                                                                        </div>
+                                                                        <div className="min-w-0">
+                                                                            <div className="text-xs font-bold text-slate-900 truncate">{p.name}</div>
+                                                                            <div className="text-[10px] text-slate-500 truncate">
+                                                                                {p.category} • ₹{p.basePrice || slot.basePrice || 0}{smallUnit}
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+
+                                                                    <div className="shrink-0 flex items-center gap-1.5">
+                                                                        {isCur ? (
+                                                                            <span className="px-2 py-0.5 bg-purple-600 text-white rounded-lg text-[10px] font-black uppercase animate-pulse">
+                                                                                Live
+                                                                            </span>
+                                                                        ) : p.status === 'sold' ? (
+                                                                            <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-lg text-[10px] font-black">
+                                                                                Sold ₹{p.soldPrice || p.currentBid || p.basePrice}{smallUnit}
+                                                                            </span>
+                                                                        ) : (
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => selectPlayer(p)}
+                                                                                className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[11px] font-black transition-all cursor-pointer active:scale-95 shadow-2xs"
+                                                                                title="Bring to auction stage now"
+                                                                            >
+                                                                                Auction ➔
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })
+                                                    )}
                                                 </div>
                                             </div>
                                         );
@@ -1489,6 +1678,8 @@ const AdminAuctionConsole = () => {
                                                     <SafeImage
                                                         src={p.image}
                                                         alt={p.name}
+                                                        previewable={true}
+                                                        previewTitle={p.name}
                                                         className="w-full h-full object-cover grayscale"
                                                         fallback={<User className="w-5 h-5 text-slate-400" />}
                                                     />
@@ -1545,6 +1736,8 @@ const AdminAuctionConsole = () => {
                                                         alt={b.team?.name || 'Team'}
                                                         className="w-full h-full object-cover"
                                                         fallback={b.team?.shortName || b.team?.name?.substring(0, 2) || 'TM'}
+                                                        previewable={true}
+                                                        previewTitle={b.team?.name || 'Team'}
                                                     />
                                                 </div>
                                                 <div>
@@ -1838,6 +2031,8 @@ const AdminAuctionConsole = () => {
                                         alt={viewingTeam.name}
                                         className="w-full h-full object-cover"
                                         fallback={viewingTeam.shortName || viewingTeam.name?.substring(0, 2)}
+                                        previewable={true}
+                                        previewTitle={viewingTeam.name}
                                     />
                                 </div>
                                 <div>
@@ -1876,7 +2071,7 @@ const AdminAuctionConsole = () => {
                                                 Acquired Players: <strong className="text-slate-900 font-black">{teamSquad.length}</strong> / {tournament?.squadSizeLimit || 25}
                                             </span>
                                             <span className="text-xs font-bold text-slate-600">
-                                                Total Spent: <strong className="text-emerald-700 font-black">₹{teamSquad.reduce((acc, p) => acc + (Number(p.soldPrice) || 0), 0)} {smallUnit}</strong>
+                                                Total Spent: <strong className="text-emerald-700 font-black">₹{teamSquad.reduce((acc, p) => acc + (Number(p.soldPrice || p.currentBid || p.basePrice) || 0), 0)} {smallUnit}</strong>
                                             </span>
                                         </div>
 
@@ -1889,6 +2084,8 @@ const AdminAuctionConsole = () => {
                                                                 <SafeImage
                                                                     src={p.image}
                                                                     alt={p.name}
+                                                                    previewable={true}
+                                                                    previewTitle={p.name}
                                                                     className="w-full h-full object-cover"
                                                                     fallback={<User className="w-5 h-5 text-slate-400" />}
                                                                 />
@@ -1910,7 +2107,7 @@ const AdminAuctionConsole = () => {
 
                                                         <div className="text-right shrink-0">
                                                             <div className="text-sm font-black text-slate-900 tabular-nums">
-                                                                ₹{p.soldPrice || p.currentBid || 0} {smallUnit}
+                                                                ₹{p.soldPrice || p.currentBid || p.basePrice || 0} {smallUnit}
                                                             </div>
                                                             <div className="text-[10px] text-slate-400">
                                                                 Base: ₹{p.basePrice || 0} {smallUnit}
@@ -1978,6 +2175,8 @@ const AdminAuctionConsole = () => {
                                         <SafeImage
                                             src={announcementModal.player?.image}
                                             alt={announcementModal.player?.name}
+                                            previewable={true}
+                                            previewTitle={announcementModal.player?.name}
                                             className="w-full h-full object-cover"
                                             fallback={
                                                 <div className="w-full h-full flex items-center justify-center text-slate-400">
@@ -2001,6 +2200,8 @@ const AdminAuctionConsole = () => {
                                                     alt={announcementModal.team?.name}
                                                     className="w-full h-full object-cover"
                                                     fallback={announcementModal.team?.shortName || announcementModal.team?.name?.substring(0, 2)}
+                                                    previewable={true}
+                                                    previewTitle={announcementModal.team?.name || 'Winner Team'}
                                                 />
                                             </div>
                                             <div>
@@ -2028,6 +2229,8 @@ const AdminAuctionConsole = () => {
                                         <SafeImage
                                             src={announcementModal.player?.image}
                                             alt={announcementModal.player?.name}
+                                            previewable={true}
+                                            previewTitle={announcementModal.player?.name}
                                             className="w-full h-full object-cover grayscale"
                                             fallback={
                                                 <div className="w-full h-full flex items-center justify-center text-slate-400">

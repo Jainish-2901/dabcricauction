@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { 
     Plus, Trash2, Edit, Users, Trophy, Settings, LogOut, Shield, 
     User, Layers, PlayCircle, Key, Eye, FileText, ExternalLink, Copy, Check,
-    Sparkles, Radio, ChevronRight, Activity, ArrowRight, Crown, X, Download, Search
+    Sparkles, Radio, ChevronRight, Activity, ArrowRight, Crown, X, Download, Search,
+    HeartPulse, ArrowLeftRight, RotateCcw
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -13,6 +14,8 @@ import AddUserModal from '../components/AddUserModal';
 import SlotManagerModal from '../components/SlotManagerModal';
 import TournamentHubModal from '../components/TournamentHubModal';
 import ManageCredentialsModal from '../components/ManageCredentialsModal';
+import ReplaceInjuredModal from '../components/ReplaceInjuredModal';
+import TradePlayersModal from '../components/TradePlayersModal';
 import { useAuth } from '../context/AuthContext';
 import { getBudgetUnits } from '../utils/currency';
 import toast from '../lib/toast';
@@ -28,6 +31,11 @@ const SuperAdminDashboard = () => {
     const [showSlotModal, setShowSlotModal] = useState(false);
     const [showHubModal, setShowHubModal] = useState(false);
     const [showCredentialsModal, setShowCredentialsModal] = useState(false);
+    const [showReplaceModal, setShowReplaceModal] = useState(false);
+    const [replaceTeam, setReplaceTeam] = useState(null);
+    const [replacePlayer, setReplacePlayer] = useState(null);
+    const [showTradeModal, setShowTradeModal] = useState(false);
+    const [transfers, setTransfers] = useState([]);
     const [selectedTeamForRoster, setSelectedTeamForRoster] = useState(null);
 
     const [tournaments, setTournaments] = useState([]);
@@ -90,7 +98,8 @@ const SuperAdminDashboard = () => {
         if (playerStatusFilter !== 'ALL') {
             if (playerStatusFilter === 'Sold' && p.status !== 'sold' && !isCap) return false;
             if (playerStatusFilter === 'Unsold' && p.status !== 'unsold') return false;
-            if (playerStatusFilter === 'Available' && (p.status === 'sold' || p.status === 'unsold' || isCap)) return false;
+            if (playerStatusFilter === 'Injured' && p.status !== 'injured') return false;
+            if (playerStatusFilter === 'Available' && (p.status === 'sold' || p.status === 'unsold' || p.status === 'injured' || isCap)) return false;
         }
         return true;
     });
@@ -104,8 +113,20 @@ const SuperAdminDashboard = () => {
             fetchPlayers();
             fetchTeams();
             fetchUsers();
+            fetchTransfers();
         }
     }, [activeTab, selectedTournament]);
+
+    const fetchTransfers = async () => {
+        if (!selectedTournament) return;
+        try {
+            const res = await axios.get(`/api/tournaments/${selectedTournament._id}/transfers`);
+            setTransfers(res.data || []);
+        } catch (err) {
+            console.error("Fetch transfers error", err);
+            setTransfers([]);
+        }
+    };
 
     const fetchTournaments = async () => {
         try {
@@ -244,6 +265,22 @@ const SuperAdminDashboard = () => {
         window.open(`/api/tournaments/${tournamentId}/export-teams-summary-csv`, '_blank');
     };
 
+    const handleMoveInjuredToUnsold = async (player) => {
+        if (!selectedTournament?._id || !player?._id) return;
+        if (!window.confirm(`Are you sure you want to move "${player.name}" from Injured to the Unsold pool?\n\nThis will make them available in the unsold pool for re-auction.`)) return;
+
+        try {
+            await axios.post(`/api/tournaments/${selectedTournament._id}/players/${player._id}/move-injured-to-unsold`);
+            toast.success(`"${player.name}" moved to Unsold pool for re-auction!`);
+            fetchPlayers();
+            fetchTeams();
+            fetchTransfers();
+        } catch (err) {
+            console.error('Move injured to unsold error:', err);
+            toast.error(err.response?.data?.message || 'Failed to move player to unsold pool');
+        }
+    };
+
     const handleCopy = (e, text, id) => {
         e.stopPropagation();
         navigator.clipboard.writeText(text);
@@ -322,6 +359,8 @@ const SuperAdminDashboard = () => {
                                         alt={selectedTeamForRoster.name}
                                         className="w-full h-full object-contain bg-white p-1"
                                         fallback={selectedTeamForRoster.shortName || selectedTeamForRoster.name.substring(0, 3).toUpperCase()}
+                                        previewable={true}
+                                        previewTitle={selectedTeamForRoster.name}
                                     />
                                 </div>
                                 <div>
@@ -381,6 +420,8 @@ const SuperAdminDashboard = () => {
                                                 <SafeImage
                                                     src={selectedTeamForRoster.captainPhoto || ownerUser?.captainPhoto}
                                                     alt={capName}
+                                                    previewable={true}
+                                                    previewTitle={capName}
                                                     className="w-full h-full object-cover"
                                                     fallback={<Crown className="w-5 h-5" />}
                                                 />
@@ -432,6 +473,8 @@ const SuperAdminDashboard = () => {
                                                 <SafeImage
                                                     src={player.image}
                                                     alt={player.name}
+                                                    previewable={true}
+                                                    previewTitle={player.name}
                                                     className="w-full h-full object-cover"
                                                     fallback={<User className="w-5 h-5 text-slate-400" />}
                                                 />
@@ -450,8 +493,26 @@ const SuperAdminDashboard = () => {
                                             </div>
                                             <div className="px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-xl">
                                                 <span className="text-[9px] font-black text-emerald-700 uppercase block">Sold Price</span>
-                                                <div className="text-sm font-black text-emerald-700">₹{player.soldPrice || player.currentBid || 0}{smallUnit}</div>
+                                                <div className="text-sm font-black text-emerald-700">₹{player.soldPrice || player.currentBid || player.basePrice || 0}{smallUnit}</div>
                                             </div>
+                                            {player.status === 'injured' ? (
+                                                <span className="px-2.5 py-1.5 bg-rose-100 text-rose-800 border border-rose-300 rounded-xl text-xs font-black flex items-center gap-1">
+                                                    <HeartPulse className="w-3.5 h-3.5 text-rose-600" /> Injured
+                                                </span>
+                                            ) : (
+                                                <button
+                                                    onClick={() => {
+                                                        setReplaceTeam(selectedTeamForRoster);
+                                                        setReplacePlayer(player);
+                                                        setShowReplaceModal(true);
+                                                    }}
+                                                    className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold inline-flex items-center gap-1 transition-all"
+                                                    title="Mark Injured & Substitute from Unsold Pool"
+                                                >
+                                                    <HeartPulse className="w-3.5 h-3.5 text-rose-600" />
+                                                    <span>Replace</span>
+                                                </button>
+                                            )}
                                             {player.cricHeroesProfileUrl && (
                                                 <a
                                                     href={player.cricHeroesProfileUrl}
@@ -612,6 +673,19 @@ const SuperAdminDashboard = () => {
                                 </button>
 
                                 <button
+                                    onClick={() => { setActiveTab('transfers'); fetchTransfers(); }}
+                                    className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl font-bold text-xs transition-all ${
+                                        activeTab === 'transfers' ? 'bg-blue-50 text-blue-800 border border-blue-200' : 'text-slate-600 hover:bg-slate-100/70'
+                                    }`}
+                                >
+                                    <div className="flex items-center gap-2.5">
+                                        <ArrowLeftRight className="w-4 h-4 text-blue-600" />
+                                        <span>Trades & Replacements</span>
+                                    </div>
+                                    <span className="text-[10px] font-extrabold text-slate-400">({transfers.length})</span>
+                                </button>
+
+                                <button
                                     onClick={() => setShowSlotModal(true)}
                                     className="w-full flex items-center gap-2.5 px-4 py-2.5 rounded-xl font-bold text-xs transition-all text-purple-900 bg-purple-50/70 hover:bg-purple-100/80 border border-purple-200/70"
                                 >
@@ -669,6 +743,7 @@ const SuperAdminDashboard = () => {
                         <h1 className="text-xl font-black text-slate-900 tracking-tight">
                             {activeTab === 'tournaments' ? 'Tournament Control Hub' :
                                 activeTab === 'players' ? `Auction Players Pool (${allDisplayPlayers.length})` :
+                                activeTab === 'transfers' ? `Trades & Replacements History (${transfers.length})` :
                                     `Tournament Teams (${teams.length})`}
                         </h1>
                     </div>
@@ -688,6 +763,14 @@ const SuperAdminDashboard = () => {
                                 className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-extrabold text-xs flex items-center gap-2 shadow-sm shadow-blue-600/30 transition-all"
                             >
                                 <Plus className="w-4 h-4" /> Add Player to Tournament
+                            </button>
+                        )}
+                        {activeTab === 'transfers' && selectedTournament && (
+                            <button 
+                                onClick={() => setShowTradeModal(true)} 
+                                className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-extrabold text-xs flex items-center gap-2 shadow-sm shadow-indigo-600/25 transition-all"
+                            >
+                                <ArrowLeftRight className="w-4 h-4" /> Trade / Exchange
                             </button>
                         )}
                         {activeTab === 'teams' && selectedTournament && (
@@ -996,6 +1079,7 @@ const SuperAdminDashboard = () => {
                                     <option value="Available">Available</option>
                                     <option value="Sold">Sold / Retained</option>
                                     <option value="Unsold">Unsold</option>
+                                    <option value="Injured">Injured ({players.filter(p => p.status === 'injured').length})</option>
                                 </select>
                             </div>
 
@@ -1019,6 +1103,8 @@ const SuperAdminDashboard = () => {
                                                     src={p.image}
                                                     className="w-full h-full object-cover"
                                                     alt={p.name}
+                                                    previewable={true}
+                                                    previewTitle={p.name}
                                                     fallback={isCap ? <Crown className="w-8 h-8 text-amber-600" /> : <User size={24} className="text-slate-400" />}
                                                 />
                                             </div>
@@ -1032,7 +1118,11 @@ const SuperAdminDashboard = () => {
                                                             )}
                                                         </div>
                                                         <div className="text-xs text-slate-500 font-bold mt-0.5">
-                                                            {p.category} • {isCap ? `Fee: ₹${p.soldPrice || p.basePrice}${smallUnit}` : `Base: ₹${p.basePrice}${smallUnit}`}
+                                                            {p.category} • {isCap ? `Fee: ₹${p.soldPrice || p.basePrice}${smallUnit}` : p.status === 'sold' ? (
+                                                                <span className="text-emerald-700 font-extrabold">
+                                                                    Sold: ₹{p.soldPrice || p.currentBid || p.basePrice}{smallUnit} <span className="text-slate-400 font-semibold">(Base: ₹{p.basePrice}{smallUnit})</span>
+                                                                </span>
+                                                            ) : `Base: ₹${p.basePrice}${smallUnit}`}
                                                         </div>
                                                         <div className="text-[11px] text-slate-400 font-medium mt-0.5">{p.battingStyle || 'Right-Hand Bat'}</div>
                                                         
@@ -1041,13 +1131,29 @@ const SuperAdminDashboard = () => {
                                                                 isCap 
                                                                     ? 'bg-amber-100 text-amber-900 border border-amber-300' 
                                                                     : p.status === 'sold' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' 
-                                                                    : p.status === 'unsold' ? 'bg-rose-50 text-rose-800 border border-rose-200' 
+                                                                    : p.status === 'unsold' ? 'bg-slate-100 text-slate-800 border border-slate-300' 
+                                                                    : p.status === 'injured' ? 'bg-rose-100 text-rose-900 border border-rose-300'
                                                                     : 'bg-slate-100 text-slate-600'
                                                             }`}>
                                                                 {isCap 
                                                                     ? `🚫 NOT IN AUCTION (DIRECT SQUAD)` 
-                                                                    : `${p.status} ${p.soldPrice ? `(₹${p.soldPrice}${smallUnit})` : ''}`}
+                                                                    : p.status === 'sold'
+                                                                    ? `SOLD • ₹${p.soldPrice || p.currentBid || p.basePrice}${smallUnit}`
+                                                                    : p.status === 'unsold'
+                                                                    ? `UNSOLD`
+                                                                    : p.status === 'injured'
+                                                                    ? `🚑 INJURED`
+                                                                    : `AVAILABLE • ₹${p.basePrice}${smallUnit}`}
                                                             </span>
+                                                            {p.status === 'injured' && (
+                                                                <button
+                                                                    onClick={() => handleMoveInjuredToUnsold(p)}
+                                                                    className="px-2.5 py-0.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-md text-[10px] font-black inline-flex items-center gap-1 transition-all"
+                                                                    title="Move player from Injured to Unsold pool for re-auction"
+                                                                >
+                                                                    <ArrowRight className="w-2.5 h-2.5 text-amber-700" /> Move to Unsold
+                                                                </button>
+                                                            )}
                                                             {(p.soldToTeamName || (p.soldToTeamId && teams.find(t => t._id === p.soldToTeamId)?.name)) && (
                                                                 <span className="text-[10px] font-extrabold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
                                                                     {p.soldToTeamName || teams.find(t => t._id === p.soldToTeamId)?.name}
@@ -1092,6 +1198,280 @@ const SuperAdminDashboard = () => {
                                         )}
                                     </div>
                         </div>
+                    ) : activeTab === 'transfers' ? (
+                        /* TRANSFERS & INJURY REPLACEMENTS LOG */
+                        <div>
+                            {/* Context Header */}
+                            <div className="bg-white border border-slate-200/90 rounded-2xl p-4 mb-6 flex flex-wrap items-center justify-between gap-4">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-200 flex items-center justify-center text-indigo-700 font-black">
+                                        <ArrowLeftRight className="w-4 h-4" />
+                                    </div>
+                                    <div>
+                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">TOURNAMENT SCOPE</span>
+                                        <h3 className="text-sm font-black text-slate-900">{selectedTournament?.name}</h3>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <select
+                                        className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800"
+                                        value={selectedTournament?._id || ''}
+                                        onChange={(e) => {
+                                            const match = tournaments.find(t => t._id === e.target.value);
+                                            if (match) setSelectedTournament(match);
+                                        }}
+                                    >
+                                        {tournaments.map(t => (
+                                            <option key={t._id} value={t._id}>{t.name}</option>
+                                        ))}
+                                    </select>
+
+                                    <button
+                                        onClick={() => setShowTradeModal(true)}
+                                        className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold inline-flex items-center gap-1.5 shadow-sm transition-all"
+                                    >
+                                        <ArrowLeftRight className="w-3.5 h-3.5" /> Execute Trade
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Metrics Row */}
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+                                <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-xs">
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Total Events</span>
+                                    <div className="text-2xl font-black text-slate-900 mt-1">{transfers.length}</div>
+                                </div>
+                                <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-xs">
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Franchise Trades</span>
+                                    <div className="text-2xl font-black text-indigo-600 mt-1">
+                                        {transfers.filter(t => t.type === 'trade').length}
+                                    </div>
+                                </div>
+                                <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-xs">
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Injury Replacements</span>
+                                    <div className="text-2xl font-black text-rose-600 mt-1">
+                                        {transfers.filter(t => t.type === 'injury_replacement' || t.type === 'replacement').length}
+                                    </div>
+                                </div>
+                                <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-xs">
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Recovered to Unsold</span>
+                                    <div className="text-2xl font-black text-amber-600 mt-1">
+                                        {transfers.filter(t => t.type === 'injury_recovered').length}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Transfers Feed List */}
+                            <div className="space-y-4">
+                                {transfers.length > 0 ? transfers.map((tx) => {
+                                    const isInjury = tx.type === 'injury_replacement' || tx.type === 'replacement';
+                                    const isRecovery = tx.type === 'injury_recovered';
+                                    const isTrade = tx.type === 'trade' || (!isInjury && !isRecovery && tx.teamAName);
+                                    const formattedDate = (tx.timestamp || tx.createdAt) ? new Date(tx.timestamp || tx.createdAt).toLocaleString('en-IN', {
+                                        day: 'numeric',
+                                        month: 'short',
+                                        year: 'numeric',
+                                        hour: '2-digit',
+                                        minute: '2-digit'
+                                    }) : 'Recent';
+
+                                    if (isInjury) {
+                                        return (
+                                            <div key={tx.id || tx._id} className="bg-white border border-rose-100 hover:border-rose-300 rounded-3xl p-5 shadow-xs transition-all">
+                                                <div className="flex flex-wrap items-center justify-between gap-2 pb-3 mb-4 border-b border-slate-100">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="px-2.5 py-1 bg-rose-50 border border-rose-200 text-rose-700 text-[10px] font-black rounded-lg uppercase inline-flex items-center gap-1.5">
+                                                            <HeartPulse className="w-3.5 h-3.5" /> Injury Replacement
+                                                        </span>
+                                                        <span className="text-xs font-black text-slate-800">
+                                                            Team: {tx.teamName}
+                                                        </span>
+                                                    </div>
+                                                    <span className="text-[11px] font-semibold text-slate-400">
+                                                        {formattedDate}
+                                                    </span>
+                                                </div>
+
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+                                                    {/* Injured Out */}
+                                                    <div className="p-4 bg-rose-50/50 border border-rose-200/70 rounded-2xl flex items-center justify-between">
+                                                        <div>
+                                                            <span className="text-[9px] font-black text-rose-700 uppercase tracking-wider block">Out (Injured)</span>
+                                                            <h4 className="text-sm font-black text-slate-900 mt-0.5">{tx.injuredPlayerName}</h4>
+                                                            <span className="text-xs text-rose-800 font-bold">
+                                                                Refunded: ₹{tx.refundAmount || tx.injuredPlayerPrice || 0}{smallUnit}
+                                                            </span>
+                                                        </div>
+                                                        <span className="px-2 py-1 bg-rose-200 text-rose-900 text-[10px] font-black rounded-md">
+                                                            INJURED
+                                                        </span>
+                                                    </div>
+
+                                                    {/* Replacement In */}
+                                                    <div className="p-4 bg-emerald-50/50 border border-emerald-200/70 rounded-2xl flex items-center justify-between">
+                                                        <div>
+                                                            <span className="text-[9px] font-black text-emerald-700 uppercase tracking-wider block">In (Replacement)</span>
+                                                            <h4 className="text-sm font-black text-slate-900 mt-0.5">{tx.replacementPlayerName}</h4>
+                                                            <span className="text-xs text-emerald-800 font-bold">
+                                                                Added At: ₹{tx.replacementFee || tx.replacementPlayerPrice || 0}{smallUnit}
+                                                            </span>
+                                                        </div>
+                                                        <span className="px-2 py-1 bg-emerald-200 text-emerald-900 text-[10px] font-black rounded-md">
+                                                            NEW SQUAD
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                {/* Purse adjustment footer note */}
+                                                <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 font-semibold">
+                                                    <span>Financial Impact: Purse refunded ₹{tx.refundAmount || 0}{smallUnit}, fee ₹{tx.replacementFee || 0}{smallUnit} deducted</span>
+                                                    <span className="font-extrabold text-slate-800">Team: {tx.teamName}</span>
+                                                </div>
+                                            </div>
+                                        );
+                                    }
+
+                                    if (isRecovery) {
+                                        return (
+                                            <div key={tx.id || tx._id} className="bg-white border border-amber-200 hover:border-amber-300 rounded-3xl p-5 shadow-xs transition-all">
+                                                <div className="flex flex-wrap items-center justify-between gap-2 pb-3 mb-4 border-b border-slate-100">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="px-2.5 py-1 bg-amber-50 border border-amber-200 text-amber-800 text-[10px] font-black rounded-lg uppercase inline-flex items-center gap-1.5">
+                                                            <RotateCcw className="w-3.5 h-3.5 text-amber-600" /> Injury Recovered
+                                                        </span>
+                                                        <span className="text-xs font-black text-slate-800">
+                                                            Moved to Unsold Pool
+                                                        </span>
+                                                    </div>
+                                                    <span className="text-[11px] font-semibold text-slate-400">
+                                                        {formattedDate}
+                                                    </span>
+                                                </div>
+
+                                                <div className="p-4 bg-amber-50/50 border border-amber-200/70 rounded-2xl flex flex-wrap items-center justify-between gap-4">
+                                                    <div className="flex items-center gap-3">
+                                                        {tx.playerImage ? (
+                                                            <img src={tx.playerImage} alt={tx.playerName} className="w-11 h-11 rounded-xl object-cover border border-amber-200 shadow-xs" />
+                                                        ) : (
+                                                            <div className="w-11 h-11 rounded-xl bg-amber-100 border border-amber-200 flex items-center justify-center font-black text-amber-800 text-base">
+                                                                {tx.playerName ? tx.playerName.charAt(0).toUpperCase() : 'P'}
+                                                            </div>
+                                                        )}
+                                                        <div>
+                                                            <span className="text-[9px] font-black text-amber-800 uppercase tracking-wider block">
+                                                                {tx.playerCategory || 'Player'}
+                                                            </span>
+                                                            <h4 className="text-sm font-black text-slate-900 mt-0.5">{tx.playerName}</h4>
+                                                            <span className="text-xs text-slate-600 font-bold">
+                                                                Base Price: ₹{tx.playerBasePrice || 0}{smallUnit}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="px-3 py-1.5 bg-emerald-100 text-emerald-800 border border-emerald-200 text-[11px] font-black rounded-xl inline-flex items-center gap-1.5 shadow-xs">
+                                                            <Check className="w-3.5 h-3.5" /> In Unsold Pool (Eligible for Re-Auction)
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                <div className="mt-3 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 font-semibold">
+                                                    <span>{tx.note || 'Player recovered from injury and moved back to Unsold pool for re-auction.'}</span>
+                                                    <span className="font-extrabold text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-lg border border-amber-100">Status: Active / Unsold</span>
+                                                </div>
+                                            </div>
+                                        );
+                                    }
+
+                                    if (isTrade) {
+                                        return (
+                                        <div key={tx.id || tx._id} className="bg-white border border-indigo-100 hover:border-indigo-300 rounded-3xl p-5 shadow-xs transition-all">
+                                            <div className="flex flex-wrap items-center justify-between gap-2 pb-3 mb-4 border-b border-slate-100">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="px-2.5 py-1 bg-indigo-50 border border-indigo-200 text-indigo-700 text-[10px] font-black rounded-lg uppercase inline-flex items-center gap-1.5">
+                                                        <ArrowLeftRight className="w-3.5 h-3.5" /> Franchise Trade
+                                                    </span>
+                                                    <span className="text-xs font-black text-slate-800">
+                                                        {tx.teamAName} ↔ {tx.teamBName}
+                                                    </span>
+                                                </div>
+                                                <span className="text-[11px] font-semibold text-slate-400">
+                                                    {formattedDate}
+                                                </span>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                {/* Team A Side */}
+                                                <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl">
+                                                    <div className="text-[10px] font-black text-blue-700 uppercase tracking-wider mb-1">{tx.teamAName}</div>
+                                                    <div className="text-sm font-black text-slate-900">{tx.playerAName}</div>
+                                                    <div className="text-xs font-bold text-slate-500 mt-0.5">Sold Price: ₹{tx.playerAPrice || 0}{smallUnit}</div>
+                                                    <div className="mt-2 text-[11px] font-bold text-slate-600 bg-white p-2 rounded-xl border border-slate-200/80">
+                                                        Transferred To: <span className="font-black text-indigo-700">{tx.teamBName}</span>
+                                                    </div>
+                                                </div>
+
+                                                {/* Team B Side */}
+                                                <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl">
+                                                    <div className="text-[10px] font-black text-indigo-700 uppercase tracking-wider mb-1">{tx.teamBName}</div>
+                                                    <div className="text-sm font-black text-slate-900">{tx.playerBName}</div>
+                                                    <div className="text-xs font-bold text-slate-500 mt-0.5">Sold Price: ₹{tx.playerBPrice || 0}{smallUnit}</div>
+                                                    <div className="mt-2 text-[11px] font-bold text-slate-600 bg-white p-2 rounded-xl border border-slate-200/80">
+                                                        Transferred To: <span className="font-black text-blue-700">{tx.teamAName}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Trade impact note */}
+                                            {(() => {
+                                                const diff = tx.priceDifference !== undefined
+                                                    ? Math.abs(tx.priceDifference)
+                                                    : Math.abs((Number(tx.playerAPrice) || 0) - (Number(tx.playerBPrice) || 0));
+                                                const pA = Number(tx.playerAPrice) || 0;
+                                                const pB = Number(tx.playerBPrice) || 0;
+                                                const higherTeam = pA > pB ? tx.teamBName : tx.teamAName;
+                                                const refundedTeam = pA > pB ? tx.teamAName : tx.teamBName;
+                                                return (
+                                                    <div className="mt-3 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs font-semibold">
+                                                        <div className="flex flex-wrap items-center gap-2">
+                                                            <span className="font-black text-slate-900 bg-slate-100 px-2.5 py-1 rounded-lg">
+                                                                Price Differential: <strong className="text-blue-700 font-black">₹{diff}{smallUnit}</strong>
+                                                            </span>
+                                                            {diff > 0 && (
+                                                                <span className="text-[11px] text-slate-600 font-bold">
+                                                                    ({refundedTeam} <span className="text-emerald-700">+₹{diff}{smallUnit} refunded</span> • {higherTeam} <span className="text-rose-700">-₹{diff}{smallUnit} deducted</span>)
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <span className="font-extrabold text-emerald-700">
+                                                            ✓ Team purses successfully re-balanced
+                                                        </span>
+                                                    </div>
+                                                );
+                                            })()}
+                                        </div>
+                                    );
+                                }
+
+                                return null;
+                            }) : (
+                                    <div className="py-16 text-center text-slate-500 bg-white border border-dashed border-slate-200 rounded-3xl">
+                                        <ArrowLeftRight className="w-10 h-10 mx-auto text-slate-300 mb-2" />
+                                        <p className="font-extrabold text-slate-700 text-sm">No trades or player replacements recorded yet.</p>
+                                        <p className="text-xs text-slate-400 mt-1">
+                                            Post-auction trades between teams or injury substitutions from the unsold pool will appear in this timeline.
+                                        </p>
+                                        <button
+                                            onClick={() => setShowTradeModal(true)}
+                                            className="mt-4 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-extrabold inline-flex items-center gap-1.5 shadow-sm"
+                                        >
+                                            <ArrowLeftRight className="w-3.5 h-3.5" /> Start First Player Trade
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                     ) : (
                         /* TEAMS DIRECTORY & ROSTER - STRICTLY PER TOURNAMENT */
                         <div>
@@ -1131,6 +1511,14 @@ const SuperAdminDashboard = () => {
                                     </button>
 
                                     <button
+                                        onClick={() => setShowTradeModal(true)}
+                                        className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold inline-flex items-center gap-1.5 shadow-sm transition-all"
+                                        title="Trade / Exchange Players Between Franchises"
+                                    >
+                                        <ArrowLeftRight className="w-3.5 h-3.5" /> Trade Players
+                                    </button>
+
+                                    <button
                                         onClick={() => setShowTeamModal(true)}
                                         className="px-3.5 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold inline-flex items-center gap-1.5 shadow-sm"
                                     >
@@ -1163,6 +1551,8 @@ const SuperAdminDashboard = () => {
                                                                 alt={team.name}
                                                                 className="w-full h-full object-contain bg-white p-1"
                                                                 fallback={team.shortName || team.name?.substring(0, 3).toUpperCase()}
+                                                                previewable={true}
+                                                                previewTitle={team.name}
                                                             />
                                                         </div>
                                                         <div>
@@ -1312,6 +1702,8 @@ const SuperAdminDashboard = () => {
                                                         <SafeImage
                                                             src={p.image}
                                                             alt={p.name}
+                                                            previewable={true}
+                                                            previewTitle={p.name}
                                                             className="w-full h-full object-cover"
                                                             fallback={<User className="w-4 h-4 text-rose-400" />}
                                                         />
@@ -1347,10 +1739,108 @@ const SuperAdminDashboard = () => {
                                     </div>
                                 )}
                             </div>
+
+                            {/* INJURED PLAYERS SECTION */}
+                            <div className="mt-10 pt-8 border-t border-slate-200/80">
+                                <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">
+                                                Injured Players Pool ({players.filter(p => p.status === 'injured').length})
+                                            </h3>
+                                            <span className="px-2.5 py-0.5 bg-rose-100 text-rose-800 border border-rose-300 text-[10px] font-black rounded-full inline-flex items-center gap-1">
+                                                <HeartPulse className="w-3 h-3 text-rose-600" /> Out of Squad
+                                            </span>
+                                        </div>
+                                        <p className="text-xs text-slate-500 font-semibold mt-0.5">
+                                            Players substituted due to injury. If fit again, they can be shifted back to the Unsold pool for re-auction.
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {players.filter(p => p.status === 'injured').length > 0 ? (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                        {players.filter(p => p.status === 'injured').map(p => (
+                                            <div key={p._id} className="bg-white border border-rose-200 p-4 rounded-2xl flex items-center justify-between shadow-2xs hover:border-rose-400 transition-all">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-11 h-11 rounded-xl bg-rose-50 border border-rose-200 overflow-hidden shrink-0 flex items-center justify-center">
+                                                        <SafeImage
+                                                            src={p.image}
+                                                            alt={p.name}
+                                                            previewable={true}
+                                                            previewTitle={p.name}
+                                                            className="w-full h-full object-cover"
+                                                            fallback={<HeartPulse className="w-5 h-5 text-rose-400" />}
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <div className="flex items-center gap-1.5">
+                                                            <h4 className="text-xs font-black text-slate-900">{p.name}</h4>
+                                                            <span className="px-1.5 py-0.2 bg-rose-100 text-rose-800 text-[9px] font-black rounded">
+                                                                INJURED
+                                                            </span>
+                                                        </div>
+                                                        <div className="text-[11px] text-slate-500 font-semibold mt-0.5">
+                                                            {p.category} • Base: ₹{p.basePrice || 0}{smallUnit}
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <button
+                                                    onClick={() => handleMoveInjuredToUnsold(p)}
+                                                    className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-black inline-flex items-center gap-1.5 shadow-xs transition-all"
+                                                    title="Move to Unsold Pool for Re-Auction"
+                                                >
+                                                    <ArrowRight className="w-3.5 h-3.5" />
+                                                    <span>Move to Unsold</span>
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="py-6 bg-slate-50 border border-slate-200 border-dashed rounded-2xl text-center text-slate-400">
+                                        <p className="text-xs font-bold text-slate-500">No injured players in this tournament.</p>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     )}
                 </div>
             </main>
+
+            {/* Injury Replacement Modal */}
+            <ReplaceInjuredModal
+                isOpen={showReplaceModal}
+                onClose={() => {
+                    setShowReplaceModal(false);
+                    setReplacePlayer(null);
+                    setReplaceTeam(null);
+                }}
+                tournament={selectedTournament}
+                team={replaceTeam}
+                preSelectedPlayer={replacePlayer}
+                players={players}
+                onReplaced={() => {
+                    fetchPlayers();
+                    fetchTeams();
+                    fetchTransfers();
+                    setSelectedTeamForRoster(null);
+                }}
+            />
+
+            {/* Franchise Player Trade / Exchange Modal */}
+            <TradePlayersModal
+                isOpen={showTradeModal}
+                onClose={() => setShowTradeModal(false)}
+                tournament={selectedTournament}
+                teams={teams}
+                players={players}
+                onTraded={() => {
+                    fetchPlayers();
+                    fetchTeams();
+                    fetchTransfers();
+                }}
+            />
         </div>
     );
 };

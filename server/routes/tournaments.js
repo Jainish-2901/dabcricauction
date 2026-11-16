@@ -20,7 +20,11 @@ const {
     reopenUnsoldPlayersToSlot,
     exportTournamentPlayersCSV,
     exportTournamentSummaryCSV,
-    getTournamentBids
+    getTournamentBids,
+    replaceInjuredPlayer,
+    tradePlayers,
+    getTournamentTransfers,
+    moveInjuredToUnsold
 } = require('../controllers/tournamentController');
 
 router.post('/', createTournament);
@@ -54,5 +58,12 @@ router.get('/:id/export-teams-summary-csv', exportTournamentSummaryCSV);
 
 // Bid Logs & Audit Trail
 router.get('/:id/bids', getTournamentBids);
+
+// Injury Replacements & Player Trading
+router.post('/:id/replace-injured', replaceInjuredPlayer);
+router.post('/:id/trade-players', tradePlayers);
+router.get('/:id/transfers', getTournamentTransfers);
+router.post('/:id/players/:playerId/move-injured-to-unsold', moveInjuredToUnsold);
+router.post('/:id/move-injured-to-unsold', moveInjuredToUnsold);
 
 module.exports = router;

@@ -2,7 +2,13 @@ import { io } from 'socket.io-client';
 import { AppState, AppStateStatus } from 'react-native';
 import { getApiUrl } from './api';
 
-export const socket = io(getApiUrl(), {
+const getSocketUrl = (): string => {
+    const envSocket = process.env.EXPO_PUBLIC_SOCKET_URL;
+    if (envSocket) return envSocket.replace(/\/$/, '');
+    return getApiUrl();
+};
+
+export const socket = io(getSocketUrl(), {
     autoConnect: false,
     transports: ['websocket', 'polling'],
     reconnection: true,
