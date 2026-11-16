@@ -387,3 +387,24 @@ CricAuction/
 | **Phase 3** | **Web Public Screen** | Build projector-ready Public Screen with active set banners and hammer animations. |
 | **Phase 4** | **React Native Expo Mobile App** | Initialize Expo app with Supabase Auth, Live Bidding Room, Quick Bids, Squad view, and Pause Overlays. |
 | **Phase 5** | **End-to-End Testing** | Simulate live auction scenarios with multiple mobile owners bidding simultaneously, pausing mid-bid, and executing rollbacks. |
+| **Phase 6** | **Trades, Injury Subs & Audit Engine** | Real-time franchise player swaps, dynamic price differential calculations, automated purse re-balancing, injury replacements from unsold pool, and Supabase `transfers` audit persistence. |
+
+---
+
+## 8. Post-Auction Transfers, Trades & Injury Replacements Engine
+
+CricAuction Pro includes a comprehensive post-auction squad management engine:
+
+### 8.1. Franchise Player Trades (`trade`)
+- Swaps players between two franchises with dynamic price differential calculation: `|PriceA - PriceB|`.
+- Re-balances team purses automatically: debits the team acquiring the higher-priced player and refunds the team receiving the lower-priced player.
+- Emits real-time trade logs recorded in Supabase `public.transfers`.
+
+### 8.2. Injury Replacement Window (`injury_replacement`)
+- Squad players can be flagged as injured (`status = 'injured'`, `is_injured = true`).
+- The franchise receives an immediate purse refund equal to the injured player's acquisition price.
+- A replacement player is drafted from the unsold pool (`status = 'sold'`) and their fee is debited from the team's remaining purse.
+
+### 8.3. Injury Recovery & Re-Auction Pool (`injury_recovered`)
+- Recovered players can be restored to the unsold pool (`status = 'unsold'`, `is_injured = false`) with 1 click for upcoming accelerated auction rounds.
+- Complete audit logging ensures zero financial discrepancies across Web and Mobile.

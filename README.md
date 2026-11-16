@@ -23,11 +23,15 @@
 - **👑 Direct Owner & Captain Integration**: Team owners are automatically linked as team captains with dedicated profiles, photos, and base price adjustments.
 - **⚡ Real-Time Live Bidding Engine**: Sub-millisecond WebSocket auctions with instant leader updates, timer sync, and dynamic bid increments (+500, +1K, +5K).
 - **🎛️ Master Auctioneer Console**: Gavel controls, force-sell, unsold queuing, pause/resume, audio gavel effects, and zero-loss undo & rollback capabilities.
-- **📜 Live Bid Ledger & Audit Stream**: Real-time bid logs tracking every bid placed with instant Supabase persistence (`bids` table).
+- **🔄 Franchise Player Trades & Swaps**: Post-auction player trading with dynamic price differential calculation and automated team purse re-balancing across Web and Mobile.
+- **🚑 Injury Replacement & Recovery Window**: Dedicated injury replacement system with automatic purse adjustment (refund injured player's price, debit replacement player's fee) and 1-click recovery back to the unsold pool.
+- **🖼️ Interactive Fullscreen Previews**: 1-click modal preview for all player photos and team logos with Android status-bar safe offset in `SafeImage`.
+- **📜 Live Bid & Transfer Audit Ledger**: Real-time bid logs (`bids` table) and complete trade/injury audit history (`transfers` table) with instant Supabase persistence.
 - **🔒 Player Self-Registration with Open/Close Switch**: Public player nomination portal with 1-click organizer toggle to open or close submissions.
 - **✂️ 1:1 Image Crop & Upload**: Built-in interactive cropper for team logos and captain portraits with automatic Cloudinary storage.
 - **📲 Standalone Android APK & EAS OTA Updates**: Downloadable `.apk` builds via EAS Build plus instant over-the-air code pushes without reinstalling.
-- **📊 Public Spectator View**: Live audience broadcast screen with current player stats, sold boards, and purse radars (no login needed).
+- **📊 Public Spectator View & Slots Explorer**: Live audience broadcast screen with current player stats, live bid stream, sold boards, and interactive Slots / Sets explorer with active slot tracking.
+- **🎯 Clean In-Card Auction Status Messages**: Unified status cards for Completed, Standby/Not Started, Short Break, and Paused by Auctioneer embedded directly inside the main auction stage card.
 - **✨ Executive Full-Width Landing Page**: Complete service showcase and developer contact hub crafted for community cricket leagues.
 
 ---

@@ -20,6 +20,46 @@ import { useAuth } from '../context/AuthContext';
 import { getBudgetUnits } from '../utils/currency';
 import toast from '../lib/toast';
 import SafeImage from '../components/SafeImage';
+import { supabase } from '../lib/supabase';
+
+const normalizeTransfer = (t) => ({
+    _id: t._id || t.id,
+    id: t._id || t.id,
+    tournamentId: t.tournamentId || t.tournament_id,
+    type: t.type,
+    teamAId: t.teamAId || t.team_a_id,
+    teamAName: t.teamAName || t.team_a_name,
+    teamALogo: t.teamALogo || t.team_a_logo,
+    playerAId: t.playerAId || t.player_a_id,
+    playerAName: t.playerAName || t.player_a_name,
+    playerAPrice: Number(t.playerAPrice ?? t.player_a_price ?? 0),
+    teamBId: t.teamBId || t.team_b_id,
+    teamBName: t.teamBName || t.team_b_name,
+    teamBLogo: t.teamBLogo || t.team_b_logo,
+    playerBId: t.playerBId || t.player_b_id,
+    playerBName: t.playerBName || t.player_b_name,
+    playerBPrice: Number(t.playerBPrice ?? t.player_b_price ?? 0),
+    teamId: t.teamId || t.team_id,
+    teamName: t.teamName || t.team_name,
+    teamLogo: t.teamLogo || t.team_logo,
+    injuredPlayerId: t.injuredPlayerId || t.injured_player_id,
+    injuredPlayerName: t.injuredPlayerName || t.injured_player_name,
+    injuredPlayerPrice: Number(t.injuredPlayerPrice ?? t.injured_player_price ?? 0),
+    replacementPlayerId: t.replacementPlayerId || t.replacement_player_id,
+    replacementPlayerName: t.replacementPlayerName || t.replacement_player_name,
+    replacementPlayerPrice: Number(t.replacementPlayerPrice ?? t.replacement_player_price ?? 0),
+    refundAmount: Number(t.refundAmount ?? t.refund_amount ?? t.injuredPlayerPrice ?? t.injured_player_price ?? 0),
+    replacementFee: Number(t.replacementFee ?? t.replacement_fee ?? t.replacementPlayerPrice ?? t.replacement_player_price ?? 0),
+    playerId: t.playerId || t.player_id,
+    playerName: t.playerName || t.player_name,
+    playerCategory: t.playerCategory || t.player_category,
+    playerBasePrice: Number(t.playerBasePrice ?? t.player_base_price ?? 0),
+    playerImage: t.playerImage || t.player_image,
+    note: t.note || t.notes,
+    priceDifference: Number(t.priceDifference ?? t.price_difference ?? 0),
+    createdAt: t.createdAt || t.created_at || t.timestamp,
+    timestamp: t.timestamp || t.created_at || t.createdAt
+});
 
 const SuperAdminDashboard = () => {
     const { logout } = useAuth();
@@ -121,9 +161,28 @@ const SuperAdminDashboard = () => {
         if (!selectedTournament) return;
         try {
             const res = await axios.get(`/api/tournaments/${selectedTournament._id}/transfers`);
-            setTransfers(res.data || []);
+            if (Array.isArray(res.data) && res.data.length > 0) {
+                setTransfers(res.data.map(normalizeTransfer));
+                return;
+            }
         } catch (err) {
-            console.error("Fetch transfers error", err);
+            console.warn("Backend transfers fetch error, falling back to Supabase...", err);
+        }
+
+        // Direct Supabase Cloud DB Fallback for published website
+        try {
+            const { data, error } = await supabase
+                .from('transfers')
+                .select('*')
+                .eq('tournament_id', selectedTournament._id)
+                .order('created_at', { ascending: false });
+            if (data && !error && Array.isArray(data)) {
+                setTransfers(data.map(normalizeTransfer));
+            } else {
+                setTransfers([]);
+            }
+        } catch (e) {
+            console.error("Supabase transfers fetch error", e);
             setTransfers([]);
         }
     };
@@ -275,9 +334,46 @@ const SuperAdminDashboard = () => {
             fetchPlayers();
             fetchTeams();
             fetchTransfers();
+            return;
         } catch (err) {
-            console.error('Move injured to unsold error:', err);
-            toast.error(err.response?.data?.message || 'Failed to move player to unsold pool');
+            console.warn('Move injured backend error, trying direct Supabase fallback...', err);
+        }
+
+        // Direct Supabase Fallback
+        try {
+            const pUpdate = supabase.from('players').update({
+                status: 'unsold',
+                is_injured: false,
+                sold_to_team_id: null,
+                sold_to_team_name: null,
+                sold_price: 0,
+                current_bid: player.basePrice || player.base_price || 0,
+                current_lead_team_id: null,
+                updated_at: new Date().toISOString()
+            }).eq('_id', player._id);
+
+            const txRecord = {
+                _id: 'trf_rec_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+                tournament_id: selectedTournament._id,
+                type: 'injury_recovered',
+                player_id: player._id,
+                player_name: player.name,
+                player_image: player.image || null,
+                player_category: player.category || null,
+                player_base_price: player.basePrice || player.base_price || 0,
+                note: 'Player recovered from injury and moved to Unsold pool for re-auction',
+                created_at: new Date().toISOString()
+            };
+            const txInsert = supabase.from('transfers').insert(txRecord);
+
+            await Promise.all([pUpdate, txInsert]);
+            toast.success(`"${player.name}" moved to Unsold pool for re-auction!`);
+            fetchPlayers();
+            fetchTeams();
+            fetchTransfers();
+        } catch (supaErr) {
+            console.error('Move injured to unsold error:', supaErr);
+            toast.error('Failed to move player to unsold pool');
         }
     };
 

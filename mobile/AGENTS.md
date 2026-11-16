@@ -24,8 +24,22 @@ The application is configured with `expo-updates` to allow instant over-the-air 
 - **Publishing an OTA Update**:
   ```bash
   cd mobile
-  npx eas-cli update --branch production --message "Release notes"
+  npx eas-cli update --branch preview --environment preview --message "Release notes"
   ```
+
+---
+
+## 🌟 Key Mobile Modules & Features
+
+- **🔄 Franchise Trades & Injury Replacements** ([`components/TradePlayersModal.tsx`](./components/TradePlayersModal.tsx), [`components/ReplaceInjuredModal.tsx`](./components/ReplaceInjuredModal.tsx)):
+  - Team purse re-balancing and price differential calculations.
+  - Full Supabase Cloud DB direct sync via [`lib/supabaseService.ts`](./lib/supabaseService.ts).
+- **🖼️ SafeImage Fullscreen Previews** ([`components/SafeImage.tsx`](./components/SafeImage.tsx)):
+  - Previewable team logos and player photos with Android statusbar safe margin (`StatusBar.currentHeight`).
+- **🎯 Clean In-Card Auction Status Messages**:
+  - Embedded directly inside main auction cards across [`components/LiveBiddingRoom.tsx`](./components/LiveBiddingRoom.tsx), [`components/SpectatorScreen.tsx`](./components/SpectatorScreen.tsx), and [`components/AdminConsoleScreen.tsx`](./components/AdminConsoleScreen.tsx).
+- **📊 Spectator Slots / Sets Explorer**:
+  - Live public spectator screen features real-time set navigation and active slot (`🔥`) indicators.
 
 ---
 

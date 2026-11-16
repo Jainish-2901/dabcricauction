@@ -4,6 +4,7 @@ import axios from 'axios';
 import { getBudgetUnits } from '../utils/currency';
 import toast from '../lib/toast';
 import SafeImage from './SafeImage';
+import { supabase } from '../lib/supabase';
 
 const TradePlayersModal = ({
     isOpen,
@@ -112,9 +113,75 @@ const TradePlayersModal = ({
             toast.success(`🔄 Trade executed! ${playerA?.name} ⇄ ${playerB?.name}`);
             if (onTraded) onTraded(res.data);
             onClose();
+            return;
         } catch (err) {
-            console.error('Trade error:', err);
-            toast.error(err.response?.data?.message || err.message || 'Failed to execute trade');
+            console.warn('Trade API failed, trying direct Supabase fallback...', err);
+        }
+
+        // Direct Supabase Cloud DB Fallback
+        try {
+            const tourneyId = tournament?._id || teamA.tournamentId;
+            const priceA = Number(playerA.soldPrice || playerA.sold_price || playerA.basePrice || 0);
+            const priceB = Number(playerB.soldPrice || playerB.sold_price || playerB.basePrice || 0);
+            const priceDiff = priceB - priceA;
+            const diffLarge = Number((priceDiff / 100).toFixed(2));
+
+            const teamASpent = Number(teamA.spent || 0);
+            const teamBSpent = Number(teamB.spent || 0);
+            const newTeamASpent = Math.max(0, Number((teamASpent + diffLarge).toFixed(2)));
+            const newTeamBSpent = Math.max(0, Number((teamBSpent - diffLarge).toFixed(2)));
+
+            const p1 = supabase.from('players').update({
+                sold_to_team_id: teamBId,
+                sold_to_team_name: teamB.name,
+                updated_at: new Date().toISOString()
+            }).eq('_id', playerAId);
+
+            const p2 = supabase.from('players').update({
+                sold_to_team_id: teamAId,
+                sold_to_team_name: teamA.name,
+                updated_at: new Date().toISOString()
+            }).eq('_id', playerBId);
+
+            const p3 = supabase.from('teams').update({
+                spent: newTeamASpent,
+                updated_at: new Date().toISOString()
+            }).eq('_id', teamAId);
+
+            const p4 = supabase.from('teams').update({
+                spent: newTeamBSpent,
+                updated_at: new Date().toISOString()
+            }).eq('_id', teamBId);
+
+            const txRecord = {
+                _id: 'trf_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+                tournament_id: tourneyId,
+                type: 'trade',
+                team_a_id: teamAId,
+                team_a_name: teamA.name,
+                team_a_logo: teamA.logo,
+                player_a_id: playerAId,
+                player_a_name: playerA.name,
+                player_a_price: priceA,
+                team_b_id: teamBId,
+                team_b_name: teamB.name,
+                team_b_logo: teamB.logo,
+                player_b_id: playerBId,
+                player_b_name: playerB.name,
+                player_b_price: priceB,
+                price_difference: Math.abs(priceB - priceA),
+                created_at: new Date().toISOString()
+            };
+            const p5 = supabase.from('transfers').insert(txRecord);
+
+            await Promise.all([p1, p2, p3, p4, p5]);
+
+            toast.success(`🔄 Trade executed! ${playerA?.name} ⇄ ${playerB?.name}`);
+            if (onTraded) onTraded({ teamA: { ...teamA, spent: newTeamASpent }, teamB: { ...teamB, spent: newTeamBSpent } });
+            onClose();
+        } catch (supaErr) {
+            console.error('Supabase trade error:', supaErr);
+            toast.error('Failed to execute trade');
         } finally {
             setSubmitting(false);
         }

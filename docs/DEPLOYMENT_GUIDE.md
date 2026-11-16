@@ -75,12 +75,16 @@ git push origin main
    - `slots` (કસ્ટમ રાઉન્ડ્સ અને કેટેગરી પૂલ)
    - `users` (સુપર એડમિન, ઓક્શનિયર અને ટીમ ઓનર્સ લોગિન)
    - `bids` (લાઈવ બિડ ઓડિટ ટ્રેક અને હિસ્ટ્રી લેજર)
+   - `transfers` (ફ્રેન્ચાઇઝ પ્લેયર ટ્રેડ્સ, ઇન્જરી રિપ્લેસમેન્ટ અને રિકવરી ઓડિટ લોગ્સ)
+
+> [!TIP]
+> જો તમારું સુપાબેઝ અગાઉથી સેટઅપ થયેલું હોય અને માત્ર નવું ટ્રાન્સફર ટેબલ ઉમેરવું હોય, તો [`supabase/migrations/003_transfers_table.sql`](../supabase/migrations/003_transfers_table.sql) રન કરી શકો છો.
 
 ### 1.2: Local Data ને Supabase માં Direct Migrate કરવું (Optional)
-જો તમારી પાસે લોકલ ડેટાબેઝ (`local_db.json`) માં અગાઉથી બનાવેલા ટૂર્નામેન્ટ કે પ્લેયર્સ હોય:
+જો તમારી પાસે લોકલ ડેટાબેઝ (`local_db.json`) માં અગાઉથી બનાવેલા ટૂર્નામેન્ટ, પ્લેયર્સ કે ટ્રાન્સફર રેકોર્ડ્સ હોય:
 ```bash
 cd server
-npm run sync:supabase
+node scripts/sync_transfers.js
 ```
 
 ---
@@ -191,7 +195,7 @@ npx eas-cli build -p android --profile preview
 જ્યારે પણ તમારે કોડ કે UI માં નવો ફેરફાર કરવો હોય ત્યારે ફરીથી APK બનાવવાની જરૂર નથી:
 ```bash
 cd mobile
-npx eas-cli update --branch preview --message "Bug fixes and improvements"
+npx eas-cli update --branch preview --environment preview --message "Bug fixes and improvements"
 ```
 બધા યુઝર્સના ફોનમાં એપ ખોલતાં જ નવો કોડ ઓટોમેટિક અપડેટ થઈ જશે!
 

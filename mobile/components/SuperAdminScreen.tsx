@@ -2366,7 +2366,7 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                                                 <View style={{ backgroundColor: '#fffbeb', borderRadius: 10, padding: 10, borderWidth: 1, borderColor: '#fde68a', marginVertical: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                                                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
                                                         {tx.playerImage ? (
-                                                            <Image source={{ uri: tx.playerImage }} style={{ width: 38, height: 38, borderRadius: 8 }} />
+                                                            <SafeImage uri={tx.playerImage} style={{ width: 38, height: 38, borderRadius: 8 }} previewable={true} previewTitle={tx.playerName} />
                                                         ) : (
                                                             <View style={{ width: 38, height: 38, borderRadius: 8, backgroundColor: '#fef3c7', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#fde68a' }}>
                                                                 <Text style={{ fontSize: 14, fontWeight: '900', color: '#b45309' }}>
@@ -2414,14 +2414,24 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
 
                                             <View style={{ flexDirection: 'row', gap: 8, marginVertical: 6 }}>
                                                 <View style={{ flex: 1, backgroundColor: '#f8fafc', borderRadius: 10, padding: 8, borderWidth: 1, borderColor: '#e2e8f0' }}>
-                                                    <Text style={{ fontSize: 9, fontWeight: '900', color: '#2563eb' }}>{tx.teamAName}</Text>
+                                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 2 }}>
+                                                        {tx.teamALogo ? (
+                                                            <SafeImage uri={tx.teamALogo} style={{ width: 16, height: 16, borderRadius: 4 }} previewable={true} previewTitle={tx.teamAName} />
+                                                        ) : null}
+                                                        <Text style={{ fontSize: 9, fontWeight: '900', color: '#2563eb', flexShrink: 1 }} numberOfLines={1}>{tx.teamAName}</Text>
+                                                    </View>
                                                     <Text style={{ fontSize: 12, fontWeight: '800', color: '#0f172a', marginTop: 2 }}>{tx.playerAName}</Text>
                                                     <Text style={{ fontSize: 10, color: '#64748b', fontWeight: '600' }}>Sold: ₹{tx.playerAPrice || 0} {smallUnit}</Text>
                                                     <Text style={{ fontSize: 9, color: '#4f46e5', fontWeight: '800', marginTop: 3 }}>→ {tx.teamBName}</Text>
                                                 </View>
 
                                                 <View style={{ flex: 1, backgroundColor: '#f8fafc', borderRadius: 10, padding: 8, borderWidth: 1, borderColor: '#e2e8f0' }}>
-                                                    <Text style={{ fontSize: 9, fontWeight: '900', color: '#059669' }}>{tx.teamBName}</Text>
+                                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 2 }}>
+                                                        {tx.teamBLogo ? (
+                                                            <SafeImage uri={tx.teamBLogo} style={{ width: 16, height: 16, borderRadius: 4 }} previewable={true} previewTitle={tx.teamBName} />
+                                                        ) : null}
+                                                        <Text style={{ fontSize: 9, fontWeight: '900', color: '#059669', flexShrink: 1 }} numberOfLines={1}>{tx.teamBName}</Text>
+                                                    </View>
                                                     <Text style={{ fontSize: 12, fontWeight: '800', color: '#0f172a', marginTop: 2 }}>{tx.playerBName}</Text>
                                                     <Text style={{ fontSize: 10, color: '#64748b', fontWeight: '600' }}>Sold: ₹{tx.playerBPrice || 0} {smallUnit}</Text>
                                                     <Text style={{ fontSize: 9, color: '#2563eb', fontWeight: '800', marginTop: 3 }}>→ {tx.teamAName}</Text>

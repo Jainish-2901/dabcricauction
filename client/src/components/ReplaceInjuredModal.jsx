@@ -4,6 +4,7 @@ import axios from 'axios';
 import { getBudgetUnits } from '../utils/currency';
 import toast from '../lib/toast';
 import SafeImage from './SafeImage';
+import { supabase } from '../lib/supabase';
 
 const ReplaceInjuredModal = ({
     isOpen,
@@ -98,9 +99,68 @@ const ReplaceInjuredModal = ({
             toast.success(`🚑 Successfully replaced ${injuredPlayer?.name} with ${replacementPlayer?.name}!`);
             if (onReplaced) onReplaced(res.data);
             onClose();
+            return;
         } catch (err) {
-            console.error('Replace error:', err);
-            toast.error(err.response?.data?.message || err.message || 'Failed to replace player');
+            console.warn('Replace API failed, trying direct Supabase fallback...', err);
+        }
+
+        // Direct Supabase Cloud DB Fallback
+        try {
+            const tourneyId = tournament?._id || team.tournamentId;
+            const diffLarge = Number((priceDiff / 100).toFixed(2));
+            const currentSpent = Number(team.spent || 0);
+            const newSpent = Math.max(0, Number((currentSpent + diffLarge).toFixed(2)));
+
+            const p1 = supabase.from('players').update({
+                status: 'injured',
+                is_injured: true,
+                sold_to_team_id: null,
+                sold_to_team_name: null,
+                updated_at: new Date().toISOString()
+            }).eq('_id', selectedInjuredId);
+
+            const p2 = supabase.from('players').update({
+                status: 'sold',
+                sold_to_team_id: team._id,
+                sold_to_team_name: team.name,
+                sold_price: newPrice,
+                current_bid: newPrice,
+                updated_at: new Date().toISOString()
+            }).eq('_id', selectedReplacementId);
+
+            const p3 = supabase.from('teams').update({
+                spent: newSpent,
+                updated_at: new Date().toISOString()
+            }).eq('_id', team._id);
+
+            const txRecord = {
+                _id: 'trf_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+                tournament_id: tourneyId,
+                type: 'injury_replacement',
+                team_id: team._id,
+                team_name: team.name,
+                team_logo: team.logo,
+                injured_player_id: selectedInjuredId,
+                injured_player_name: injuredPlayer?.name,
+                injured_player_price: oldPrice,
+                replacement_player_id: selectedReplacementId,
+                replacement_player_name: replacementPlayer?.name,
+                replacement_player_price: newPrice,
+                refund_amount: oldPrice,
+                replacement_fee: newPrice,
+                price_difference: priceDiff,
+                created_at: new Date().toISOString()
+            };
+            const p4 = supabase.from('transfers').insert(txRecord);
+
+            await Promise.all([p1, p2, p3, p4]);
+
+            toast.success(`🚑 Successfully replaced ${injuredPlayer?.name} with ${replacementPlayer?.name}!`);
+            if (onReplaced) onReplaced({ team: { ...team, spent: newSpent } });
+            onClose();
+        } catch (supaErr) {
+            console.error('Supabase replace error:', supaErr);
+            toast.error('Failed to replace player');
         } finally {
             setSubmitting(false);
         }

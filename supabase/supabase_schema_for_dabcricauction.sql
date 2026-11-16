@@ -109,13 +109,62 @@ CREATE TABLE IF NOT EXISTS public.bids (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 7. Enable Row Level Security (RLS) & Add Public Policies for API Access
+-- 7. Create Transfers & Replacements History Table
+CREATE TABLE IF NOT EXISTS public.transfers (
+    _id TEXT PRIMARY KEY,
+    tournament_id TEXT NOT NULL,
+    type TEXT NOT NULL, -- 'trade', 'injury_replacement', 'injury_recovered'
+    
+    -- Trade specifics
+    team_a_id TEXT,
+    team_a_name TEXT,
+    team_a_logo TEXT,
+    player_a_id TEXT,
+    player_a_name TEXT,
+    player_a_price NUMERIC DEFAULT 0,
+    
+    team_b_id TEXT,
+    team_b_name TEXT,
+    team_b_logo TEXT,
+    player_b_id TEXT,
+    player_b_name TEXT,
+    player_b_price NUMERIC DEFAULT 0,
+    
+    -- Injury replacement specifics
+    team_id TEXT,
+    team_name TEXT,
+    team_logo TEXT,
+    injured_player_id TEXT,
+    injured_player_name TEXT,
+    injured_player_price NUMERIC DEFAULT 0,
+    replacement_player_id TEXT,
+    replacement_player_name TEXT,
+    replacement_player_price NUMERIC DEFAULT 0,
+    refund_amount NUMERIC DEFAULT 0,
+    replacement_fee NUMERIC DEFAULT 0,
+    
+    -- Recovery / General specifics
+    player_id TEXT,
+    player_name TEXT,
+    player_category TEXT,
+    player_base_price NUMERIC DEFAULT 0,
+    player_image TEXT,
+    note TEXT,
+    notes TEXT,
+    
+    price_difference NUMERIC DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 8. Enable Row Level Security (RLS) & Add Public Policies for API Access
 ALTER TABLE public.tournaments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.teams ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.slots ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.players ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.bids ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.transfers ENABLE ROW LEVEL SECURITY;
 
 -- Allow full access to authenticated / anon keys
 DROP POLICY IF EXISTS "Allow all tournaments" ON public.tournaments;
@@ -135,4 +184,7 @@ CREATE POLICY "Allow all users" ON public.users FOR ALL USING (true) WITH CHECK 
 
 DROP POLICY IF EXISTS "Allow all bids" ON public.bids;
 CREATE POLICY "Allow all bids" ON public.bids FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow all transfers" ON public.transfers;
+CREATE POLICY "Allow all transfers" ON public.transfers FOR ALL USING (true) WITH CHECK (true);
 

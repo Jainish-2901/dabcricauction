@@ -362,6 +362,55 @@ const supaSync = {
         } catch (e) {
             console.error('❌ Supabase deleteUser error:', e.message);
         }
+    },
+
+    async insertTransfer(tx) {
+        if (!supabase) return;
+        try {
+            const row = {
+                _id: tx._id,
+                tournament_id: tx.tournamentId || tx.tournament_id,
+                type: tx.type,
+                team_a_id: tx.teamAId || tx.team_a_id || null,
+                team_a_name: tx.teamAName || tx.team_a_name || null,
+                team_a_logo: tx.teamALogo || tx.team_a_logo || null,
+                player_a_id: tx.playerAId || tx.player_a_id || null,
+                player_a_name: tx.playerAName || tx.player_a_name || null,
+                player_a_price: Number(tx.playerAPrice ?? tx.player_a_price ?? 0),
+                team_b_id: tx.teamBId || tx.team_b_id || null,
+                team_b_name: tx.teamBName || tx.team_b_name || null,
+                team_b_logo: tx.teamBLogo || tx.team_b_logo || null,
+                player_b_id: tx.playerBId || tx.player_b_id || null,
+                player_b_name: tx.playerBName || tx.player_b_name || null,
+                player_b_price: Number(tx.playerBPrice ?? tx.player_b_price ?? 0),
+                team_id: tx.teamId || tx.team_id || null,
+                team_name: tx.teamName || tx.team_name || null,
+                team_logo: tx.teamLogo || tx.team_logo || null,
+                injured_player_id: tx.injuredPlayerId || tx.injured_player_id || null,
+                injured_player_name: tx.injuredPlayerName || tx.injured_player_name || null,
+                injured_player_price: Number(tx.injuredPlayerPrice ?? tx.injured_player_price ?? 0),
+                replacement_player_id: tx.replacementPlayerId || tx.replacement_player_id || null,
+                replacement_player_name: tx.replacementPlayerName || tx.replacement_player_name || null,
+                replacement_player_price: Number(tx.replacementPlayerPrice ?? tx.replacement_player_price ?? 0),
+                refund_amount: Number(tx.refundAmount ?? tx.refund_amount ?? tx.injuredPlayerPrice ?? 0),
+                replacement_fee: Number(tx.replacementFee ?? tx.replacement_fee ?? tx.replacementPlayerPrice ?? 0),
+                player_id: tx.playerId || tx.player_id || null,
+                player_name: tx.playerName || tx.player_name || null,
+                player_category: tx.playerCategory || tx.player_category || null,
+                player_base_price: Number(tx.playerBasePrice ?? tx.player_base_price ?? 0),
+                player_image: tx.playerImage || tx.player_image || null,
+                note: tx.note || tx.notes || null,
+                notes: tx.note || tx.notes || null,
+                price_difference: Number(tx.priceDifference ?? tx.price_difference ?? tx.priceDiff ?? 0),
+                created_at: tx.createdAt || tx.created_at || new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            };
+            const { error } = await supabase.from('transfers').upsert(row, { onConflict: '_id' });
+            if (error) console.error('❌ Supabase insertTransfer error:', error.message);
+            else console.log('⚡ Supabase cloud: Transfer inserted ->', tx._id);
+        } catch (e) {
+            console.error('❌ Supabase insertTransfer exception:', e.message);
+        }
     }
 };
 
@@ -1968,6 +2017,7 @@ const db = {
         await supaSync.updatePlayer(injuredPlayer._id, injuredPlayer);
         await supaSync.updatePlayer(replacementPlayer._id, replacementPlayer);
         await supaSync.updateTeam(team._id, team);
+        await supaSync.insertTransfer(transferRecord);
 
         return {
             team,
@@ -2054,6 +2104,7 @@ const db = {
         await supaSync.updatePlayer(playerB._id, playerB);
         await supaSync.updateTeam(teamA._id, teamA);
         await supaSync.updateTeam(teamB._id, teamB);
+        await supaSync.insertTransfer(transferRecord);
 
         return {
             teamA,
@@ -2066,7 +2117,58 @@ const db = {
 
     async getTournamentTransfers(tournamentId) {
         const state = readData();
-        return (state.transfers || []).filter(t => !tournamentId || t.tournamentId === tournamentId);
+        const local = (state.transfers || []).filter(t => !tournamentId || t.tournamentId === tournamentId);
+        if (local.length > 0) return local;
+
+        if (supabase) {
+            try {
+                let q = supabase.from('transfers').select('*').order('created_at', { ascending: false });
+                if (tournamentId) q = q.eq('tournament_id', tournamentId);
+                const { data, error } = await q;
+                if (!error && Array.isArray(data)) {
+                    return data.map(r => ({
+                        _id: r._id,
+                        tournamentId: r.tournament_id,
+                        type: r.type,
+                        teamAId: r.team_a_id,
+                        teamAName: r.team_a_name,
+                        teamALogo: r.team_a_logo,
+                        playerAId: r.player_a_id,
+                        playerAName: r.player_a_name,
+                        playerAPrice: r.player_a_price,
+                        teamBId: r.team_b_id,
+                        teamBName: r.team_b_name,
+                        teamBLogo: r.team_b_logo,
+                        playerBId: r.player_b_id,
+                        playerBName: r.player_b_name,
+                        playerBPrice: r.player_b_price,
+                        teamId: r.team_id,
+                        teamName: r.team_name,
+                        teamLogo: r.team_logo,
+                        injuredPlayerId: r.injured_player_id,
+                        injuredPlayerName: r.injured_player_name,
+                        injuredPlayerPrice: r.injured_player_price,
+                        replacementPlayerId: r.replacement_player_id,
+                        replacementPlayerName: r.replacement_player_name,
+                        replacementPlayerPrice: r.replacement_player_price,
+                        refundAmount: r.refund_amount,
+                        replacementFee: r.replacement_fee,
+                        playerId: r.player_id,
+                        playerName: r.player_name,
+                        playerCategory: r.player_category,
+                        playerBasePrice: r.player_base_price,
+                        playerImage: r.player_image,
+                        note: r.note || r.notes,
+                        priceDifference: r.price_difference,
+                        createdAt: r.created_at,
+                        timestamp: r.created_at
+                    }));
+                }
+            } catch (e) {
+                console.error('getTournamentTransfers supabase fallback error:', e.message);
+            }
+        }
+        return [];
     },
 
     async moveInjuredToUnsold(tournamentId, playerId) {
@@ -2101,6 +2203,7 @@ const db = {
 
         writeData(state);
         await supaSync.updatePlayer(player._id, player);
+        await supaSync.insertTransfer(transferRecord);
 
         return { player, transferRecord };
     }

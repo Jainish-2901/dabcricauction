@@ -814,8 +814,45 @@ export const directGetTransfers = async (tournamentId: string) => {
         .eq('tournament_id', tournamentId)
         .order('created_at', { ascending: false });
 
-    if (error) return [];
-    return data || [];
+    if (error || !data) return [];
+    return data.map((t: any) => ({
+        _id: t._id || t.id,
+        id: t._id || t.id,
+        tournamentId: t.tournamentId || t.tournament_id,
+        type: t.type,
+        teamAId: t.teamAId || t.team_a_id,
+        teamAName: t.teamAName || t.team_a_name,
+        teamALogo: t.teamALogo || t.team_a_logo,
+        playerAId: t.playerAId || t.player_a_id,
+        playerAName: t.playerAName || t.player_a_name,
+        playerAPrice: Number(t.playerAPrice ?? t.player_a_price ?? 0),
+        teamBId: t.teamBId || t.team_b_id,
+        teamBName: t.teamBName || t.team_b_name,
+        teamBLogo: t.teamBLogo || t.team_b_logo,
+        playerBId: t.playerBId || t.player_b_id,
+        playerBName: t.playerBName || t.player_b_name,
+        playerBPrice: Number(t.playerBPrice ?? t.player_b_price ?? 0),
+        teamId: t.teamId || t.team_id,
+        teamName: t.teamName || t.team_name,
+        teamLogo: t.teamLogo || t.team_logo,
+        injuredPlayerId: t.injuredPlayerId || t.injured_player_id,
+        injuredPlayerName: t.injuredPlayerName || t.injured_player_name,
+        injuredPlayerPrice: Number(t.injuredPlayerPrice ?? t.injured_player_price ?? 0),
+        replacementPlayerId: t.replacementPlayerId || t.replacement_player_id,
+        replacementPlayerName: t.replacementPlayerName || t.replacement_player_name,
+        replacementPlayerPrice: Number(t.replacementPlayerPrice ?? t.replacement_player_price ?? 0),
+        refundAmount: Number(t.refundAmount ?? t.refund_amount ?? t.injuredPlayerPrice ?? t.injured_player_price ?? 0),
+        replacementFee: Number(t.replacementFee ?? t.replacement_fee ?? t.replacementPlayerPrice ?? t.replacement_player_price ?? 0),
+        playerId: t.playerId || t.player_id,
+        playerName: t.playerName || t.player_name,
+        playerCategory: t.playerCategory || t.player_category,
+        playerBasePrice: Number(t.playerBasePrice ?? t.player_base_price ?? 0),
+        playerImage: t.playerImage || t.player_image,
+        note: t.note || t.notes,
+        priceDifference: Number(t.priceDifference ?? t.price_difference ?? 0),
+        createdAt: t.createdAt || t.created_at || t.timestamp,
+        timestamp: t.timestamp || t.created_at || t.createdAt
+    }));
 };
 
 export const directReplaceInjuredPlayer = async (tournamentId: string, payload: {
@@ -882,7 +919,9 @@ export const directReplaceInjuredPlayer = async (tournamentId: string, payload: 
         replacement_player_id: payload.replacementPlayerId,
         replacement_player_name: replacementData.name,
         replacement_player_price: newPrice,
-        price_difference: priceDiff,
+        refund_amount: oldPrice,
+        replacement_fee: newPrice,
+        price_difference: Math.abs(priceDiff),
         created_at: new Date().toISOString()
     };
     const p4 = supabase.from('transfers').insert(record);
@@ -939,15 +978,17 @@ export const directTradePlayers = async (tournamentId: string, payload: {
         type: 'trade',
         team_a_id: payload.teamAId,
         team_a_name: teamA.name,
+        team_a_logo: teamA.logo,
         player_a_id: payload.playerAId,
         player_a_name: playerA.name,
         player_a_price: priceA,
         team_b_id: payload.teamBId,
         team_b_name: teamB.name,
+        team_b_logo: teamB.logo,
         player_b_id: payload.playerBId,
         player_b_name: playerB.name,
         player_b_price: priceB,
-        price_difference: priceDiff,
+        price_difference: Math.abs(priceB - priceA),
         created_at: new Date().toISOString()
     };
     const p5 = supabase.from('transfers').insert(record);
