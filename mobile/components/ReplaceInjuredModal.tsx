@@ -77,7 +77,7 @@ export const ReplaceInjuredModal: React.FC<ReplaceInjuredModalProps> = ({
         }
     }, [selectedReplacementId]);
 
-    const refundAmount = Number(injuredPlayer?.soldPrice || injuredPlayer?.currentBid || injuredPlayer?.basePrice || 0);
+    const refundAmount = Number(injuredPlayer?.soldPrice || injuredPlayer?.sold_price || injuredPlayer?.currentBid || injuredPlayer?.basePrice || 0);
     const feeAmount = parseFloat(replacementFee) || 0;
     const netDifferenceSmall = feeAmount - refundAmount;
     const netDifferenceLarge = netDifferenceSmall / 100;
@@ -187,7 +187,7 @@ export const ReplaceInjuredModal: React.FC<ReplaceInjuredModalProps> = ({
                                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
                                     {teamSquad.map(p => {
                                         const isSelected = p._id === selectedInjuredId;
-                                        const pPrice = p.soldPrice || p.currentBid || p.basePrice || 0;
+                                        const pPrice = p.soldPrice || p.sold_price || p.currentBid || p.basePrice || 0;
                                         return (
                                             <TouchableOpacity
                                                 key={p._id}

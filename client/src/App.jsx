@@ -10,6 +10,11 @@ import PublicAuctionView from './pages/PublicAuctionView';
 import AdminAuctionConsole from './pages/AdminAuctionConsole';
 import AuctioneerDashboard from './pages/AuctioneerDashboard';
 import PlayerRegistrationPage from './pages/PlayerRegistrationPage';
+import AboutPage from './pages/AboutPage';
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
+import TermsPage from './pages/TermsPage';
+import DownloadPage from './pages/DownloadPage';
+import NotFoundPage from './pages/NotFoundPage';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import ToastContainer from './components/ToastContainer';
@@ -22,6 +27,10 @@ function App() {
           <ToastContainer />
           <Routes>
             <Route path="/" element={<LandingPage />} />
+            <Route path="/about" element={<AboutPage />} />
+            <Route path="/privacy" element={<PrivacyPolicyPage />} />
+            <Route path="/terms" element={<TermsPage />} />
+            <Route path="/download" element={<DownloadPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/signup" element={<RegisterPage />} />
@@ -55,6 +64,10 @@ function App() {
             <Route path="/spectator/:tournamentId" element={<PublicAuctionView />} />
             <Route path="/register-player/:tournamentId" element={<PlayerRegistrationPage />} />
             <Route path="/player-form/:tournamentId" element={<PlayerRegistrationPage />} />
+
+            {/* 404 Page Not Found Routes */}
+            <Route path="/404" element={<NotFoundPage />} />
+            <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </div>
       </AuthProvider>

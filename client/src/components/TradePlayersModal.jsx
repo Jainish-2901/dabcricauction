@@ -59,8 +59,8 @@ const TradePlayersModal = ({
 
     if (!isOpen) return null;
 
-    const pAPrice = Number(playerA?.soldPrice || playerA?.currentBid || playerA?.basePrice) || 0;
-    const pBPrice = Number(playerB?.soldPrice || playerB?.currentBid || playerB?.basePrice) || 0;
+    const pAPrice = Number(playerA?.soldPrice || playerA?.sold_price || playerA?.currentBid || playerA?.basePrice) || 0;
+    const pBPrice = Number(playerB?.soldPrice || playerB?.sold_price || playerB?.currentBid || playerB?.basePrice) || 0;
 
     // Team A gives playerA, gets playerB. Net spent change for Team A: (pBPrice - pAPrice) / 100
     const diffInLargeA = Number(((pBPrice - pAPrice) / 100).toFixed(2));
@@ -262,7 +262,7 @@ const TradePlayersModal = ({
                                     <option value="">-- Choose Player A --</option>
                                     {teamASquad.map(p => (
                                         <option key={p._id} value={p._id}>
-                                            {p.name} ({p.category}) • ₹{p.soldPrice || p.currentBid || p.basePrice} {smallUnit}
+                                            {p.name} ({p.category}) • ₹{p.soldPrice || p.sold_price || p.currentBid || p.basePrice} {smallUnit}
                                         </option>
                                     ))}
                                 </select>
@@ -330,7 +330,7 @@ const TradePlayersModal = ({
                                     <option value="">-- Choose Player B --</option>
                                     {teamBSquad.map(p => (
                                         <option key={p._id} value={p._id}>
-                                            {p.name} ({p.category}) • ₹{p.soldPrice || p.currentBid || p.basePrice} {smallUnit}
+                                            {p.name} ({p.category}) • ₹{p.soldPrice || p.sold_price || p.currentBid || p.basePrice} {smallUnit}
                                         </option>
                                     ))}
                                 </select>

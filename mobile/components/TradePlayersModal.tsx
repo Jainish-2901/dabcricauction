@@ -75,8 +75,8 @@ export const TradePlayersModal: React.FC<TradePlayersModalProps> = ({
     const playerB = squadB.find(p => p._id === playerBId);
 
     // Financial calculations
-    const priceA = Number(playerA?.soldPrice || playerA?.currentBid || playerA?.basePrice || 0);
-    const priceB = Number(playerB?.soldPrice || playerB?.currentBid || playerB?.basePrice || 0);
+    const priceA = Number(playerA?.soldPrice || playerA?.sold_price || playerA?.currentBid || playerA?.basePrice || 0);
+    const priceB = Number(playerB?.soldPrice || playerB?.sold_price || playerB?.currentBid || playerB?.basePrice || 0);
     const priceDifferenceSmall = priceB - priceA;
     const priceDifferenceLarge = priceDifferenceSmall / 100;
 
@@ -201,7 +201,7 @@ export const TradePlayersModal: React.FC<TradePlayersModalProps> = ({
                                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 6 }}>
                                     {squadA.map(p => {
                                         const isSel = p._id === playerAId;
-                                        const pPrice = p.soldPrice || p.currentBid || p.basePrice || 0;
+                                        const pPrice = p.soldPrice || p.sold_price || p.currentBid || p.basePrice || 0;
                                         return (
                                             <TouchableOpacity
                                                 key={p._id}
@@ -259,7 +259,7 @@ export const TradePlayersModal: React.FC<TradePlayersModalProps> = ({
                                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 6 }}>
                                     {squadB.map(p => {
                                         const isSel = p._id === playerBId;
-                                        const pPrice = p.soldPrice || p.currentBid || p.basePrice || 0;
+                                        const pPrice = p.soldPrice || p.sold_price || p.currentBid || p.basePrice || 0;
                                         return (
                                             <TouchableOpacity
                                                 key={p._id}

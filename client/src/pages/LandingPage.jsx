@@ -30,8 +30,15 @@ import {
     Maximize2,
     X,
     Menu,
-    Code2
+    Code2,
+    Download,
+    Laptop,
+    Wifi
 } from 'lucide-react';
+import PublicHeader from '../components/PublicHeader';
+import PublicFooter from '../components/PublicFooter';
+
+const APK_URL = "https://github.com/Jainish-2901/dabcricauction/releases/download/v1.1.0/dab-cric-auction-v1.1.0.apk";
 
 const LandingPage = () => {
     const navigate = useNavigate();
@@ -50,138 +57,8 @@ const LandingPage = () => {
 
     return (
         <div className="relative min-h-screen bg-slate-50 text-slate-900 overflow-x-hidden font-sans selection:bg-blue-600 selection:text-white">
-            {/* Subtle Gradient Glow Elements */}
-            <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
-                <div className="absolute -top-[20%] -left-[10%] w-[55%] h-[55%] bg-blue-100/60 rounded-full blur-[120px]" />
-                <div className="absolute top-[25%] -right-[10%] w-[45%] h-[45%] bg-indigo-100/60 rounded-full blur-[120px]" />
-                <div className="absolute top-[65%] left-[10%] w-[40%] h-[40%] bg-violet-100/50 rounded-full blur-[120px]" />
-            </div>
-
             {/* Top Navigation Bar */}
-            <nav className="relative z-50 px-3.5 sm:px-6 py-2.5 sm:py-3.5 max-w-7xl mx-3 sm:mx-auto backdrop-blur-md bg-white/90 rounded-2xl border border-slate-200 shadow-xs sticky top-3 sm:top-4 mt-3 sm:mt-4 transition-all">
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2.5 sm:gap-3">
-                        <img
-                            src="/logo.png"
-                            alt="Dab Cric Auction"
-                            className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl object-contain bg-white border border-slate-200 p-0.5 shadow-2xs"
-                        />
-                        <div>
-                            <span className="text-base sm:text-xl font-black tracking-tight text-slate-900">
-                                Dab Cric <span className="text-blue-600">Auction</span>
-                            </span>
-                            <div className="hidden sm:flex items-center gap-1.5 text-[11px] text-slate-500 font-semibold">
-                                <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                                Live Auction Cloud Platform
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Desktop Navigation Links */}
-                    <div className="hidden lg:flex items-center gap-6 text-sm font-semibold text-slate-600">
-                        <a href="#services" className="hover:text-blue-600 transition-colors">Our Services</a>
-                        <a href="#how-it-works" className="hover:text-blue-600 transition-colors">How It Works</a>
-                        <a href="#cross-platform" className="hover:text-blue-600 transition-colors">Cross-Platform</a>
-                        <a href="#developer" className="hover:text-blue-600 transition-colors">Developer</a>
-                    </div>
-
-                    {/* Right Action Buttons */}
-                    <div className="flex items-center gap-1.5 sm:gap-2.5">
-                        <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 rounded-lg text-xs font-bold text-slate-600">
-                            <Monitor className="w-3.5 h-3.5 text-blue-600" />
-                            <span>Web</span>
-                            <span className="text-slate-300">|</span>
-                            <Smartphone className="w-3.5 h-3.5 text-indigo-600" />
-                            <span>Mobile App</span>
-                        </div>
-                        <Link
-                            to="/register"
-                            className="hidden sm:inline-flex px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs border border-slate-200 transition-all"
-                        >
-                            Host Register
-                        </Link>
-                        <Link
-                            to="/login"
-                            className="px-3.5 sm:px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs hover:shadow-md transition-all flex items-center gap-1.5"
-                        >
-                            <span>Sign In</span>
-                            <ArrowRight className="w-3.5 h-3.5 hidden sm:inline" />
-                        </Link>
-
-                        {/* Mobile Hamburger Menu Toggle */}
-                        <button
-                            type="button"
-                            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                            className="lg:hidden p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition-all ml-0.5"
-                            aria-label="Toggle navigation menu"
-                        >
-                            {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
-                        </button>
-                    </div>
-                </div>
-
-                {/* Mobile Dropdown Navigation Drawer */}
-                <AnimatePresence>
-                    {mobileMenuOpen && (
-                        <motion.div
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: 'auto' }}
-                            exit={{ opacity: 0, height: 0 }}
-                            transition={{ duration: 0.2 }}
-                            className="lg:hidden overflow-hidden pt-3 mt-3 border-t border-slate-200/90"
-                        >
-                            <div className="flex flex-col gap-1 pb-3 text-sm font-semibold text-slate-700">
-                                <a
-                                    href="#services"
-                                    onClick={() => setMobileMenuOpen(false)}
-                                    className="px-3 py-2 rounded-xl hover:bg-slate-100 transition-colors flex items-center justify-between"
-                                >
-                                    <span>⚡ Our Services</span>
-                                    <ChevronRight className="w-4 h-4 text-slate-400" />
-                                </a>
-                                <a
-                                    href="#how-it-works"
-                                    onClick={() => setMobileMenuOpen(false)}
-                                    className="px-3 py-2 rounded-xl hover:bg-slate-100 transition-colors flex items-center justify-between"
-                                >
-                                    <span>🔄 How It Works</span>
-                                    <ChevronRight className="w-4 h-4 text-slate-400" />
-                                </a>
-                                <a
-                                    href="#cross-platform"
-                                    onClick={() => setMobileMenuOpen(false)}
-                                    className="px-3 py-2 rounded-xl hover:bg-slate-100 transition-colors flex items-center justify-between"
-                                >
-                                    <span>📱 Cross-Platform Cloud</span>
-                                    <ChevronRight className="w-4 h-4 text-slate-400" />
-                                </a>
-                                <a
-                                    href="#developer"
-                                    onClick={() => setMobileMenuOpen(false)}
-                                    className="px-3 py-2 rounded-xl hover:bg-slate-100 transition-colors flex items-center justify-between"
-                                >
-                                    <span>👨‍💻 Developer Profile & Contact</span>
-                                    <ChevronRight className="w-4 h-4 text-slate-400" />
-                                </a>
-                            </div>
-
-                            <div className="pt-2 pb-1 border-t border-slate-100 flex flex-col gap-2">
-                                <Link
-                                    to="/register"
-                                    onClick={() => setMobileMenuOpen(false)}
-                                    className="w-full text-center py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl border border-slate-200 transition-all"
-                                >
-                                    Create Tournament Host Account
-                                </Link>
-                                <div className="flex items-center justify-center gap-2 py-1 text-[11px] text-slate-500 font-medium">
-                                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                                    <span>Expo Mobile App & Web Cloud Parity Active</span>
-                                </div>
-                            </div>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
-            </nav>
+            <PublicHeader />
 
             {/* Hero Section */}
             <main className="relative z-10 container mx-auto px-4 pt-8 sm:pt-16 md:pt-20 pb-16 sm:pb-20 flex flex-col items-center text-center">
@@ -212,7 +89,7 @@ const LandingPage = () => {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.2, duration: 0.6 }}
-                    className="text-xs sm:text-base md:text-xl text-slate-600 max-w-2xl mb-8 sm:mb-10 leading-relaxed font-normal px-2"
+                    className="text-xs sm:text-base md:text-xl text-slate-900 max-w-2xl mb-8 sm:mb-10 leading-relaxed font-semibold px-2"
                 >
                     Complete gavel hammer controls, live team owner bidding keypads, automatic purse validation, public broadcast stream, and instant audit-safe rollbacks across Web & Mobile.
                 </motion.p>
@@ -271,7 +148,7 @@ const LandingPage = () => {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.5, duration: 0.7 }}
-                    className="grid grid-cols-2 sm:flex sm:flex-wrap items-center justify-center gap-2 sm:gap-6 mt-10 sm:mt-12 text-[11px] sm:text-xs font-bold text-slate-600 px-2 w-full max-w-3xl"
+                    className="grid grid-cols-2 sm:flex sm:flex-wrap items-center justify-center gap-2 sm:gap-6 mt-10 sm:mt-12 text-[11px] sm:text-xs font-black text-slate-900 px-2 w-full max-w-3xl"
                 >
                     <div className="flex items-center gap-2 p-2 sm:p-0 bg-white/80 sm:bg-transparent border border-slate-200/70 sm:border-transparent rounded-xl justify-center">
                         <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-500 shrink-0" />
@@ -301,7 +178,7 @@ const LandingPage = () => {
                     <h2 className="text-3xl sm:text-4xl font-black text-slate-900 mt-3 mb-4">
                         Everything You Need For A Flawless Auction
                     </h2>
-                    <p className="text-slate-600 text-sm sm:text-base leading-relaxed">
+                    <p className="text-slate-900 text-sm sm:text-base leading-relaxed font-semibold">
                         Built specifically for corporate cricket leagues, community tournaments, and professional clubs to conduct fast, transparent, and exciting live auctions.
                     </p>
                 </div>
@@ -362,10 +239,10 @@ const LandingPage = () => {
                                 <span className="text-[11px] font-extrabold text-blue-600 uppercase tracking-wider block mb-1">
                                     {service.subtitle}
                                 </span>
-                                <h3 className="text-lg font-bold text-slate-900 mb-2.5">
+                                <h3 className="text-lg font-black text-slate-950 mb-2.5">
                                     {service.title}
                                 </h3>
-                                <p className="text-slate-600 text-xs sm:text-sm leading-relaxed">
+                                <p className="text-slate-900 text-xs sm:text-sm leading-relaxed font-medium">
                                     {service.desc}
                                 </p>
                             </div>
@@ -384,7 +261,7 @@ const LandingPage = () => {
                         <h2 className="text-3xl sm:text-4xl font-black text-slate-900 mt-3 mb-4">
                             How An Auction Runs Seamlessly
                         </h2>
-                        <p className="text-slate-600 text-sm">
+                        <p className="text-slate-900 text-sm font-semibold">
                             From tournament configuration to the final gavel strike in just four easy steps.
                         </p>
                     </div>
@@ -412,14 +289,14 @@ const LandingPage = () => {
                                 desc: 'Instant sold rosters, team expense ledger, remaining balances, and printable squad PDFs.'
                             }
                         ].map((item, idx) => (
-                            <div key={idx} className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm relative">
-                                <span className="text-4xl font-black text-slate-200 block mb-3 font-mono">
+                            <div key={idx} className="bg-white p-6 rounded-2xl border border-slate-300 shadow-sm relative">
+                                <span className="text-4xl font-black text-slate-300 block mb-3 font-mono">
                                     {item.step}
                                 </span>
-                                <h3 className="text-base font-bold text-slate-900 mb-2">
+                                <h3 className="text-base font-black text-slate-950 mb-2">
                                     {item.title}
                                 </h3>
-                                <p className="text-xs text-slate-600 leading-relaxed">
+                                <p className="text-xs text-slate-900 leading-relaxed font-medium">
                                     {item.desc}
                                 </p>
                             </div>
@@ -428,302 +305,221 @@ const LandingPage = () => {
                 </div>
             </section>
 
-            {/* Cross-Platform Parity Banner */}
-            <section id="cross-platform" className="relative z-10 container mx-auto px-4 py-20">
-                <div className="max-w-5xl mx-auto bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 text-white rounded-3xl p-8 sm:p-12 shadow-xl border border-slate-700/60 flex flex-col md:flex-row items-center justify-between gap-8">
-                    <div className="max-w-lg text-left">
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/20 text-blue-300 text-xs font-bold uppercase tracking-wider mb-4 border border-blue-400/30">
+            {/* Cross-Platform Simultaneous Harmony Section */}
+            <section id="cross-platform" className="relative z-10 container mx-auto px-3.5 sm:px-6 py-12 sm:py-20">
+                <div className="max-w-5xl mx-auto bg-slate-950 text-white rounded-3xl p-6 sm:p-10 lg:p-12 shadow-2xl border border-slate-800 relative overflow-hidden">
+                    {/* Section Header */}
+                    <div className="max-w-3xl mx-auto text-center mb-8 sm:mb-12">
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-600/20 text-blue-300 text-[11px] sm:text-xs font-black uppercase tracking-wider mb-3 border border-blue-500/40 shadow-xs">
                             <Zap className="w-3.5 h-3.5 text-blue-400" />
-                            Multi-Platform Cloud Architecture
+                            100% Feature Parity • Simultaneous Web & Mobile Sync
                         </span>
-                        <h2 className="text-2xl sm:text-4xl font-black tracking-tight mb-4 leading-tight">
-                            Run On Any Laptop, Tablet, Android or iPhone
+                        <h2 className="text-2xl sm:text-4xl font-black tracking-tight leading-tight mb-3 text-white">
+                            Full Access on Any Device • Laptop & Mobile Work Together
                         </h2>
-                        <p className="text-slate-300 text-xs sm:text-sm leading-relaxed mb-6 font-normal">
-                            Auctioneers can command the gavel from their laptop browser while franchise owners tap bids comfortably from their mobile smartphones. Everything syncs instantaneously via Supabase.
+                        <p className="text-slate-100 text-xs sm:text-sm leading-relaxed max-w-2xl mx-auto font-medium">
+                            Every feature and every role (SuperAdmin, Auctioneer, Team Owner, Spectator) is <strong className="text-white">100% accessible on BOTH Laptop Website and Mobile App</strong>. You can use any device, or mix them simultaneously for the exact same tournament auction!
                         </p>
-                        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-                            <Link
-                                to="/login"
-                                className="px-5 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl transition-all shadow-md text-center"
-                            >
-                                Launch Web Console
-                            </Link>
-                            <Link
-                                to="/register"
-                                className="px-5 py-3 bg-white/10 hover:bg-white/20 text-white font-bold text-xs rounded-xl transition-all border border-white/20 text-center"
-                            >
-                                Register Host
-                            </Link>
+                    </div>
+
+                    {/* Popular Example Notice */}
+                    <div className="mb-6 p-3.5 sm:p-4 rounded-2xl bg-slate-900 border border-indigo-500/40 text-slate-100 text-xs sm:text-sm font-medium flex items-center gap-3">
+                        <span className="text-xl sm:text-2xl shrink-0">💡</span>
+                        <p className="leading-relaxed">
+                            <strong className="text-white">Popular Tournament Setup Example:</strong> Many organizers prefer having the <em className="text-blue-300 font-semibold not-italic">Auctioneer manage from a Laptop</em> (for big-screen display and full gavel console) while <em className="text-emerald-300 font-semibold not-italic">Franchise Owners bid live from their Mobile Phones</em>. But this is just one example — anyone can use either device or both at any time with full access!
+                        </p>
+                    </div>
+
+                    {/* 2-Box Visual Contrast: Laptop vs Mobile */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 mb-8 relative">
+                        {/* Box 1: Laptop Web Console */}
+                        <div className="bg-slate-900 p-5 sm:p-6 rounded-2xl border border-slate-800 hover:border-blue-500/50 transition-all flex flex-col justify-between">
+                            <div>
+                                <div className="flex items-center justify-between mb-4">
+                                    <div className="w-10 h-10 rounded-xl bg-blue-600/20 text-blue-400 flex items-center justify-center border border-blue-500/40">
+                                        <Laptop className="w-5 h-5" />
+                                    </div>
+                                    <span className="text-[10px] font-black uppercase px-2.5 py-1 bg-blue-600/20 text-blue-300 rounded-full border border-blue-500/30">
+                                        100% Full Access • Any Role
+                                    </span>
+                                </div>
+                                <h3 className="text-base sm:text-lg font-black text-white mb-2">
+                                    Laptop / Desktop Website
+                                </h3>
+                                <p className="text-xs text-slate-100 leading-relaxed font-normal mb-4">
+                                    Complete platform suite on any web browser: SuperAdmin league settings, Master Auctioneer gavel stage, Team Owner bidding panel, and big-screen TV projector broadcast.
+                                </p>
+                                <ul className="space-y-2 text-xs text-slate-100 font-medium">
+                                    <li className="flex items-center gap-2">
+                                        <CheckCircle2 className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                                        <span>Full Admin, Auctioneer & Team Owner portals</span>
+                                    </li>
+                                    <li className="flex items-center gap-2">
+                                        <CheckCircle2 className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                                        <span>Gavel hammer, countdown timer & rollback engine</span>
+                                    </li>
+                                    <li className="flex items-center gap-2">
+                                        <CheckCircle2 className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                                        <span>Live TV / Projector full-screen broadcast view</span>
+                                    </li>
+                                    <li className="flex items-center gap-2">
+                                        <CheckCircle2 className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                                        <span>Logo CRUD, date/time pickers & dual slab config</span>
+                                    </li>
+                                </ul>
+                            </div>
+                            <div className="pt-4 mt-4 border-t border-slate-800">
+                                <Link
+                                    to="/login"
+                                    className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all shadow-md active:scale-98"
+                                >
+                                    <Monitor className="w-3.5 h-3.5" /> Launch Web Console
+                                </Link>
+                            </div>
+                        </div>
+
+                        {/* Box 2: Mobile App */}
+                        <div className="bg-slate-900 p-5 sm:p-6 rounded-2xl border border-slate-800 hover:border-emerald-500/50 transition-all flex flex-col justify-between">
+                            <div>
+                                <div className="flex items-center justify-between mb-4">
+                                    <div className="w-10 h-10 rounded-xl bg-emerald-600/20 text-emerald-400 flex items-center justify-center border border-emerald-500/40">
+                                        <Smartphone className="w-5 h-5" />
+                                    </div>
+                                    <span className="text-[10px] font-black uppercase px-2.5 py-1 bg-emerald-600/20 text-emerald-300 rounded-full border border-emerald-500/30">
+                                        100% Full Access • Any Role
+                                    </span>
+                                </div>
+                                <h3 className="text-base sm:text-lg font-black text-white mb-2">
+                                    Mobile Phone Android App
+                                </h3>
+                                <p className="text-xs text-slate-100 leading-relaxed font-normal mb-4">
+                                    Full native experience on Android phones: Team Owners can bid with 1-tap buttons, while Auctioneers & Admins can also run the entire auction directly from their pocket.
+                                </p>
+                                <ul className="space-y-2 text-xs text-slate-100 font-medium">
+                                    <li className="flex items-center gap-2">
+                                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                                        <span>1-Tap quick bid keypad with haptic feedback & audio</span>
+                                    </li>
+                                    <li className="flex items-center gap-2">
+                                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                                        <span>Full Admin & Auctioneer hammer controls on mobile</span>
+                                    </li>
+                                    <li className="flex items-center gap-2">
+                                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                                        <span>Real-time purse budget meter & squad composition</span>
+                                    </li>
+                                    <li className="flex items-center gap-2">
+                                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                                        <span>1:1 camera photo crop, player trades & injury window</span>
+                                    </li>
+                                </ul>
+                            </div>
+                            <div className="pt-4 mt-4 border-t border-slate-800">
+                                <a
+                                    href={APK_URL}
+                                    download="dab-cric-auction-v1.1.0.apk"
+                                    className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all shadow-md active:scale-98"
+                                >
+                                    <Download className="w-3.5 h-3.5" /> Download Android APK (v1.1.0)
+                                </a>
+                            </div>
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 w-full md:w-auto">
-                        <div className="bg-white/10 backdrop-blur p-5 rounded-2xl border border-white/10 text-center">
-                            <Monitor className="w-8 h-8 text-blue-400 mx-auto mb-2" />
-                            <h4 className="text-sm font-bold">Web Platform</h4>
-                            <p className="text-[11px] text-slate-400 mt-1">Full Gavel & Admin Tools</p>
+                    {/* Crucial Network Advisory Box */}
+                    <div className="p-4 sm:p-5 bg-slate-900 rounded-2xl border border-blue-500/40 flex flex-col sm:flex-row items-center gap-4 text-center sm:text-left">
+                        <div className="w-12 h-12 rounded-2xl bg-blue-600/20 border border-blue-500/40 flex items-center justify-center text-blue-300 shrink-0 shadow-inner">
+                            <Wifi className="w-6 h-6" />
                         </div>
-                        <div className="bg-white/10 backdrop-blur p-5 rounded-2xl border border-white/10 text-center">
-                            <Smartphone className="w-8 h-8 text-indigo-400 mx-auto mb-2" />
-                            <h4 className="text-sm font-bold">Mobile App</h4>
-                            <p className="text-[11px] text-slate-400 mt-1">Native Expo SDK 58</p>
+                        <div className="flex-1">
+                            <h4 className="text-xs sm:text-sm font-black text-white flex items-center justify-center sm:justify-start gap-1.5">
+                                <span>📶 Important Connectivity Requirement:</span>
+                                <span className="text-emerald-400 font-extrabold uppercase text-[11px] bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-400/40">Stable Speed Needed</span>
+                            </h4>
+                            <p className="text-[11px] sm:text-xs text-slate-100 leading-relaxed font-medium mt-1">
+                                To ensure instant sub-second synchronization between laptops and mobile phones for the same tournament auction, <strong className="text-white">ensure all devices have a stable, good-speed internet connection (Wi-Fi or 4G/5G)</strong>. Our WebSocket channels sync every bid, timer tick, and gavel strike across all screens in real time.
+                            </p>
                         </div>
                     </div>
                 </div>
             </section>
 
-            {/* Developer & Contact Information (Full-Width Footer) */}
-            <footer id="developer" className="relative z-10 bg-slate-950 text-slate-100 pt-16 pb-10 border-t border-slate-800/80">
-                {/* Background Ambient Glows */}
-                <div className="absolute top-0 right-1/4 w-96 h-96 bg-blue-600/5 rounded-full blur-3xl pointer-events-none" />
-                <div className="absolute bottom-0 left-1/4 w-96 h-96 bg-indigo-600/5 rounded-full blur-3xl pointer-events-none" />
-
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-                    {/* Main Footer Grid */}
-                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 sm:gap-10 lg:gap-12 items-start">
-                        {/* Left Column: Developer Profile (5 cols) */}
-                        <div className="lg:col-span-5 flex flex-col items-center sm:items-start text-center sm:text-left w-full">
-                            {/* Profile Header */}
-                            <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-5 mb-5 text-center sm:text-left">
-                                {/* Interactive Avatar with Zoom Lightbox */}
-                                <div
-                                    className="relative group cursor-pointer shrink-0"
-                                    onClick={() => setImageModalOpen(true)}
-                                    title="Click to view full photo"
-                                >
-                                    <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl p-0.5 bg-gradient-to-br from-blue-500 via-indigo-500 to-violet-600 shadow-xl group-hover:scale-105 transition-all duration-300">
-                                        <img
-                                            src="/developer.jpg"
-                                            alt="Jainish Dabgar"
-                                            className="w-full h-full object-cover rounded-[14px]"
-                                        />
-                                    </div>
-                                    <div className="absolute -bottom-1.5 -right-1.5 bg-blue-600 group-hover:bg-blue-500 text-white p-1 rounded-lg border-2 border-slate-950 shadow-md transition-colors flex items-center justify-center">
-                                        <Maximize2 className="w-3 h-3" />
-                                    </div>
-                                </div>
-
-                                <div className="flex flex-col items-center sm:items-start">
-                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-500/10 border border-blue-400/20 text-blue-400 text-[11px] font-bold uppercase tracking-wider mb-1.5">
-                                        <Sparkles className="w-3 h-3 text-blue-400" />
-                                        Designed & Crafted by
-                                    </span>
-                                    <h3 className="text-2xl sm:text-3xl font-black text-white tracking-tight leading-tight">
-                                        Jainish Dabgar
-                                    </h3>
-                                    <p className="text-xs sm:text-sm font-semibold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-indigo-300 to-purple-400 mt-0.5">
-                                        Full-Stack Developer & UI/UX Designer
-                                    </p>
-                                </div>
+            {/* Dedicated Android App Download Showcase Section */}
+            <section id="download-app" className="relative z-10 container mx-auto px-4 py-16">
+                <div className="max-w-5xl mx-auto bg-slate-950 text-white rounded-3xl p-8 sm:p-12 shadow-2xl border border-emerald-500/40 relative overflow-hidden">
+                    <div className="flex flex-col lg:flex-row items-center justify-between gap-8 relative z-10">
+                        <div className="max-w-xl text-center lg:text-left">
+                            {/* Android Only Pill */}
+                            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-black uppercase tracking-wider mb-4 border border-emerald-400/40 shadow-xs">
+                                <Smartphone className="w-3.5 h-3.5 text-emerald-400" />
+                                <span>Android Phones Only (v1.1.0 Released)</span>
                             </div>
 
-                            {/* Tech Stack Badges */}
-                            <div className="flex flex-wrap justify-center sm:justify-start gap-1.5 mb-5">
-                                {['React', 'React Native (Expo)', 'Node.js', 'Supabase', 'Socket.io', 'Tailwind CSS'].map((tech) => (
-                                    <span
-                                        key={tech}
-                                        className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-[11px] font-semibold text-slate-300"
-                                    >
-                                        {tech}
-                                    </span>
-                                ))}
-                            </div>
+                            <h2 className="text-2xl sm:text-4xl font-black tracking-tight mb-3 leading-tight text-white">
+                                Download The Official Android App
+                            </h2>
 
-                            {/* Gujarati Project Enquiry Note */}
-                            <div className="w-full p-4 rounded-2xl bg-slate-900/80 border border-slate-800/80 text-left">
-                                <p className="text-xs text-slate-300 leading-relaxed font-medium">
-                                    💡 એપ્લિકેશન ડેવલપમેન્ટ, ડિઝાઇન અથવા અન્ય ટેક્નિકલ પ્રોજેક્ટ્સ માટે આપ કોઈપણ સોશિયલ મીડિયા કે ઈમેલ મારફતે સીધો સંપર્ક કરી શકો છો.
+                            <p className="text-slate-100 text-xs sm:text-sm leading-relaxed mb-6 font-medium">
+                                Built exclusively for Android smartphones. Franchise owners and team captains can push bids in 100 milliseconds, crop player photos directly from camera, and monitor live budget counters.
+                            </p>
+
+                            {/* Compatibility Alert */}
+                            <div className="p-3.5 bg-slate-900 rounded-2xl border border-emerald-500/30 text-xs text-slate-100 mb-6 text-left">
+                                <p className="flex items-start gap-2">
+                                    <span className="text-emerald-400 font-bold shrink-0">📱 Compatibility:</span>
+                                    <span>Supports <strong className="text-white">Android 8.0+</strong> (Oreo to Android 15). <em className="text-amber-300 font-semibold not-italic">Apple iPhone / iOS users can use our responsive Web App directly in Safari or Chrome without installing an APK.</em></span>
                                 </p>
                             </div>
-                        </div>
 
-                        {/* Right Column: Direct Contacts & Social Links (7 cols) */}
-                        <div className="lg:col-span-7 flex flex-col justify-between h-full">
-                            {/* Section Header */}
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-800/80 gap-2 mb-6">
-                                <div>
-                                    <h4 className="text-xs sm:text-sm font-extrabold text-slate-300 uppercase tracking-wider">
-                                        Connect & Contact (સંપર્ક)
-                                    </h4>
-                                    <p className="text-xs text-slate-400 mt-0.5">
-                                        Feel free to reach out for inquiries or collaborations.
-                                    </p>
-                                </div>
-                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold self-start sm:self-auto">
-                                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                                    Available for Projects
-                                </span>
-                            </div>
-
-                            {/* Contact Links Grid */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                                {/* Direct Call */}
+                            {/* Download CTA Buttons */}
+                            <div className="flex flex-col sm:flex-row items-center gap-3 justify-center lg:justify-start">
                                 <a
-                                    href="tel:+919773272749"
-                                    className="group flex items-center gap-3 p-3 rounded-xl bg-slate-900/90 hover:bg-emerald-600/20 text-white border border-slate-800 hover:border-emerald-500/60 shadow-sm transition-all hover:scale-[1.02]"
-                                    title="Direct Call"
+                                    href={APK_URL}
+                                    download="dab-cric-auction-v1.1.0.apk"
+                                    className="w-full sm:w-auto px-6 py-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 transition-all active:scale-95"
                                 >
-                                    <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 group-hover:bg-emerald-500 group-hover:text-white transition-colors">
-                                        <Phone className="w-4 h-4" />
-                                    </div>
-                                    <div className="text-left overflow-hidden">
-                                        <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Direct Call</span>
-                                        <span className="text-xs font-bold text-white truncate block">+91 97732 72749</span>
-                                    </div>
+                                    <Download className="w-4 h-4" />
+                                    <span>Download Android APK (v1.1.0)</span>
                                 </a>
-
-                                {/* Direct WhatsApp */}
-                                <a
-                                    href="https://wa.me/919773272749"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="group flex items-center gap-3 p-3 rounded-xl bg-slate-900/90 hover:bg-[#25D366]/20 text-white border border-slate-800 hover:border-[#25D366]/60 shadow-sm transition-all hover:scale-[1.02]"
-                                    title="WhatsApp"
+                                <Link
+                                    to="/download"
+                                    className="w-full sm:w-auto px-5 py-3.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl border border-slate-700 flex items-center justify-center gap-2 transition-all"
                                 >
-                                    <div className="w-8 h-8 rounded-lg bg-[#25D366]/10 border border-[#25D366]/20 flex items-center justify-center text-[#25D366] group-hover:bg-[#25D366] group-hover:text-white transition-colors">
-                                        <MessageCircle className="w-4 h-4" />
-                                    </div>
-                                    <div className="text-left overflow-hidden">
-                                        <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">WhatsApp</span>
-                                        <span className="text-xs font-bold text-white truncate block">Chat Directly</span>
-                                    </div>
-                                </a>
-
-                                {/* Portfolio */}
-                                <a
-                                    href="https://jainishdabgar.vercel.app/"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="group flex items-center gap-3 p-3 rounded-xl bg-slate-900/90 hover:bg-sky-600/20 text-white border border-slate-800 hover:border-sky-500/60 shadow-sm transition-all hover:scale-[1.02]"
-                                    title="Portfolio"
-                                >
-                                    <div className="w-8 h-8 rounded-lg bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-400 group-hover:bg-sky-500 group-hover:text-white transition-colors">
-                                        <Globe className="w-4 h-4" />
-                                    </div>
-                                    <div className="text-left overflow-hidden">
-                                        <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Portfolio</span>
-                                        <span className="text-xs font-bold text-white truncate block">jainishdabgar.vercel.app</span>
-                                    </div>
-                                </a>
-
-                                {/* LinkedIn */}
-                                <a
-                                    href="https://www.linkedin.com/in/jainish-dabgar-87474a320/"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="group flex items-center gap-3 p-3 rounded-xl bg-slate-900/90 hover:bg-[#0A66C2]/20 text-white border border-slate-800 hover:border-[#0A66C2]/60 shadow-sm transition-all hover:scale-[1.02]"
-                                    title="LinkedIn"
-                                >
-                                    <div className="w-8 h-8 rounded-lg bg-[#0A66C2]/10 border border-[#0A66C2]/20 flex items-center justify-center text-[#0A66C2] group-hover:bg-[#0A66C2] group-hover:text-white transition-colors">
-                                        <Linkedin className="w-4 h-4" />
-                                    </div>
-                                    <div className="text-left overflow-hidden">
-                                        <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">LinkedIn</span>
-                                        <span className="text-xs font-bold text-white truncate block">Jainish Dabgar</span>
-                                    </div>
-                                </a>
-
-                                {/* GitHub */}
-                                <a
-                                    href="https://github.com/Jainish-2901"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="group flex items-center gap-3 p-3 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-white border border-slate-800 hover:border-slate-600 shadow-sm transition-all hover:scale-[1.02]"
-                                    title="GitHub"
-                                >
-                                    <div className="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-300 group-hover:bg-slate-700 group-hover:text-white transition-colors">
-                                        <Github className="w-4 h-4" />
-                                    </div>
-                                    <div className="text-left overflow-hidden">
-                                        <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">GitHub</span>
-                                        <span className="text-xs font-bold text-white truncate block">@Jainish-2901</span>
-                                    </div>
-                                </a>
-
-                                {/* Instagram */}
-                                <a
-                                    href="https://www.instagram.com/dabgar_jainish_2901/"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="group flex items-center gap-3 p-3 rounded-xl bg-slate-900/90 hover:bg-pink-600/20 text-white border border-slate-800 hover:border-pink-500/60 shadow-sm transition-all hover:scale-[1.02]"
-                                    title="Instagram"
-                                >
-                                    <div className="w-8 h-8 rounded-lg bg-pink-500/10 border border-pink-500/20 flex items-center justify-center text-pink-400 group-hover:bg-gradient-to-r group-hover:from-[#833ab4] group-hover:via-[#fd1d1d] group-hover:to-[#fcb045] group-hover:text-white transition-colors">
-                                        <Instagram className="w-4 h-4" />
-                                    </div>
-                                    <div className="text-left overflow-hidden">
-                                        <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Instagram</span>
-                                        <span className="text-xs font-bold text-white truncate block">@dabgar_jainish_2901</span>
-                                    </div>
-                                </a>
-
-                                {/* Email (Full width on sm) */}
-                                <a
-                                    href="mailto:jainishdabgar2901@gmail.com"
-                                    className="sm:col-span-2 md:col-span-3 group flex items-center gap-3 p-3 rounded-xl bg-slate-900/90 hover:bg-rose-600/20 text-white border border-slate-800 hover:border-rose-500/60 shadow-sm transition-all hover:scale-[1.01]"
-                                    title="Email"
-                                >
-                                    <div className="w-8 h-8 rounded-lg bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400 group-hover:bg-rose-500 group-hover:text-white transition-colors">
-                                        <Mail className="w-4 h-4" />
-                                    </div>
-                                    <div className="text-left overflow-hidden">
-                                        <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Email Inquiry</span>
-                                        <span className="text-xs font-bold text-white truncate block">jainishdabgar2901@gmail.com</span>
-                                    </div>
-                                </a>
+                                    <span>Installation Guide</span>
+                                    <ArrowRight className="w-3.5 h-3.5" />
+                                </Link>
                             </div>
                         </div>
-                    </div>
 
-                    {/* Bottom Full-Width Sub-Footer Bar */}
-                    <div className="mt-12 pt-6 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400">
-                        <p>© 2026 Dab Cric Auction. All rights reserved.</p>
-                        <p className="text-[11px] text-slate-400">
-                            Crafted with passion for community cricket by <span className="text-slate-300 font-semibold">Jainish Dabgar</span>.
-                        </p>
+                        {/* Quick Specs & App Badges Box */}
+                        <div className="w-full lg:w-auto grid grid-cols-2 gap-3 shrink-0">
+                            <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 text-center">
+                                <span className="text-[10px] uppercase font-bold text-slate-300 block tracking-wider">Format</span>
+                                <span className="text-base font-black text-white mt-0.5 block">Standalone APK</span>
+                                <span className="text-[10px] text-emerald-400 font-black">Direct Install</span>
+                            </div>
+                            <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 text-center">
+                                <span className="text-[10px] uppercase font-bold text-slate-300 block tracking-wider">Version</span>
+                                <span className="text-base font-black text-white mt-0.5 block">v1.1.0</span>
+                                <span className="text-[10px] text-blue-400 font-black">EAS Build</span>
+                            </div>
+                            <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 text-center">
+                                <span className="text-[10px] uppercase font-bold text-slate-300 block tracking-wider">Platform</span>
+                                <span className="text-base font-black text-white mt-0.5 block">Android Only</span>
+                                <span className="text-[10px] text-amber-400 font-black">Phones & Tablets</span>
+                            </div>
+                            <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 text-center">
+                                <span className="text-[10px] uppercase font-bold text-slate-300 block tracking-wider">Latency</span>
+                                <span className="text-base font-black text-white mt-0.5 block">&lt; 100ms</span>
+                                <span className="text-[10px] text-emerald-400 font-black">Supabase WS</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
+            </section>
 
-                {/* Developer Image Lightbox Modal */}
-                <AnimatePresence>
-                    {imageModalOpen && (
-                        <div
-                            className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4"
-                            onClick={() => setImageModalOpen(false)}
-                        >
-                            <motion.div
-                                initial={{ opacity: 0, scale: 0.9 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                exit={{ opacity: 0, scale: 0.9 }}
-                                transition={{ duration: 0.2 }}
-                                className="relative bg-slate-900 border border-slate-700 rounded-3xl overflow-hidden max-w-sm sm:max-w-md w-full p-4 shadow-2xl"
-                                onClick={(e) => e.stopPropagation()}
-                            >
-                                <button
-                                    onClick={() => setImageModalOpen(false)}
-                                    className="absolute top-6 right-6 w-8 h-8 rounded-full bg-black/60 hover:bg-black/90 text-white flex items-center justify-center z-10 transition-colors"
-                                >
-                                    <X className="w-4 h-4" />
-                                </button>
-                                <div className="rounded-2xl overflow-hidden border border-slate-800 aspect-square">
-                                    <img
-                                        src="/developer.jpg"
-                                        alt="Jainish Dabgar"
-                                        className="w-full h-full object-cover"
-                                    />
-                                </div>
-                                <div className="pt-4 text-center">
-                                    <h4 className="text-lg font-black text-white">Jainish Dabgar</h4>
-                                    <p className="text-xs text-blue-400 font-semibold mt-0.5">
-                                        Full-Stack Developer & UI/UX Designer
-                                    </p>
-                                </div>
-                            </motion.div>
-                        </div>
-                    )}
-                </AnimatePresence>
-            </footer>
+            {/* Developer & Contact Information (Shared Footer) */}
+            <PublicFooter />
         </div>
     );
 };

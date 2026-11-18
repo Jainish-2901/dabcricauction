@@ -169,7 +169,7 @@ export const SpectatorScreen: React.FC<SpectatorScreenProps> = ({
                     type: 'sold',
                     player: data.player,
                     team: data.team,
-                    price: data.player.soldPrice || data.player.currentBid || 0
+                    price: data.player.soldPrice || data.player.sold_price || data.player.currentBid || 0
                 });
             }
             fetchTournament();
@@ -738,7 +738,7 @@ export const SpectatorScreen: React.FC<SpectatorScreenProps> = ({
                                                             <Text style={{ fontSize: 11, fontWeight: '700', color: '#475569' }}>₹{player.basePrice || slot.basePrice || 0} {smallUnit}</Text>
                                                             {player.status === 'sold' ? (
                                                                 <Text style={{ fontSize: 10, fontWeight: '800', color: '#16a34a' }}>
-                                                                    SOLD: ₹{player.soldPrice || player.currentBid || 0} {smallUnit} {buyer?.shortName ? `(${buyer.shortName})` : ''}
+                                                                    SOLD: ₹{player.soldPrice || player.sold_price || player.currentBid || 0} {smallUnit} {buyer?.shortName ? `(${buyer.shortName})` : ''}
                                                                 </Text>
                                                             ) : isCur ? (
                                                                 <Text style={{ fontSize: 10, fontWeight: '900', color: '#7e22ce' }}>LIVE NOW</Text>
@@ -785,7 +785,7 @@ export const SpectatorScreen: React.FC<SpectatorScreenProps> = ({
                                         </View>
                                         <View style={{ alignItems: 'flex-end' }}>
                                             <Text style={styles.rowSoldPrice}>
-                                                ₹{formatAmount(p.soldPrice || p.currentBid || p.basePrice)}
+                                                ₹{formatAmount(p.soldPrice || p.sold_price || p.currentBid || p.basePrice)}
                                             </Text>
                                             <Text style={styles.rowBasePrice}>Base: ₹{p.basePrice}{smallUnit}</Text>
                                         </View>
@@ -879,7 +879,7 @@ export const SpectatorScreen: React.FC<SpectatorScreenProps> = ({
                                                     Acquired: <Text style={{ fontWeight: '900', color: '#0f172a' }}>{teamPlayers.length}</Text> / {tournament?.squadSizeLimit || 25}
                                                 </Text>
                                                 <Text style={styles.modalStatsText}>
-                                                    Total: <Text style={{ fontWeight: '900', color: '#16a34a' }}>₹{teamPlayers.reduce((acc, p) => acc + (p.soldPrice || p.currentBid || p.basePrice || 0), 0)} {smallUnit}</Text>
+                                                    Total: <Text style={{ fontWeight: '900', color: '#16a34a' }}>₹{teamPlayers.reduce((acc, p) => acc + (p.soldPrice || p.sold_price || p.currentBid || p.basePrice || 0), 0)} {smallUnit}</Text>
                                                 </Text>
                                             </View>
 
@@ -932,7 +932,7 @@ export const SpectatorScreen: React.FC<SpectatorScreenProps> = ({
                                                             </Text>
                                                         </View>
                                                         <View style={{ alignItems: 'flex-end' }}>
-                                                            <Text style={styles.modalPlayerPriceText}>₹{p.soldPrice || p.currentBid || p.basePrice} {smallUnit}</Text>
+                                                            <Text style={styles.modalPlayerPriceText}>₹{p.soldPrice || p.sold_price || p.currentBid || p.basePrice} {smallUnit}</Text>
                                                             <Text style={styles.modalPlayerBasePrice}>Base: ₹{p.basePrice}{smallUnit}</Text>
                                                         </View>
                                                     </View>

@@ -40,6 +40,14 @@ The application is configured with `expo-updates` to allow instant over-the-air 
   - Embedded directly inside main auction cards across [`components/LiveBiddingRoom.tsx`](./components/LiveBiddingRoom.tsx), [`components/SpectatorScreen.tsx`](./components/SpectatorScreen.tsx), and [`components/AdminConsoleScreen.tsx`](./components/AdminConsoleScreen.tsx).
 - **📊 Spectator Slots / Sets Explorer**:
   - Live public spectator screen features real-time set navigation and active slot (`🔥`) indicators.
+- **📅 Visual Date & Time Picker** ([`components/DateTimePickerModal.tsx`](./components/DateTimePickerModal.tsx)):
+  - Custom calendar grid and 12-hour AM/PM time wheel for scheduling tournament auction dates and times.
+- **🛡️ Tournament Logo CRUD & Lightbox**:
+  - Upload, replace, 1:1 square crop, and click-to-open lightbox for tournament emblems.
+- **👤 Developer Spotlight & Mobile App Footer** ([`components/LoginScreen.tsx`](./components/LoginScreen.tsx)):
+  - Profile spotlight for Jainish Dabgar with tap-to-zoom photo modal, contact links, and dedicated app footer on both Login and Host Register modes.
+- **💰 Dual Currency Slabs (K→L & L→Cr)**:
+  - Formats correctly into Thousands to Lakhs or Lakhs to Crores with zero cross-unit collision.
 
 ---
 

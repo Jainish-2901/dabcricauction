@@ -195,25 +195,31 @@ export const directResetPassword = async (payload: { username: string; phone?: s
 
 // ==================== TOURNAMENTS ====================
 
-const mapTournament = (r: any) => ({
-    _id: r._id,
-    id: r._id,
-    name: r.name,
-    status: r.status || 'upcoming',
-    auctionType: r.auction_type || 'owner_driven',
-    biddingState: r.bidding_state || 'idle',
-    squadSizeLimit: r.squad_size_limit || 25,
-    startDate: r.start_date || '',
-    time: r.time || '',
-    description: r.description || '',
-    logo: r.logo || '',
-    activeSlotId: r.active_slot_id || null,
-    currentBiddingPlayerId: r.current_bidding_player_id || null,
-    bidIncrementRules: r.bid_increment_rules || [],
-    registrationOpen: r.registration_open !== false,
-    createdAt: r.created_at,
-    updatedAt: r.updated_at
-});
+const mapTournament = (r: any) => {
+    const scale = r.budget_scale || (r.description && r.description.includes('SCALE:K_TO_L') ? 'K_TO_L' : (r.description && r.description.includes('SCALE:L_TO_CR') ? 'L_TO_CR' : (r.budgetScale || 'L_TO_CR')));
+    const cleanDesc = r.description ? r.description.replace(/\[SCALE:[^\]]+\]\s*/g, '').trim() : '';
+    return {
+        _id: r._id,
+        id: r._id,
+        name: r.name,
+        status: r.status || 'upcoming',
+        auctionType: r.auction_type || 'owner_driven',
+        biddingState: r.bidding_state || 'idle',
+        squadSizeLimit: r.squad_size_limit || 25,
+        startDate: r.start_date || '',
+        time: r.time || '',
+        description: cleanDesc,
+        logo: r.logo || '',
+        budgetScale: scale,
+        activeSlotId: r.active_slot_id || null,
+        slotDrawMode: r.slot_draw_mode || 'order',
+        currentBiddingPlayerId: r.current_bidding_player_id || null,
+        bidIncrementRules: r.bid_increment_rules || [],
+        registrationOpen: r.registration_open !== false,
+        createdAt: r.created_at,
+        updatedAt: r.updated_at
+    };
+};
 
 export const directGetTournaments = async () => {
     const { data, error } = await supabase
@@ -238,7 +244,12 @@ export const directGetTournament = async (id: string) => {
 
 export const directCreateTournament = async (payload: any) => {
     const newId = payload._id || generateId('t');
-    const record = {
+    const scale = payload.budgetScale === 'K_TO_L' ? 'K_TO_L' : 'L_TO_CR';
+    const scaleTag = `[SCALE:${scale}]`;
+    const cleanDesc = (payload.description || '').replace(/\[SCALE:[^\]]+\]\s*/g, '').trim();
+    const descWithTag = cleanDesc ? `${scaleTag} ${cleanDesc}` : scaleTag;
+
+    const record: any = {
         _id: newId,
         name: payload.name?.trim(),
         status: payload.status || 'upcoming',
@@ -247,17 +258,28 @@ export const directCreateTournament = async (payload: any) => {
         squad_size_limit: Number(payload.squadSizeLimit) || 25,
         start_date: payload.startDate || '',
         time: payload.time || '',
-        description: payload.description || '',
+        description: descWithTag,
         logo: payload.logo || '',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
     };
+    if (payload.budgetScale) record.budget_scale = scale;
+    if (payload.slotDrawMode) record.slot_draw_mode = payload.slotDrawMode;
+    if (payload.bidIncrementRules) record.bid_increment_rules = payload.bidIncrementRules;
 
-    const { data, error } = await supabase
+    let { data, error } = await supabase
         .from('tournaments')
         .insert(record)
         .select()
         .single();
+
+    if (error && error.message?.includes('schema cache')) {
+        delete record.budget_scale;
+        delete record.slot_draw_mode;
+        const retry = await supabase.from('tournaments').insert(record).select().single();
+        data = retry.data;
+        error = retry.error;
+    }
 
     if (error) throw new Error(error.message);
     return mapTournament(data);
@@ -273,17 +295,39 @@ export const directUpdateTournament = async (id: string, payload: any) => {
     if (payload.squadSizeLimit !== undefined) updateRecord.squad_size_limit = payload.squadSizeLimit;
     if (payload.startDate !== undefined) updateRecord.start_date = payload.startDate;
     if (payload.time !== undefined) updateRecord.time = payload.time;
-    if (payload.description !== undefined) updateRecord.description = payload.description;
     if (payload.logo !== undefined) updateRecord.logo = payload.logo;
     if (payload.activeSlotId !== undefined) updateRecord.active_slot_id = payload.activeSlotId;
     if (payload.currentBiddingPlayerId !== undefined) updateRecord.current_bidding_player_id = payload.currentBiddingPlayerId;
 
-    const { data, error } = await supabase
+    if (payload.budgetScale !== undefined || payload.description !== undefined) {
+        const scale = payload.budgetScale || 'L_TO_CR';
+        const scaleTag = `[SCALE:${scale}]`;
+        const rawDesc = payload.description !== undefined ? payload.description : '';
+        const cleanDesc = (rawDesc || '').replace(/\[SCALE:[^\]]+\]\s*/g, '').trim();
+        updateRecord.description = cleanDesc ? `${scaleTag} ${cleanDesc}` : scaleTag;
+        updateRecord.budget_scale = scale;
+    }
+    if (payload.slotDrawMode !== undefined) {
+        updateRecord.slot_draw_mode = payload.slotDrawMode;
+    }
+    if (payload.bidIncrementRules !== undefined) {
+        updateRecord.bid_increment_rules = payload.bidIncrementRules;
+    }
+
+    let { data, error } = await supabase
         .from('tournaments')
         .update(updateRecord)
         .eq('_id', id)
         .select()
         .single();
+
+    if (error && error.message?.includes('schema cache')) {
+        delete updateRecord.budget_scale;
+        delete updateRecord.slot_draw_mode;
+        const retry = await supabase.from('tournaments').update(updateRecord).eq('_id', id).select().single();
+        data = retry.data;
+        error = retry.error;
+    }
 
     if (error) throw new Error(error.message);
     return mapTournament(data);
@@ -511,6 +555,7 @@ const mapPlayer = (r: any) => ({
     basePrice: Number(r.base_price) || 20,
     currentBid: Number(r.current_bid) || 0,
     soldPrice: Number(r.sold_price) > 0 ? Number(r.sold_price) : (r.status === 'sold' && Number(r.current_bid) > 0 ? Number(r.current_bid) : (Number(r.sold_price) || 0)),
+    sold_price: Number(r.sold_price) > 0 ? Number(r.sold_price) : (r.status === 'sold' && Number(r.current_bid) > 0 ? Number(r.current_bid) : (Number(r.sold_price) || 0)),
     status: r.status || 'pending',
     currentLeadTeamId: r.current_lead_team_id || null,
     soldToTeamId: r.sold_to_team_id || null,

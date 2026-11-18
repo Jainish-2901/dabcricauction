@@ -140,13 +140,13 @@ const PublicAuctionView = () => {
                     type: 'sold',
                     player: data.player,
                     team: data.team,
-                    price: data.player.soldPrice || data.player.currentBid || 0
+                    price: data.player.soldPrice || data.player.sold_price || data.player.currentBid || 0
                 });
             }
             setSoldLog(prev => [{
                 player: data.player,
                 team: data.team,
-                price: data.player?.soldPrice || data.player?.currentBid || 0,
+                price: data.player?.soldPrice || data.player?.sold_price || data.player?.currentBid || 0,
                 status: 'sold'
             }, ...prev]);
             fetchTournamentData();
@@ -253,7 +253,7 @@ const PublicAuctionView = () => {
                     .map(p => ({
                         player: p,
                         team: p.soldToTeamId ? (teamRes.data || []).find(t => t._id === p.soldToTeamId) : null,
-                        price: p.soldPrice || p.currentBid || 0,
+                        price: p.soldPrice || p.sold_price || p.currentBid || 0,
                         status: p.status
                     }));
                 if (finished.length > 0) setSoldLog(finished.reverse());
@@ -944,7 +944,7 @@ const PublicAuctionView = () => {
                                                                                 {p.status === 'sold' ? (
                                                                                     <div>
                                                                                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-black text-[11px]">
-                                                                                            SOLD ₹{p.soldPrice || p.currentBid || 0} {smallUnit}
+                                                                                            SOLD ₹{p.soldPrice || p.sold_price || p.currentBid || 0} {smallUnit}
                                                                                         </span>
                                                                                         {buyerTeam && (
                                                                                             <span className="block text-[10px] font-bold text-emerald-700 mt-0.5">
@@ -1040,7 +1040,7 @@ const PublicAuctionView = () => {
                                                 </div>
                                             </td>
                                             <td className="p-3.5 text-right font-black text-emerald-700 text-sm">
-                                                ₹{formatAmount(p.soldPrice || p.currentBid || p.basePrice)}
+                                                ₹{formatAmount(p.soldPrice || p.sold_price || p.currentBid || p.basePrice)}
                                             </td>
                                         </tr>
                                     );
@@ -1170,7 +1170,7 @@ const PublicAuctionView = () => {
                                                 Acquired Players: <strong className="text-slate-900 font-black">{teamSquad.length}</strong> / {tournament.squadSizeLimit || 25}
                                             </span>
                                             <span className="text-xs font-bold text-slate-600">
-                                                Total Spent: <strong className="text-emerald-700 font-black">₹{teamSquad.reduce((acc, p) => acc + (Number(p.soldPrice || p.currentBid || p.basePrice) || 0), 0)} {smallUnit}</strong>
+                                                Total Spent: <strong className="text-emerald-700 font-black">₹{teamSquad.reduce((acc, p) => acc + (Number(p.soldPrice || p.sold_price || p.currentBid || p.basePrice) || 0), 0)} {smallUnit}</strong>
                                             </span>
                                         </div>
 
@@ -1235,7 +1235,7 @@ const PublicAuctionView = () => {
 
                                                         <div className="text-right shrink-0">
                                                             <div className="text-sm font-black text-slate-900 tabular-nums">
-                                                                ₹{p.soldPrice || p.currentBid || p.basePrice || 0} {smallUnit}
+                                                                ₹{p.soldPrice || p.sold_price || p.currentBid || p.basePrice || 0} {smallUnit}
                                                             </div>
                                                             <div className="text-[10px] text-slate-400">
                                                                 Base: ₹{p.basePrice || 0} {smallUnit}

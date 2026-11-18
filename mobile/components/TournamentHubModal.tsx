@@ -29,6 +29,7 @@ import {
 } from 'lucide-react-native';
 import { apiFetch } from '../lib/api';
 import { toast, ToastOverlay } from '../lib/toast';
+import SafeImage from './SafeImage';
 
 interface TournamentHubModalProps {
     visible: boolean;
@@ -137,7 +138,19 @@ export const TournamentHubModal: React.FC<TournamentHubModalProps> = ({
                     {/* Header */}
                     <View style={styles.header}>
                         <View style={styles.headerTitleWrap}>
-                            <Trophy size={20} color="#2563eb" />
+                            {tournament.logo ? (
+                                <View style={{ width: 38, height: 38, borderRadius: 10, backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#e2e8f0', overflow: 'hidden', padding: 2, justifyContent: 'center', alignItems: 'center' }}>
+                                    <SafeImage
+                                        uri={tournament.logo}
+                                        style={{ width: '100%', height: '100%', borderRadius: 8 }}
+                                        previewable={true}
+                                        previewTitle={tournament.name}
+                                        fallback={<Trophy size={18} color="#2563eb" />}
+                                    />
+                                </View>
+                            ) : (
+                                <Trophy size={20} color="#2563eb" />
+                            )}
                             <View style={{ marginLeft: 8, flex: 1 }}>
                                 <Text style={styles.headerTitle} numberOfLines={1}>{tournament.name}</Text>
                                 <View style={styles.badgeRow}>

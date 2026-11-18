@@ -163,7 +163,7 @@ io.on('connection', (socket) => {
         socket.join(tournamentId);
     });
 
-    socket.on('start_auction', async ({ tournamentId, activeSlotId }) => {
+    socket.on('start_auction', async ({ tournamentId, activeSlotId, slotDrawMode }) => {
         try {
             const updateData = {
                 status: 'live',
@@ -172,6 +172,9 @@ io.on('connection', (socket) => {
             if (activeSlotId !== undefined) {
                 updateData.activeSlotId = activeSlotId;
             }
+            if (slotDrawMode !== undefined) {
+                updateData.slotDrawMode = slotDrawMode;
+            }
             const tournament = await db.updateTournament(tournamentId, updateData);
             io.to(tournamentId).emit('auction_status_changed', {
                 status: 'live',
@@ -179,8 +182,12 @@ io.on('connection', (socket) => {
                 tournament
             });
             io.to(tournamentId).emit('bidding_state_changed', { state: 'active' });
-            if (activeSlotId !== undefined) {
-                io.to(tournamentId).emit('slot_changed', { activeSlotId, tournament });
+            if (activeSlotId !== undefined || slotDrawMode !== undefined) {
+                io.to(tournamentId).emit('slot_changed', {
+                    activeSlotId: tournament.activeSlotId,
+                    slotDrawMode: tournament.slotDrawMode || slotDrawMode || 'order',
+                    tournament
+                });
             }
         } catch (e) {
             console.error('start_auction error:', e);
@@ -206,13 +213,18 @@ io.on('connection', (socket) => {
         }
     });
 
-    socket.on('set_active_slot', async ({ tournamentId, slotId }) => {
+    socket.on('set_active_slot', async ({ tournamentId, slotId, slotDrawMode }) => {
         try {
-            const tournament = await db.updateTournament(tournamentId, {
+            const updateObj = {
                 activeSlotId: slotId || null
-            });
+            };
+            if (slotDrawMode !== undefined) {
+                updateObj.slotDrawMode = slotDrawMode;
+            }
+            const tournament = await db.updateTournament(tournamentId, updateObj);
             io.to(tournamentId).emit('slot_changed', {
                 activeSlotId: slotId || null,
+                slotDrawMode: tournament.slotDrawMode || slotDrawMode || 'order',
                 tournament
             });
             io.to(tournamentId).emit('auction_status_changed', {
@@ -260,7 +272,14 @@ io.on('connection', (socket) => {
             }
             socketBidCooldown.set(socket.id, now);
 
-            const { playerId, tournamentId, bidAmount, teamId } = data;
+            let { playerId, tournamentId, bidAmount, teamId, amount } = data;
+            const finalBidAmount = Number(bidAmount !== undefined ? bidAmount : amount);
+            if (!playerId && tournamentId) {
+                const tourney = await db.getTournamentById(tournamentId);
+                playerId = tourney?.currentBiddingPlayerId;
+            }
+            if (!playerId) return;
+
             const player = await db.getPlayerById(playerId);
             if (!player) return;
 
@@ -285,12 +304,13 @@ io.on('connection', (socket) => {
                 delete finalBidTimers[tournamentId];
                 io.to(tournamentId).emit('timer_cancelled', {
                     reason: 'new_bid',
-                    amount: bidAmount,
+                    amount: finalBidAmount,
                     team: team || { _id: teamId, name: 'Bidder' }
                 });
             }
 
-            player.currentBid = bidAmount;
+            player.currentBid = finalBidAmount;
+            player.current_bid = finalBidAmount;
             player.currentLeadTeamId = team || { _id: teamId, name: 'Bidder' };
             player.status = 'bidding';
             await db.updatePlayer(playerId, player);
@@ -305,14 +325,14 @@ io.on('connection', (socket) => {
                 teamName: team?.name || 'Bidder',
                 teamLogo: team?.logo || '',
                 teamShortName: team?.shortName || '',
-                bidAmount,
+                bidAmount: finalBidAmount,
                 createdAt: bidTimestamp
             };
             await db.recordBid(bidLog);
 
             io.to(tournamentId).emit('bid_update', {
                 playerId,
-                amount: bidAmount,
+                amount: finalBidAmount,
                 team: player.currentLeadTeamId,
                 timestamp: bidTimestamp,
                 bidId: bidLog._id
@@ -324,15 +344,23 @@ io.on('connection', (socket) => {
 
     socket.on('sell_player', async (data) => {
         try {
-            const { playerId, tournamentId } = data;
+            let { playerId, tournamentId, teamId, soldPrice, bidAmount } = data;
             if (tournamentId && finalBidTimers[tournamentId]) {
                 clearInterval(finalBidTimers[tournamentId].interval);
                 delete finalBidTimers[tournamentId];
             }
-            const player = await db.getPlayerById(playerId);
-            if (!player || !player.currentLeadTeamId) return;
+            if (!playerId && tournamentId) {
+                const tourney = await db.getTournamentById(tournamentId);
+                playerId = tourney?.currentBiddingPlayerId;
+            }
+            if (!playerId) return;
 
-            const leadTeamId = player.currentLeadTeamId._id || player.currentLeadTeamId;
+            const player = await db.getPlayerById(playerId);
+            if (!player) return;
+
+            const leadTeamId = (player.currentLeadTeamId?._id || player.currentLeadTeamId) || teamId;
+            if (!leadTeamId) return;
+
             const team = await db.getTeamById(leadTeamId);
             if (!team) return;
 
@@ -349,7 +377,11 @@ io.on('connection', (socket) => {
                 }
             }
 
-            const winningBid = Number(player.currentBid) > 0 ? Number(player.currentBid) : (Number(player.basePrice) || 0);
+            const explicitPrice = Number(soldPrice !== undefined ? soldPrice : bidAmount);
+            const winningBid = explicitPrice > 0
+                ? explicitPrice
+                : (Number(player.currentBid) > 0 ? Number(player.currentBid) : (Number(player.basePrice) || 0));
+
             const bidInLargeUnits = Number((winningBid / 100).toFixed(2));
             team.spent = Number(((team.spent || 0) + bidInLargeUnits).toFixed(2));
             if (!team.players) team.players = [];
@@ -360,7 +392,9 @@ io.on('connection', (socket) => {
             player.soldToTeamId = team._id;
             player.soldToTeamName = team.name;
             player.soldPrice = winningBid;
+            player.sold_price = winningBid;
             player.currentBid = winningBid;
+            player.current_bid = winningBid;
 
             // If player was in re-auction unsold slot, restore slotId to category slot
             if (player.slotId && (String(player.slotId).includes('slot_unsold_') || player.isReAuction)) {
@@ -622,7 +656,9 @@ io.on('connection', (socket) => {
                             freshPlayer.soldToTeamId = team._id;
                             freshPlayer.soldToTeamName = team.name;
                             freshPlayer.soldPrice = winningBid;
+                            freshPlayer.sold_price = winningBid;
                             freshPlayer.currentBid = winningBid;
+                            freshPlayer.current_bid = winningBid;
 
                             // If player was in re-auction unsold slot, restore slotId to category slot
                             if (freshPlayer.slotId && (String(freshPlayer.slotId).includes('slot_unsold_') || freshPlayer.isReAuction)) {

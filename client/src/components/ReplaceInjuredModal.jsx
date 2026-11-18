@@ -63,7 +63,7 @@ const ReplaceInjuredModal = ({
 
     if (!isOpen || !team) return null;
 
-    const oldPrice = Number(injuredPlayer?.soldPrice || injuredPlayer?.currentBid || injuredPlayer?.basePrice) || 0;
+    const oldPrice = Number(injuredPlayer?.soldPrice || injuredPlayer?.sold_price || injuredPlayer?.currentBid || injuredPlayer?.basePrice) || 0;
     const newPrice = Number(replacementFee) || 0;
     const priceDiff = newPrice - oldPrice;
     const diffInLarge = Number((priceDiff / 100).toFixed(2));
@@ -212,7 +212,7 @@ const ReplaceInjuredModal = ({
                                 <option value="">-- Choose Injured / Unavailable Player --</option>
                                 {teamSquad.map(p => (
                                     <option key={p._id} value={p._id}>
-                                        {p.name} ({p.category}) • Sold at: ₹{p.soldPrice || p.currentBid || p.basePrice} {smallUnit}
+                                        {p.name} ({p.category}) • Sold at: ₹{p.soldPrice || p.sold_price || p.currentBid || p.basePrice} {smallUnit}
                                     </option>
                                 ))}
                             </select>

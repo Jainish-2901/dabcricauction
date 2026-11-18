@@ -7,24 +7,8 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import socket from '../socket';
-import { getBudgetUnits } from '../utils/currency';
+import { getBudgetUnits, getBidIncrement } from '../utils/currency';
 import SafeImage from '../components/SafeImage';
-
-const getBidIncrement = (bid, rules) => {
-    const list = Array.isArray(rules) && rules.length > 0 ? rules : [
-        { upTo: 100, increment: 10 },
-        { upTo: 500, increment: 25 },
-        { upTo: 1000, increment: 50 },
-        { upTo: 999999, increment: 100 }
-    ];
-    const sorted = [...list].sort((a, b) => Number(a.upTo) - Number(b.upTo));
-    for (const rule of sorted) {
-        if (Number(bid) < Number(rule.upTo)) {
-            return Number(rule.increment) || 10;
-        }
-    }
-    return Number(sorted[sorted.length - 1]?.increment) || 100;
-};
 
 const AdminAuctionConsole = () => {
     const { user } = useAuth();
@@ -38,6 +22,7 @@ const AdminAuctionConsole = () => {
     const [teams, setTeams] = useState([]);
     const [slots, setSlots] = useState([]);
     const [activeSlotId, setActiveSlotId] = useState(null);
+    const [slotDrawMode, setSlotDrawMode] = useState('order'); // 'order' | 'random'
     const [showSlotSelectModal, setShowSlotSelectModal] = useState(false);
     const [slotModalContext, setSlotModalContext] = useState('start'); // 'start' | 'resume' | 'manual' | 'completed'
     const [onlyActiveSlotInQueue, setOnlyActiveSlotInQueue] = useState(false);
@@ -101,11 +86,11 @@ const AdminAuctionConsole = () => {
                     type: 'sold',
                     player: data.player,
                     team: data.team,
-                    price: data.player.soldPrice || data.player.currentBid || 0
+                    price: data.player.soldPrice || data.player.sold_price || data.player.currentBid || 0
                 });
             }
             setCountdownTimer(null);
-            showNotice('success', `🔨 ${data?.player?.name || 'Player'} SOLD to ${data?.team?.name || 'Winner'} for ₹${data?.player?.soldPrice || data?.player?.currentBid || 0} ${smallUnit}!`);
+            showNotice('success', `🔨 ${data?.player?.name || 'Player'} SOLD to ${data?.team?.name || 'Winner'} for ₹${data?.player?.soldPrice || data?.player?.sold_price || data?.player?.currentBid || 0} ${smallUnit}!`);
             nextPlayer();
         });
 
@@ -137,8 +122,19 @@ const AdminAuctionConsole = () => {
 
         socket.on('slot_changed', (data) => {
             setActiveSlotId(data.activeSlotId || null);
+            if (data?.slotDrawMode) {
+                setSlotDrawMode(data.slotDrawMode);
+            }
             if (data?.tournament) {
-                setTournament(prev => ({ ...prev, ...data.tournament, activeSlotId: data.activeSlotId || null }));
+                setTournament(prev => ({
+                    ...prev,
+                    ...data.tournament,
+                    activeSlotId: data.activeSlotId || null,
+                    slotDrawMode: data.slotDrawMode || data.tournament.slotDrawMode || prev.slotDrawMode || 'order'
+                }));
+                if (data.tournament.slotDrawMode) {
+                    setSlotDrawMode(data.tournament.slotDrawMode);
+                }
             }
         });
 
@@ -354,19 +350,21 @@ const AdminAuctionConsole = () => {
         }
     };
 
-    const handleConfirmStartOfficialAuction = async (selectedSlotId) => {
+    const handleConfirmStartOfficialAuction = async (selectedSlotId, modeToUse = slotDrawMode) => {
         const slotObj = slots.find(s => s._id === selectedSlotId);
         if (slotObj && (slotObj.isDefaultUnsold || slotObj.slotType === 'unsold')) {
             await handleBringAllUnsoldToSlot();
             try {
                 await axios.put(`/api/tournaments/${tournamentId}`, {
                     status: 'live',
-                    biddingState: 'active'
+                    biddingState: 'active',
+                    slotDrawMode: modeToUse
                 });
             } catch (e) {}
-            socket.emit('start_auction', { tournamentId, activeSlotId: selectedSlotId });
-            setTournament(prev => ({ ...prev, status: 'live', biddingState: 'active' }));
+            socket.emit('start_auction', { tournamentId, activeSlotId: selectedSlotId, slotDrawMode: modeToUse });
+            setTournament(prev => ({ ...prev, status: 'live', biddingState: 'active', slotDrawMode: modeToUse }));
             setBiddingState('active');
+            setSlotDrawMode(modeToUse);
             return;
         }
 
@@ -374,35 +372,44 @@ const AdminAuctionConsole = () => {
             await axios.put(`/api/tournaments/${tournamentId}`, {
                 status: 'live',
                 biddingState: 'active',
-                activeSlotId: selectedSlotId || null
+                activeSlotId: selectedSlotId || null,
+                slotDrawMode: modeToUse
             });
         } catch (e) {
             console.error("Error updating tournament status:", e);
         }
 
-        socket.emit('start_auction', { tournamentId, activeSlotId: selectedSlotId });
+        socket.emit('start_auction', { tournamentId, activeSlotId: selectedSlotId, slotDrawMode: modeToUse });
         setTournament(prev => ({
             ...prev,
             status: 'live',
             biddingState: 'active',
-            activeSlotId: selectedSlotId || null
+            activeSlotId: selectedSlotId || null,
+            slotDrawMode: modeToUse
         }));
         setBiddingState('active');
         setActiveSlotId(selectedSlotId || null);
+        setSlotDrawMode(modeToUse);
         setShowSlotSelectModal(false);
 
-        // Pick first pending player from this slot onto the stage
+        // Pick first pending player from this slot onto the stage according to draw mode
         const pool = selectedSlotId
             ? players.filter(p => p.slotId === selectedSlotId && p.status === 'pending')
             : players.filter(p => p.status === 'pending');
         if (pool.length > 0) {
-            selectPlayer(pool[0]);
+            if (modeToUse === 'random') {
+                const picked = pool[Math.floor(Math.random() * pool.length)];
+                selectPlayer(picked);
+            } else {
+                const sorted = [...pool].sort((a, b) => (Number(a.order || 0) - Number(b.order || 0)));
+                selectPlayer(sorted[0]);
+            }
         }
 
-        showNotice('success', `🚀 Official Auction LIVE! Active Slot: ${slotObj ? slotObj.name : 'All Players'}`);
+        showNotice('success', `🚀 Official Auction LIVE! Active Slot: ${slotObj ? slotObj.name : 'All Players'} (${modeToUse === 'random' ? '🎲 Random in Slot' : '🔢 Order-wise'})`);
     };
 
-    const handleSelectSlot = async (slotId, autoSelectFirst = true) => {
+    const handleSelectSlot = async (slotId, autoSelectFirst = true, modeToUse = slotDrawMode) => {
         const slotObj = slots.find(s => s._id === slotId);
         if (slotObj && (slotObj.isDefaultUnsold || slotObj.slotType === 'unsold')) {
             await handleBringAllUnsoldToSlot();
@@ -411,32 +418,40 @@ const AdminAuctionConsole = () => {
 
         try {
             await axios.put(`/api/tournaments/${tournamentId}`, {
-                activeSlotId: slotId || null
+                activeSlotId: slotId || null,
+                slotDrawMode: modeToUse
             });
         } catch (e) {
             console.error("Error setting active slot:", e);
         }
 
-        socket.emit('set_active_slot', { tournamentId, slotId: slotId || null });
+        socket.emit('set_active_slot', { tournamentId, slotId: slotId || null, slotDrawMode: modeToUse });
         setActiveSlotId(slotId || null);
-        setTournament(prev => ({ ...prev, activeSlotId: slotId || null }));
+        setSlotDrawMode(modeToUse);
+        setTournament(prev => ({ ...prev, activeSlotId: slotId || null, slotDrawMode: modeToUse }));
         setShowSlotSelectModal(false);
 
-        showNotice('success', `Active Slot set to: ${slotObj ? slotObj.name : 'All Players'}`);
+        showNotice('success', `Active Slot set to: ${slotObj ? slotObj.name : 'All Players'} (${modeToUse === 'random' ? '🎲 Random in Slot' : '🔢 Order-wise'})`);
 
         if (autoSelectFirst) {
             const pool = slotId
                 ? players.filter(p => p.slotId === slotId && p.status === 'pending')
                 : players.filter(p => p.status === 'pending');
             if (pool.length > 0) {
-                selectPlayer(pool[0]);
+                if (modeToUse === 'random') {
+                    const picked = pool[Math.floor(Math.random() * pool.length)];
+                    selectPlayer(picked);
+                } else {
+                    const sorted = [...pool].sort((a, b) => (Number(a.order || 0) - Number(b.order || 0)));
+                    selectPlayer(sorted[0]);
+                }
             }
         }
     };
 
     const handleResumeWithSlot = async (slotId) => {
         if (slotId !== undefined && slotId !== activeSlotId) {
-            await handleSelectSlot(slotId, true);
+            await handleSelectSlot(slotId, true, slotDrawMode);
         }
         handleToggleBiddingState('active');
         setShowSlotSelectModal(false);
@@ -572,7 +587,12 @@ const AdminAuctionConsole = () => {
             showNotice('error', 'No active bid to sell!');
             return;
         }
-        socket.emit('sell_player', { playerId: currentPlayer._id, tournamentId });
+        socket.emit('sell_player', {
+            playerId: currentPlayer._id,
+            tournamentId,
+            teamId: winningTeam._id,
+            soldPrice: currentBid
+        });
     };
 
     const handleAdminSell = async (teamId) => {
@@ -603,7 +623,7 @@ const AdminAuctionConsole = () => {
             showNotice('error', 'Select a player to bid on!');
             return;
         }
-        const dynamicInc = getBidIncrement(currentBid, tournament?.bidIncrementRules);
+        const dynamicInc = getBidIncrement(currentBid, tournament?.bidIncrementRules, tournament?.budgetScale);
         let nextBid;
         if (!winningTeam) {
             nextBid = Number(currentBid || currentPlayer.basePrice || 10);
@@ -657,14 +677,17 @@ const AdminAuctionConsole = () => {
 
     const nextPlayer = () => {
         let pool = activeSlotId
-            ? players.filter(p => p.slotId === activeSlotId && p.status === 'pending')
-            : players.filter(p => p.status === 'pending');
+            ? players.filter(p => p.slotId === activeSlotId && p.status === 'pending' && p._id !== currentPlayer?._id)
+            : players.filter(p => p.status === 'pending' && p._id !== currentPlayer?._id);
 
-        const currentIdx = currentPlayer ? pool.findIndex(p => p._id === currentPlayer._id) : -1;
-        const next = pool.slice(currentIdx + 1)[0] || pool.find(p => p._id !== currentPlayer?._id);
-
-        if (next) {
-            selectPlayer(next);
+        if (pool.length > 0) {
+            if (slotDrawMode === 'random') {
+                const picked = pool[Math.floor(Math.random() * pool.length)];
+                selectPlayer(picked);
+            } else {
+                const sorted = [...pool].sort((a, b) => (Number(a.order || 0) - Number(b.order || 0)));
+                selectPlayer(sorted[0]);
+            }
         } else {
             setCurrentPlayer(null);
             setWinningTeam(null);
@@ -674,10 +697,10 @@ const AdminAuctionConsole = () => {
                     players.some(p => p.slotId === s._id && p.status === 'pending') ||
                     ((s.isDefaultUnsold || s.slotType === 'unsold') && players.some(p => p.status === 'unsold'))
                 ));
+                setSlotModalContext('completed');
+                setShowSlotSelectModal(true);
                 if (otherSlotsWithPending.length > 0) {
-                    setSlotModalContext('completed');
-                    setShowSlotSelectModal(true);
-                    showNotice('info', `🎉 Slot "${currentSlotObj?.name || 'Current'}" completed! Please choose the next slot.`);
+                    showNotice('info', `🎉 Slot "${currentSlotObj?.name || 'Current'}" completed! Please choose the next slot and order mode.`);
                 } else {
                     showNotice('info', `🎉 All players in slot "${currentSlotObj?.name || 'Current'}" concluded! No other unauctioned slots.`);
                 }
@@ -699,7 +722,7 @@ const AdminAuctionConsole = () => {
     });
 
     const unsoldPlayers = players.filter(p => p.status === 'unsold');
-    const dynamicInc = getBidIncrement(currentBid, tournament?.bidIncrementRules);
+    const dynamicInc = getBidIncrement(currentBid, tournament?.bidIncrementRules, tournament?.budgetScale);
     const nextAdminBidAmount = !winningTeam ? Number(currentBid || currentPlayer?.basePrice || 10) : (Number(currentBid || 0) + dynamicInc);
 
     const activeSlotObj = slots.find(s => s._id === activeSlotId);
@@ -915,8 +938,11 @@ const AdminAuctionConsole = () => {
                                 </span>
                             )}
                         </div>
-                        <h3 className="text-sm font-black text-slate-900 mt-0.5">
-                            {activeSlotObj ? activeSlotObj.name : 'All Pending Players (No Slot Filter)'}
+                        <h3 className="text-sm font-black text-slate-900 mt-0.5 flex items-center gap-2">
+                            <span>{activeSlotObj ? activeSlotObj.name : 'All Pending Players (No Slot Filter)'}</span>
+                            <span className={`text-[10px] font-black px-2 py-0.5 rounded-md ${slotDrawMode === 'random' ? 'bg-purple-100 text-purple-700 border border-purple-200' : 'bg-indigo-100 text-indigo-700 border border-indigo-200'}`}>
+                                {slotDrawMode === 'random' ? '🎲 Random in Slot' : '🔢 Order-wise'}
+                            </span>
                         </h3>
                     </div>
                 </div>
@@ -1109,7 +1135,7 @@ const AdminAuctionConsole = () => {
                                     {/* Dynamic Increment Indicator */}
                                     <div className="mt-3 text-[11px] font-bold text-slate-500 bg-white/70 py-1.5 px-3 rounded-xl border border-slate-200/80 inline-flex items-center gap-1.5">
                                         <TrendingUp className="w-3.5 h-3.5 text-blue-600" />
-                                        <span>Next Min Increment: <strong className="text-blue-700 font-black">+₹{getBidIncrement(currentBid, tournament.bidIncrementRules)} {smallUnit}</strong> (Rule Configured)</span>
+                                        <span>Next Min Increment: <strong className="text-blue-700 font-black">+₹{formatAmount(getBidIncrement(currentBid, tournament?.bidIncrementRules, tournament?.budgetScale))}</strong> (Rule Configured)</span>
                                     </div>
 
                                     {/* Quick Undo Last Bid Button */}
@@ -1311,9 +1337,9 @@ const AdminAuctionConsole = () => {
                                                                     ? 'bg-emerald-100 text-emerald-800 border border-emerald-300 cursor-default'
                                                                     : 'bg-blue-600 hover:bg-blue-700 text-white cursor-pointer active:scale-95'
                                                             }`}
-                                                            title={`Register bid of ₹${nextAdminBidAmount}${smallUnit} for ${team.name}`}
+                                                            title={`Register bid of ₹${formatAmount(nextAdminBidAmount)} for ${team.name}`}
                                                         >
-                                                            {winningTeam?._id === team._id ? '✓ Leader' : `+Bid ₹${nextAdminBidAmount}${smallUnit}`}
+                                                            {winningTeam?._id === team._id ? '✓ Leader' : `+Bid ₹${formatAmount(nextAdminBidAmount)}`}
                                                         </button>
                                                     )}
                                                     <button
@@ -1430,7 +1456,7 @@ const AdminAuctionConsole = () => {
                                                         <div className="text-[11px] truncate">
                                                             {p.status === 'sold' ? (
                                                                 <span className="text-emerald-700 font-bold">
-                                                                    {p.category} • Sold ₹{p.soldPrice || p.currentBid || p.basePrice}{smallUnit}
+                                                                    {p.category} • Sold ₹{p.soldPrice || p.sold_price || p.currentBid || p.basePrice}{smallUnit}
                                                                 </span>
                                                             ) : (
                                                                 <span className="text-slate-500">
@@ -1467,7 +1493,7 @@ const AdminAuctionConsole = () => {
                                                             ? 'bg-amber-50 text-amber-700 border border-amber-200'
                                                             : 'bg-slate-100 text-slate-600'
                                                     }`}>
-                                                        {isCurrent ? 'LIVE' : isPassed ? 'PASSED' : p.status === 'sold' ? `SOLD (₹${p.soldPrice || p.currentBid || p.basePrice}${smallUnit})` : p.status}
+                                                        {isCurrent ? 'LIVE' : isPassed ? 'PASSED' : p.status === 'sold' ? `SOLD (₹${p.soldPrice || p.sold_price || p.currentBid || p.basePrice}${smallUnit})` : p.status}
                                                     </span>
                                                 </div>
                                             </div>
@@ -1618,7 +1644,7 @@ const AdminAuctionConsole = () => {
                                                                             </span>
                                                                         ) : p.status === 'sold' ? (
                                                                             <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-lg text-[10px] font-black">
-                                                                                Sold ₹{p.soldPrice || p.currentBid || p.basePrice}{smallUnit}
+                                                                                Sold ₹{p.soldPrice || p.sold_price || p.currentBid || p.basePrice}{smallUnit}
                                                                             </span>
                                                                         ) : (
                                                                             <button
@@ -1796,6 +1822,54 @@ const AdminAuctionConsole = () => {
 
                         {/* Slots List */}
                         <div className="p-6 overflow-y-auto space-y-3 flex-1">
+                            {/* Slot Draw Mode Selection (Order-wise vs Random) */}
+                            <div className="p-4 bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200/80 rounded-2xl mb-2">
+                                <div className="flex items-center justify-between mb-2">
+                                    <span className="text-[11px] font-black uppercase text-indigo-950 tracking-wider">
+                                        Player Selection Mode in Slot (આ સ્લોટ માટે પ્લેયર ક્રમ)
+                                    </span>
+                                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-md ${slotDrawMode === 'random' ? 'bg-purple-100 text-purple-800' : 'bg-indigo-100 text-indigo-800'}`}>
+                                        {slotDrawMode === 'random' ? '🎲 Random in Slot Active' : '🔢 Order-wise (1,2,3..) Active'}
+                                    </span>
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setSlotDrawMode('order')}
+                                        className={`p-3 rounded-xl border-2 text-left transition-all cursor-pointer flex items-center gap-3 ${
+                                            slotDrawMode === 'order'
+                                                ? 'border-indigo-600 bg-indigo-600 text-white shadow-md'
+                                                : 'border-slate-200 bg-white text-slate-700 hover:border-indigo-300'
+                                        }`}
+                                    >
+                                        <span className="text-xl">🔢</span>
+                                        <div>
+                                            <div className="font-black text-xs">Order-wise (ક્રમ અનુસાર)</div>
+                                            <div className={`text-[10px] ${slotDrawMode === 'order' ? 'text-indigo-100' : 'text-slate-500'}`}>
+                                                1st, 2nd, 3rd player in defined slot order
+                                            </div>
+                                        </div>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setSlotDrawMode('random')}
+                                        className={`p-3 rounded-xl border-2 text-left transition-all cursor-pointer flex items-center gap-3 ${
+                                            slotDrawMode === 'random'
+                                                ? 'border-purple-600 bg-purple-600 text-white shadow-md'
+                                                : 'border-slate-200 bg-white text-slate-700 hover:border-purple-300'
+                                        }`}
+                                    >
+                                        <span className="text-xl">🎲</span>
+                                        <div>
+                                            <div className="font-black text-xs">Random in Slot (રેન્ડમ ડ્રો)</div>
+                                            <div className={`text-[10px] ${slotDrawMode === 'random' ? 'text-purple-100' : 'text-slate-500'}`}>
+                                                Draw pending players randomly from this slot
+                                            </div>
+                                        </div>
+                                    </button>
+                                </div>
+                            </div>
+
                             {slots.length === 0 ? (
                                 <div className="p-8 text-center bg-slate-50 border border-slate-200 rounded-2xl">
                                     <Layers className="w-10 h-10 text-slate-300 mx-auto mb-2" />
@@ -1940,11 +2014,11 @@ const AdminAuctionConsole = () => {
                                                     <button
                                                         onClick={() => {
                                                             if (slotModalContext === 'start') {
-                                                                handleConfirmStartOfficialAuction(slot._id);
+                                                                handleConfirmStartOfficialAuction(slot._id, slotDrawMode);
                                                             } else if (slotModalContext === 'resume') {
                                                                 handleResumeWithSlot(slot._id);
                                                             } else {
-                                                                handleSelectSlot(slot._id);
+                                                                handleSelectSlot(slot._id, true, slotDrawMode);
                                                             }
                                                         }}
                                                         disabled={isFinished && sPending.length === 0}
@@ -2071,7 +2145,7 @@ const AdminAuctionConsole = () => {
                                                 Acquired Players: <strong className="text-slate-900 font-black">{teamSquad.length}</strong> / {tournament?.squadSizeLimit || 25}
                                             </span>
                                             <span className="text-xs font-bold text-slate-600">
-                                                Total Spent: <strong className="text-emerald-700 font-black">₹{teamSquad.reduce((acc, p) => acc + (Number(p.soldPrice || p.currentBid || p.basePrice) || 0), 0)} {smallUnit}</strong>
+                                                Total Spent: <strong className="text-emerald-700 font-black">₹{teamSquad.reduce((acc, p) => acc + (Number(p.soldPrice || p.sold_price || p.currentBid || p.basePrice) || 0), 0)} {smallUnit}</strong>
                                             </span>
                                         </div>
 
@@ -2107,7 +2181,7 @@ const AdminAuctionConsole = () => {
 
                                                         <div className="text-right shrink-0">
                                                             <div className="text-sm font-black text-slate-900 tabular-nums">
-                                                                ₹{p.soldPrice || p.currentBid || p.basePrice || 0} {smallUnit}
+                                                                ₹{p.soldPrice || p.sold_price || p.currentBid || p.basePrice || 0} {smallUnit}
                                                             </div>
                                                             <div className="text-[10px] text-slate-400">
                                                                 Base: ₹{p.basePrice || 0} {smallUnit}

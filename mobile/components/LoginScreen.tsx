@@ -16,6 +16,7 @@ import {
     Linking,
     Modal
 } from 'react-native';
+import Svg, { Path, Rect, Circle, Line } from 'react-native-svg';
 import {
     Trophy,
     LogIn,
@@ -37,10 +38,35 @@ import {
     MessageCircle,
     Award,
     Maximize2,
-    X
+    X,
+    FileText,
+    ShieldCheck
 } from 'lucide-react-native';
 import { apiFetch } from '../lib/api';
 import { toast } from '../lib/toast';
+
+const LinkedinIcon = ({ size = 20, color = '#FFFFFF' }: { size?: number; color?: string }) => (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+        <Path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z" />
+        <Rect width={4} height={12} x={2} y={9} />
+        <Circle cx={4} cy={4} r={2} />
+    </Svg>
+);
+
+const GithubIcon = ({ size = 20, color = '#FFFFFF' }: { size?: number; color?: string }) => (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+        <Path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4" />
+        <Path d="M9 18c-4.51 2-5-2-7-2" />
+    </Svg>
+);
+
+const InstagramIcon = ({ size = 20, color = '#FFFFFF' }: { size?: number; color?: string }) => (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+        <Rect width={20} height={20} x={2} y={2} rx={5} ry={5} />
+        <Path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+        <Line x1={17.5} x2={17.51} y1={6.5} y2={6.5} />
+    </Svg>
+);
 
 interface LoginScreenProps {
     onLoginSuccess: (user: any) => void;
@@ -51,6 +77,16 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     const [loading, setLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const [imageModalVisible, setImageModalVisible] = useState(false);
+    const [modalImageSrc, setModalImageSrc] = useState<any>(require('../assets/developer.jpg'));
+    const [modalImageTitle, setModalImageTitle] = useState('Jainish Dabgar');
+    const [modalImageSubtitle, setModalImageSubtitle] = useState('Lead Architect & Developer');
+
+    const openImageModal = (src: any, title: string, subtitle: string) => {
+        setModalImageSrc(src);
+        setModalImageTitle(title);
+        setModalImageSubtitle(subtitle);
+        setImageModalVisible(true);
+    };
 
     // Form Fields
     const [username, setUsername] = useState('');
@@ -234,11 +270,16 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                 >
                     {/* Header Brand */}
                     <View style={styles.header}>
-                        <Image
-                            source={require('../assets/logo.png')}
-                            style={{ width: 84, height: 84, borderRadius: 20, marginBottom: 12, backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#e2e8f0' }}
-                            resizeMode="contain"
-                        />
+                        <TouchableOpacity
+                            activeOpacity={0.8}
+                            onPress={() => openImageModal(require('../assets/logo.png'), 'Dab Cric Auction', 'Official Brand Logo')}
+                        >
+                            <Image
+                                source={require('../assets/logo.png')}
+                                style={{ width: 84, height: 84, borderRadius: 20, marginBottom: 12, backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#e2e8f0' }}
+                                resizeMode="contain"
+                            />
+                        </TouchableOpacity>
                         <Text style={styles.appTitle}>Dab Cric Auction</Text>
                         <Text style={styles.subtitle}>
                             {authMode === 'signup'
@@ -578,7 +619,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                         <View style={styles.devHeader}>
                             <TouchableOpacity
                                 activeOpacity={0.8}
-                                onPress={() => setImageModalVisible(true)}
+                                onPress={() => openImageModal(require('../assets/developer.jpg'), 'Jainish Dabgar', 'Lead Architect & Developer')}
                                 style={styles.devAvatarContainer}
                             >
                                 <Image
@@ -592,91 +633,205 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                             </TouchableOpacity>
 
                             <View style={styles.devDetails}>
-                                <Text style={styles.devBadge}>✨ Designed & Crafted by</Text>
+                                <Text style={styles.devBadge}>✨ Lead Architect & Developer</Text>
                                 <Text style={styles.devName}>Jainish Dabgar</Text>
-                                <Text style={styles.devRole}>Full-Stack Developer & UI/UX Designer</Text>
+                                <Text style={styles.devRole}>Full-Stack Engineer & UI/UX Designer</Text>
                             </View>
                         </View>
 
-                        <Text style={styles.contactSectionTitle}>Connect & Contact (સંપર્ક):</Text>
-
-                        {/* Social Buttons Grid */}
-                        <View style={styles.socialGrid}>
+                        {/* Direct Contacts Row */}
+                        <View style={styles.devContactList}>
                             <TouchableOpacity
-                                activeOpacity={0.8}
+                                activeOpacity={0.7}
                                 onPress={() => Linking.openURL('tel:+919773272749')}
-                                style={[styles.socialBtn, { backgroundColor: '#10b981' }]}
+                                style={styles.contactItem}
                             >
-                                <Phone size={14} color="#ffffff" />
-                                <Text style={styles.socialBtnText}>Call</Text>
+                                <View style={[styles.contactIconCircle, { backgroundColor: '#dcfce7' }]}>
+                                    <Phone size={14} color="#16a34a" />
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.contactItemLabel}>Direct Call</Text>
+                                    <Text style={styles.contactItemValue}>+91 97732 72749</Text>
+                                </View>
                             </TouchableOpacity>
 
+                            <TouchableOpacity
+                                activeOpacity={0.7}
+                                onPress={() => Linking.openURL('mailto:jainishdabgar2901@gmail.com')}
+                                style={styles.contactItem}
+                            >
+                                <View style={[styles.contactIconCircle, { backgroundColor: '#fee2e2' }]}>
+                                    <Mail size={14} color="#dc2626" />
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.contactItemLabel}>Official Email</Text>
+                                    <Text style={styles.contactItemValue} numberOfLines={1}>jainishdabgar2901@gmail.com</Text>
+                                </View>
+                            </TouchableOpacity>
+                        </View>
+
+                        <Text style={styles.contactSectionTitle}>Social Handles & Profiles (સોશિયલ મીડિયા):</Text>
+
+                        {/* Social Media Modern Icon Buttons - Matching Web */}
+                        <View style={styles.socialRowContainer}>
+                            {/* WhatsApp */}
                             <TouchableOpacity
                                 activeOpacity={0.8}
                                 onPress={() => Linking.openURL('https://wa.me/919773272749')}
-                                style={[styles.socialBtn, { backgroundColor: '#25d366' }]}
+                                style={styles.socialTile}
                             >
-                                <MessageCircle size={14} color="#ffffff" />
-                                <Text style={styles.socialBtnText}>WhatsApp</Text>
+                                <View style={[styles.socialTileIconBox, { backgroundColor: '#25D366' }]}>
+                                    <MessageCircle size={20} color="#FFFFFF" />
+                                </View>
+                                <Text style={styles.socialTileLabel}>WhatsApp</Text>
                             </TouchableOpacity>
 
+                            {/* Portfolio */}
                             <TouchableOpacity
                                 activeOpacity={0.8}
                                 onPress={() => Linking.openURL('https://jainishdabgar.vercel.app/')}
-                                style={[styles.socialBtn, { backgroundColor: '#0284c7' }]}
+                                style={styles.socialTile}
                             >
-                                <Globe size={14} color="#ffffff" />
-                                <Text style={styles.socialBtnText}>Portfolio</Text>
+                                <View style={[styles.socialTileIconBox, { backgroundColor: '#0284c7' }]}>
+                                    <Globe size={20} color="#FFFFFF" />
+                                </View>
+                                <Text style={styles.socialTileLabel}>Portfolio</Text>
                             </TouchableOpacity>
 
+                            {/* LinkedIn */}
                             <TouchableOpacity
                                 activeOpacity={0.8}
                                 onPress={() => Linking.openURL('https://www.linkedin.com/in/jainish-dabgar-87474a320/')}
-                                style={[styles.socialBtn, { backgroundColor: '#0a66c2' }]}
+                                style={styles.socialTile}
                             >
-                                <Text style={{ color: '#ffffff', fontWeight: '900', fontSize: 12 }}>in</Text>
-                                <Text style={styles.socialBtnText}>LinkedIn</Text>
+                                <View style={[styles.socialTileIconBox, { backgroundColor: '#0A66C2' }]}>
+                                    <LinkedinIcon size={20} color="#FFFFFF" />
+                                </View>
+                                <Text style={styles.socialTileLabel}>LinkedIn</Text>
                             </TouchableOpacity>
 
+                            {/* GitHub */}
                             <TouchableOpacity
                                 activeOpacity={0.8}
                                 onPress={() => Linking.openURL('https://github.com/Jainish-2901')}
-                                style={[styles.socialBtn, { backgroundColor: '#24292f' }]}
+                                style={styles.socialTile}
                             >
-                                <Text style={{ color: '#ffffff', fontWeight: '900', fontSize: 12 }}>git</Text>
-                                <Text style={styles.socialBtnText}>GitHub</Text>
+                                <View style={[styles.socialTileIconBox, { backgroundColor: '#24292f' }]}>
+                                    <GithubIcon size={20} color="#FFFFFF" />
+                                </View>
+                                <Text style={styles.socialTileLabel}>GitHub</Text>
                             </TouchableOpacity>
 
+                            {/* Instagram */}
                             <TouchableOpacity
                                 activeOpacity={0.8}
                                 onPress={() => Linking.openURL('https://www.instagram.com/dabgar_jainish_2901/')}
-                                style={[styles.socialBtn, { backgroundColor: '#e1306c' }]}
+                                style={styles.socialTile}
                             >
-                                <Text style={{ color: '#ffffff', fontWeight: '900', fontSize: 12 }}>IG</Text>
-                                <Text style={styles.socialBtnText}>Instagram</Text>
-                            </TouchableOpacity>
-
-                            <TouchableOpacity
-                                activeOpacity={0.8}
-                                onPress={() => Linking.openURL('mailto:jainishdabgar2901@gmail.com')}
-                                style={[styles.socialBtn, { backgroundColor: '#ea4335', width: '100%' }]}
-                            >
-                                <Mail size={14} color="#ffffff" />
-                                <Text style={styles.socialBtnText}>jainishdabgar2901@gmail.com</Text>
+                                <View style={[styles.socialTileIconBox, { backgroundColor: '#E1306C' }]}>
+                                    <InstagramIcon size={20} color="#FFFFFF" />
+                                </View>
+                                <Text style={styles.socialTileLabel}>Instagram</Text>
                             </TouchableOpacity>
                         </View>
 
                         {/* Note Box */}
                         <View style={styles.noteBox}>
                             <Text style={styles.noteText}>
-                                💡 એપ્લિકેશન ડેવલપમેન્ટ, ડિઝાઇન અથવા અન્ય ટેક્નિકલ પ્રોજેક્ટ્સ માટે આપ ઉપર આપેલા કોઈપણ સોશિયલ મીડિયા કે ઈમેલ મારફતે સીધો સંપર્ક કરી શકો છો.
+                                💡 એપ્લિકેશન ડેવલપમેન્ટ, વેબસાઇટ ડિઝાઇન અથવા અન્ય ટેક્નિકલ પ્રોજેક્ટ્સ માટે આપ ઉપર આપેલા કોઈપણ સોશિયલ મીડિયા કે ઈમેલ મારફતે સીધો સંપર્ક કરી શકો છો.
                             </Text>
+                        </View>
+                    </View>
+
+                    {/* Mobile App Footer (Active on Login & Signup) */}
+                    <View style={styles.mobileFooter}>
+                        {/* Brand & Version Badge */}
+                        <View style={styles.footerBrandRow}>
+                            <TouchableOpacity
+                                activeOpacity={0.8}
+                                onPress={() => openImageModal(require('../assets/logo.png'), 'Dab Cric Auction', 'Official Brand Logo')}
+                            >
+                                <Image
+                                    source={require('../assets/logo.png')}
+                                    style={styles.footerLogo}
+                                    resizeMode="contain"
+                                />
+                            </TouchableOpacity>
+                            <View>
+                                <Text style={styles.footerBrandName}>Dab Cric <Text style={{ color: '#3b82f6' }}>Auction</Text></Text>
+                                <View style={styles.footerBadgeRow}>
+                                    <View style={styles.onlineDot} />
+                                    <Text style={styles.footerVersionText}>v1.1.0 • Android Release</Text>
+                                </View>
+                            </View>
+                        </View>
+
+                        {/* Quick Web Links */}
+                        <View style={styles.footerLinksRow}>
+                            <TouchableOpacity
+                                style={styles.footerLinkBtn}
+                                onPress={() => Linking.openURL('https://dabcricauction.vercel.app')}
+                            >
+                                <Globe size={12} color="#60a5fa" />
+                                <Text style={styles.footerLinkText}>Official Web</Text>
+                            </TouchableOpacity>
+
+                            <Text style={styles.footerDivider}>|</Text>
+
+                            <TouchableOpacity
+                                style={styles.footerLinkBtn}
+                                onPress={() => Linking.openURL('https://dabcricauction.vercel.app/terms')}
+                            >
+                                <FileText size={12} color="#94a3b8" />
+                                <Text style={styles.footerLinkText}>Terms</Text>
+                            </TouchableOpacity>
+
+                            <Text style={styles.footerDivider}>|</Text>
+
+                            <TouchableOpacity
+                                style={styles.footerLinkBtn}
+                                onPress={() => Linking.openURL('https://dabcricauction.vercel.app/privacy')}
+                            >
+                                <ShieldCheck size={12} color="#94a3b8" />
+                                <Text style={styles.footerLinkText}>Privacy</Text>
+                            </TouchableOpacity>
+
+                            <Text style={styles.footerDivider}>|</Text>
+
+                            <TouchableOpacity
+                                style={styles.footerLinkBtn}
+                                onPress={() => Linking.openURL('https://dabcricauction.vercel.app/about')}
+                            >
+                                <Sparkles size={12} color="#94a3b8" />
+                                <Text style={styles.footerLinkText}>About</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        {/* Copyright & Creator Credit */}
+                        <View style={styles.footerCopyrightBox}>
+                            <Text style={styles.footerCopyrightText}>
+                                © 2026 Dab Cric Auction Pro. All rights reserved.
+                            </Text>
+                            <TouchableOpacity
+                                style={styles.footerCreatorRow}
+                                activeOpacity={0.8}
+                                onPress={() => openImageModal(require('../assets/developer.jpg'), 'Jainish Dabgar', 'Lead Architect & Developer')}
+                            >
+                                <Image
+                                    source={require('../assets/developer.jpg')}
+                                    style={styles.footerDevTinyPic}
+                                    resizeMode="cover"
+                                />
+                                <Text style={styles.footerCreatorText}>
+                                    Crafted with ❤️ by <Text style={{ fontWeight: '800', color: '#e2e8f0' }}>Jainish Dabgar</Text>
+                                </Text>
+                            </TouchableOpacity>
                         </View>
                     </View>
                 </ScrollView>
             </KeyboardAvoidingView>
 
-            {/* Developer Photo Fullscreen Modal */}
+            {/* Fullscreen Photo Lightbox Modal */}
             <Modal
                 visible={imageModalVisible}
                 transparent={true}
@@ -696,13 +851,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                             <X size={18} color="#ffffff" />
                         </TouchableOpacity>
                         <Image
-                            source={require('../assets/developer.jpg')}
+                            source={modalImageSrc}
                             style={styles.modalImage}
-                            resizeMode="cover"
+                            resizeMode="contain"
                         />
                         <View style={styles.modalCaptionWrap}>
-                            <Text style={styles.modalCaptionName}>Jainish Dabgar</Text>
-                            <Text style={styles.modalCaptionRole}>Full-Stack Developer & UI/UX Designer</Text>
+                            <Text style={styles.modalCaptionName}>{modalImageTitle}</Text>
+                            <Text style={styles.modalCaptionRole}>{modalImageSubtitle}</Text>
                         </View>
                     </View>
                 </TouchableOpacity>
@@ -843,8 +998,8 @@ const styles = StyleSheet.create({
     },
     inputLabel: {
         fontSize: 10,
-        fontWeight: '800',
-        color: '#475569',
+        fontWeight: '900',
+        color: '#0f172a',
         letterSpacing: 0.5,
     },
     forgotLink: {
@@ -922,7 +1077,8 @@ const styles = StyleSheet.create({
     },
     guidanceText: {
         fontSize: 11,
-        color: '#475569',
+        color: '#0f172a',
+        fontWeight: '600',
         flex: 1,
         lineHeight: 16,
     },
@@ -969,7 +1125,7 @@ const styles = StyleSheet.create({
         borderColor: '#e2e8f0',
         padding: 16,
         marginTop: 20,
-        marginBottom: 32,
+        marginBottom: 16,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.05,
@@ -1024,6 +1180,39 @@ const styles = StyleSheet.create({
         color: '#2563eb',
         marginTop: 1,
     },
+    devContactList: {
+        gap: 8,
+        marginTop: 14,
+    },
+    contactItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        backgroundColor: '#f8fafc',
+        paddingVertical: 8,
+        paddingHorizontal: 10,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: '#e2e8f0',
+    },
+    contactIconCircle: {
+        width: 32,
+        height: 32,
+        borderRadius: 8,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    contactItemLabel: {
+        fontSize: 10,
+        fontWeight: '700',
+        color: '#64748b',
+        textTransform: 'uppercase',
+    },
+    contactItemValue: {
+        fontSize: 13,
+        fontWeight: '800',
+        color: '#0f172a',
+    },
     contactSectionTitle: {
         fontSize: 11,
         fontWeight: '800',
@@ -1033,26 +1222,33 @@ const styles = StyleSheet.create({
         marginTop: 16,
         marginBottom: 10,
     },
-    socialGrid: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 8,
-    },
-    socialBtn: {
+    socialRowContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'center',
-        gap: 6,
-        paddingVertical: 9,
-        paddingHorizontal: 12,
-        borderRadius: 10,
-        minWidth: '47%',
-        flexGrow: 1,
+        justifyContent: 'space-between',
+        marginTop: 4,
+        paddingHorizontal: 2,
     },
-    socialBtnText: {
-        color: '#ffffff',
-        fontSize: 11,
-        fontWeight: '800',
+    socialTile: {
+        alignItems: 'center',
+        gap: 6,
+    },
+    socialTileIconBox: {
+        width: 44,
+        height: 44,
+        borderRadius: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.15,
+        shadowRadius: 3,
+        elevation: 2,
+    },
+    socialTileLabel: {
+        fontSize: 10,
+        fontWeight: '700',
+        color: '#334155',
     },
     noteBox: {
         backgroundColor: '#f8fafc',
@@ -1066,6 +1262,105 @@ const styles = StyleSheet.create({
         fontSize: 10,
         color: '#64748b',
         lineHeight: 15,
+    },
+    // Mobile App Footer Styles
+    mobileFooter: {
+        backgroundColor: '#0f172a',
+        borderRadius: 20,
+        padding: 16,
+        marginBottom: 36,
+        borderWidth: 1,
+        borderColor: '#1e293b',
+        alignItems: 'center',
+    },
+    footerBrandRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        marginBottom: 12,
+    },
+    footerLogo: {
+        width: 32,
+        height: 32,
+        borderRadius: 8,
+        backgroundColor: '#ffffff',
+    },
+    footerBrandName: {
+        color: '#ffffff',
+        fontSize: 14,
+        fontWeight: '900',
+    },
+    footerBadgeRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 5,
+        marginTop: 2,
+    },
+    onlineDot: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+        backgroundColor: '#10b981',
+    },
+    footerVersionText: {
+        color: '#94a3b8',
+        fontSize: 10,
+        fontWeight: '600',
+    },
+    footerLinksRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexWrap: 'wrap',
+        gap: 8,
+        paddingVertical: 10,
+        borderTopWidth: 1,
+        borderBottomWidth: 1,
+        borderColor: '#1e293b',
+        width: '100%',
+        marginBottom: 12,
+    },
+    footerLinkBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        paddingVertical: 4,
+        paddingHorizontal: 6,
+    },
+    footerLinkText: {
+        color: '#cbd5e1',
+        fontSize: 11,
+        fontWeight: '700',
+    },
+    footerDivider: {
+        color: '#475569',
+        fontSize: 11,
+    },
+    footerCopyrightBox: {
+        alignItems: 'center',
+        gap: 4,
+    },
+    footerCopyrightText: {
+        color: '#64748b',
+        fontSize: 10,
+        fontWeight: '600',
+    },
+    footerCreatorRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        marginTop: 2,
+    },
+    footerDevTinyPic: {
+        width: 16,
+        height: 16,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: '#3b82f6',
+    },
+    footerCreatorText: {
+        color: '#94a3b8',
+        fontSize: 10,
     },
     // Modal Styles
     modalBackdrop: {

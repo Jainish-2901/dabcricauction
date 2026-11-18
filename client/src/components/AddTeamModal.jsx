@@ -276,7 +276,7 @@ const AddTeamModal = ({ isOpen, onClose, tournamentId, tournament = null, onAdde
                                     </label>
                                     <input
                                         type="text"
-                                        placeholder="e.g. Pranav Dabgar"
+                                        placeholder="e.g. Jainish Dabgar"
                                         className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-slate-900 text-xs font-bold focus:border-blue-600 focus:outline-none"
                                         value={formData.captainName || ''}
                                         onChange={(e) => setFormData({ ...formData, captainName: e.target.value })}

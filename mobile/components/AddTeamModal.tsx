@@ -299,7 +299,7 @@ export default function AddTeamModal({
                                     <Text style={styles.label}>CAPTAIN / OWNER FULL NAME *</Text>
                                     <TextInput
                                         style={[styles.input, { backgroundColor: '#ffffff' }]}
-                                        placeholder="e.g. Pranav Dabgar"
+                                        placeholder="e.g. Jainish Dabgar"
                                         placeholderTextColor="#94a3b8"
                                         value={captainName}
                                         onChangeText={setCaptainName}

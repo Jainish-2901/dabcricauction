@@ -16,25 +16,9 @@ import {
 import { Shield, Users, Pause, LogOut, CheckCircle2, AlertCircle, ArrowLeft, Timer, Coffee, Clock, Gavel, X, ChevronRight, Wallet, Radio, Trophy, Layers, Search, User } from 'lucide-react-native';
 import socket from '../lib/socket';
 import { apiFetch } from '../lib/api';
-import { getBudgetUnits } from '../lib/currency';
+import { getBudgetUnits, getBidIncrement } from '../lib/currency';
 import { toast } from '../lib/toast';
 import SafeImage from './SafeImage';
-
-const getBidIncrement = (bid: number, rules?: any[]) => {
-    const list = Array.isArray(rules) && rules.length > 0 ? rules : [
-        { upTo: 100, increment: 10 },
-        { upTo: 500, increment: 25 },
-        { upTo: 1000, increment: 50 },
-        { upTo: 999999, increment: 100 }
-    ];
-    const sorted = [...list].sort((a, b) => Number(a.upTo) - Number(b.upTo));
-    for (const rule of sorted) {
-        if (Number(bid) < Number(rule.upTo)) {
-            return Number(rule.increment) || 10;
-        }
-    }
-    return Number(sorted[sorted.length - 1]?.increment) || 100;
-};
 
 export interface Player {
     _id: string;
@@ -45,6 +29,7 @@ export interface Player {
     currentLeadTeamId?: any;
     image?: string;
     soldPrice?: number;
+    sold_price?: number;
     soldToTeamId?: string;
     battingStyle?: string;
     bowlingStyle?: string;
@@ -106,7 +91,7 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
 
     const remainingPurse = ((Number(teamData.budget) || 0) - (Number(teamData.spent) || 0)).toFixed(2);
     const isLeading = leadTeam?._id === team._id || leadTeam === team._id;
-    const dynamicInc = getBidIncrement(currentBid, tournament?.bidIncrementRules);
+    const dynamicInc = getBidIncrement(currentBid, tournament?.bidIncrementRules, tournament?.budgetScale);
     const nextBidAmount = !leadTeam ? Number(currentBid || currentPlayer?.basePrice || 10) : (Number(currentBid || 0) + dynamicInc);
     const unsoldPlayers = allPlayers.filter(p => p.status === 'unsold');
 
@@ -232,7 +217,7 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
                     type: 'sold',
                     player: data.player,
                     team: data.team,
-                    price: data.player.soldPrice || data.player.currentBid || 0
+                    price: data.player.soldPrice || data.player.sold_price || data.player.currentBid || 0
                 });
             }
             fetchTournament();
@@ -428,7 +413,7 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
             return;
         }
 
-        const dynamicInc = getBidIncrement(currentBid, tournament?.bidIncrementRules);
+        const dynamicInc = getBidIncrement(currentBid, tournament?.bidIncrementRules, tournament?.budgetScale);
         let newBid: number;
         if (!leadTeam) {
             newBid = Number(currentBid || currentPlayer.basePrice || 10);
@@ -929,7 +914,7 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
                                         <Text style={styles.excelPlayerCategory}>{player.category}</Text>
                                     </View>
                                     <Text style={styles.excelBasePriceText}>₹{player.basePrice || 0} {smallUnit}</Text>
-                                    <Text style={styles.excelSoldPriceText}>₹{player.soldPrice || player.currentBid || player.basePrice || 0} {smallUnit}</Text>
+                                    <Text style={styles.excelSoldPriceText}>₹{player.soldPrice || player.sold_price || player.currentBid || player.basePrice || 0} {smallUnit}</Text>
                                 </View>
                             ))
                         )}
@@ -937,7 +922,7 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
                         {/* Excel Sheet Financial Balance Statement Footer */}
                         {squad.length > 0 && (() => {
                             const totalBase = squad.reduce((sum, p) => sum + (Number(p.basePrice) || 0), 0);
-                            const totalSold = squad.reduce((sum, p) => sum + (Number(p.soldPrice || p.currentBid || p.basePrice) || 0), 0);
+                            const totalSold = squad.reduce((sum, p) => sum + (Number(p.soldPrice || p.sold_price || p.currentBid || p.basePrice) || 0), 0);
                             const budgetLarge = Number(teamData.budget) || 100;
                             const spentLarge = Number(teamData.spent) || 0;
                             const remainingLarge = Math.max(0, budgetLarge - spentLarge).toFixed(2);
@@ -1116,7 +1101,7 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
                                                             <Text style={{ fontSize: 11, fontWeight: '700', color: '#475569' }}>₹{player.basePrice || slot.basePrice || 0} {smallUnit}</Text>
                                                             {player.status === 'sold' ? (
                                                                 <Text style={{ fontSize: 10, fontWeight: '800', color: '#16a34a' }}>
-                                                                    SOLD: ₹{player.soldPrice || player.currentBid || 0}{smallUnit} {buyer?.shortName ? `(${buyer.shortName})` : ''}
+                                                                    SOLD: ₹{player.soldPrice || player.sold_price || player.currentBid || 0}{smallUnit} {buyer?.shortName ? `(${buyer.shortName})` : ''}
                                                                 </Text>
                                                             ) : isCur ? (
                                                                 <Text style={{ fontSize: 10, fontWeight: '900', color: '#7e22ce' }}>LIVE NOW</Text>
@@ -1281,7 +1266,7 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
                                                     Acquired: <Text style={styles.modalStatsBold}>{teamPlayers.length}</Text> / {tournament?.squadSizeLimit || 25}
                                                 </Text>
                                                 <Text style={styles.modalStatsText}>
-                                                    Total Spent: <Text style={styles.modalStatsBold}>₹{teamPlayers.reduce((acc, p) => acc + (Number(p.soldPrice || p.currentBid || p.basePrice) || 0), 0)} {smallUnit}</Text>
+                                                    Total Spent: <Text style={styles.modalStatsBold}>₹{teamPlayers.reduce((acc, p) => acc + (Number(p.soldPrice || p.sold_price || p.currentBid || p.basePrice) || 0), 0)} {smallUnit}</Text>
                                                 </Text>
                                             </View>
 
@@ -1306,7 +1291,7 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
                                                             </Text>
                                                         </View>
                                                         <View style={styles.modalPlayerPrice}>
-                                                            <Text style={styles.modalPlayerPriceText}>₹{p.soldPrice || p.currentBid || p.basePrice} {smallUnit}</Text>
+                                                            <Text style={styles.modalPlayerPriceText}>₹{p.soldPrice || p.sold_price || p.currentBid || p.basePrice} {smallUnit}</Text>
                                                             <Text style={styles.modalPlayerBasePrice}>Base: ₹{p.basePrice}{smallUnit}</Text>
                                                         </View>
                                                     </View>

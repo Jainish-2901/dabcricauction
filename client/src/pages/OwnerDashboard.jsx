@@ -4,25 +4,9 @@ import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import socket from '../socket';
-import { getBudgetUnits } from '../utils/currency';
+import { getBudgetUnits, getBidIncrement } from '../utils/currency';
 import toast from '../lib/toast';
 import SafeImage from '../components/SafeImage';
-
-const getBidIncrement = (bid, rules) => {
-    const list = Array.isArray(rules) && rules.length > 0 ? rules : [
-        { upTo: 100, increment: 10 },
-        { upTo: 500, increment: 25 },
-        { upTo: 1000, increment: 50 },
-        { upTo: 999999, increment: 100 }
-    ];
-    const sorted = [...list].sort((a, b) => Number(a.upTo) - Number(b.upTo));
-    for (const rule of sorted) {
-        if (Number(bid) < Number(rule.upTo)) {
-            return Number(rule.increment) || 10;
-        }
-    }
-    return Number(sorted[sorted.length - 1]?.increment) || 100;
-};
 
 const OwnerDashboard = () => {
     const { user, logout } = useAuth();
@@ -116,7 +100,7 @@ const OwnerDashboard = () => {
                         type: 'sold',
                         player: data.player,
                         team: data.team,
-                        price: data.player.soldPrice || data.player.currentBid || 0
+                        price: data.player.soldPrice || data.player.sold_price || data.player.currentBid || 0
                     });
                 }
                 fetchTeamData();
@@ -349,7 +333,7 @@ const OwnerDashboard = () => {
         // Auto-increment logic:
         // Opening bid on fresh player is at Base Price.
         // Subsequent bids jump by the dynamic slab configured in tournament settings.
-        const dynamicInc = getBidIncrement(currentBid, tournament?.bidIncrementRules);
+        const dynamicInc = getBidIncrement(currentBid, tournament?.bidIncrementRules, tournament?.budgetScale);
         let newBid;
         if (!currentLeadTeam) {
             newBid = Number(currentBid || currentPlayer.basePrice || 10);
@@ -394,7 +378,7 @@ const OwnerDashboard = () => {
     const remainingPurse = ((Number(teamData.budget) || 0) - (Number(teamData.spent) || 0)).toFixed(2);
     const myTeamId = typeof user.teamId === 'object' ? user.teamId._id : user.teamId;
     const isLeading = currentLeadTeam === myTeamId || currentLeadTeam?._id === myTeamId;
-    const dynamicInc = getBidIncrement(currentBid, tournament?.bidIncrementRules);
+    const dynamicInc = getBidIncrement(currentBid, tournament?.bidIncrementRules, tournament?.budgetScale);
     const nextBidAmount = !currentLeadTeam ? Number(currentBid || currentPlayer?.basePrice || 10) : (Number(currentBid || 0) + dynamicInc);
     const unsoldPlayers = allPlayers.filter(p => p.status === 'unsold');
 
@@ -835,7 +819,7 @@ const OwnerDashboard = () => {
                                                     ₹{p.basePrice || 0} {smallUnit}
                                                 </td>
                                                 <td className="p-3 text-right font-black text-emerald-700 tabular-nums">
-                                                    ₹{p.soldPrice || p.currentBid || p.basePrice || 0} {smallUnit}
+                                                    ₹{p.soldPrice || p.sold_price || p.currentBid || p.basePrice || 0} {smallUnit}
                                                 </td>
                                             </tr>
                                         )) : (
@@ -847,7 +831,7 @@ const OwnerDashboard = () => {
                                     {/* Excel Sheet Style Summary Statement Footer */}
                                     {squad.length > 0 && (() => {
                                         const totalBase = squad.reduce((sum, p) => sum + (Number(p.basePrice) || 0), 0);
-                                        const totalSold = squad.reduce((sum, p) => sum + (Number(p.soldPrice || p.currentBid || p.basePrice) || 0), 0);
+                                        const totalSold = squad.reduce((sum, p) => sum + (Number(p.soldPrice || p.sold_price || p.currentBid || p.basePrice) || 0), 0);
                                         const budgetLarge = Number(teamData?.budget) || 100;
                                         const spentLarge = Number(teamData?.spent) || 0;
                                         const remainingLarge = Math.max(0, budgetLarge - spentLarge).toFixed(2);
@@ -1104,7 +1088,7 @@ const OwnerDashboard = () => {
                                                                                         {p.status === 'sold' ? (
                                                                                             <div className="inline-flex flex-col items-end">
                                                                                                 <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded font-black text-[11px] tabular-nums">
-                                                                                                    SOLD: ₹{p.soldPrice || p.finalPrice || p.currentBid || 0} {smallUnit}
+                                                                                                    SOLD: ₹{p.soldPrice || p.sold_price || p.finalPrice || p.currentBid || 0} {smallUnit}
                                                                                                 </span>
                                                                                                 {buyerTeam && (
                                                                                                     <span className="text-[10px] text-slate-500 font-bold mt-0.5">
@@ -1432,7 +1416,7 @@ const OwnerDashboard = () => {
                                                 Acquired Players: <strong className="text-slate-900 font-black">{teamSquad.length}</strong> / {tournament?.squadSizeLimit || 25}
                                             </span>
                                             <span className="text-xs font-bold text-slate-600">
-                                                Total Spent: <strong className="text-emerald-700 font-black">₹{teamSquad.reduce((acc, p) => acc + (Number(p.soldPrice || p.currentBid || p.basePrice) || 0), 0)} {smallUnit}</strong>
+                                                Total Spent: <strong className="text-emerald-700 font-black">₹{teamSquad.reduce((acc, p) => acc + (Number(p.soldPrice || p.sold_price || p.currentBid || p.basePrice) || 0), 0)} {smallUnit}</strong>
                                             </span>
                                         </div>
 
@@ -1466,7 +1450,7 @@ const OwnerDashboard = () => {
 
                                                         <div className="text-right shrink-0">
                                                             <div className="text-sm font-black text-slate-900 tabular-nums">
-                                                                ₹{p.soldPrice || p.currentBid || p.basePrice || 0} {smallUnit}
+                                                                ₹{p.soldPrice || p.sold_price || p.currentBid || p.basePrice || 0} {smallUnit}
                                                             </div>
                                                             <div className="text-[10px] text-slate-400">
                                                                 Base: ₹{p.basePrice || 0} {smallUnit}

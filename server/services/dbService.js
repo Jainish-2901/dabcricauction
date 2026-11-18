@@ -56,6 +56,10 @@ const supaSync = {
     async insertTournament(t) {
         if (!supabase) return;
         try {
+            const scale = t.budgetScale === 'K_TO_L' ? 'K_TO_L' : 'L_TO_CR';
+            const scaleTag = `[SCALE:${scale}]`;
+            const cleanDesc = (t.description || '').replace(/\[SCALE:[^\]]+\]\s*/g, '').trim();
+            const descWithTag = cleanDesc ? `${scaleTag} ${cleanDesc}` : scaleTag;
             const row = {
                 _id: t._id,
                 name: t.name || 'Tournament',
@@ -65,14 +69,23 @@ const supaSync = {
                 squad_size_limit: Number(t.squadSizeLimit) || 25,
                 start_date: t.startDate || null,
                 time: t.time || null,
-                description: t.description || null,
+                description: descWithTag,
                 logo: t.logo || null,
                 active_slot_id: t.activeSlotId || null,
                 current_bidding_player_id: t.currentBiddingPlayerId || null,
                 bid_increment_rules: t.bidIncrementRules || [],
                 updated_at: new Date().toISOString()
             };
-            const { error } = await supabase.from('tournaments').upsert(row, { onConflict: '_id' });
+            if (t.budgetScale) row.budget_scale = scale;
+            if (t.slotDrawMode) row.slot_draw_mode = t.slotDrawMode;
+
+            let { error } = await supabase.from('tournaments').upsert(row, { onConflict: '_id' });
+            if (error && error.message?.includes('schema cache')) {
+                delete row.budget_scale;
+                delete row.slot_draw_mode;
+                const retry = await supabase.from('tournaments').upsert(row, { onConflict: '_id' });
+                error = retry.error;
+            }
             if (error) console.error('❌ Supabase insertTournament error:', error.message);
             else console.log('⚡ Supabase cloud: Tournament inserted ->', t._id);
         } catch (e) {
@@ -91,13 +104,30 @@ const supaSync = {
             if (update.squadSizeLimit !== undefined) row.squad_size_limit = Number(update.squadSizeLimit) || 25;
             if (update.startDate !== undefined) row.start_date = update.startDate;
             if (update.time !== undefined) row.time = update.time;
-            if (update.description !== undefined) row.description = update.description;
             if (update.logo !== undefined) row.logo = update.logo;
             if (update.activeSlotId !== undefined) row.active_slot_id = update.activeSlotId;
             if (update.currentBiddingPlayerId !== undefined) row.current_bidding_player_id = update.currentBiddingPlayerId;
             if (update.bidIncrementRules !== undefined) row.bid_increment_rules = update.bidIncrementRules;
 
-            const { error } = await supabase.from('tournaments').update(row).eq('_id', id);
+            if (update.budgetScale !== undefined || update.description !== undefined) {
+                const scale = update.budgetScale || 'L_TO_CR';
+                const scaleTag = `[SCALE:${scale}]`;
+                const rawDesc = update.description !== undefined ? update.description : '';
+                const cleanDesc = (rawDesc || '').replace(/\[SCALE:[^\]]+\]\s*/g, '').trim();
+                row.description = cleanDesc ? `${scaleTag} ${cleanDesc}` : scaleTag;
+                row.budget_scale = scale;
+            }
+            if (update.slotDrawMode !== undefined) {
+                row.slot_draw_mode = update.slotDrawMode;
+            }
+
+            let { error } = await supabase.from('tournaments').update(row).eq('_id', id);
+            if (error && error.message?.includes('schema cache')) {
+                delete row.budget_scale;
+                delete row.slot_draw_mode;
+                const retry = await supabase.from('tournaments').update(row).eq('_id', id);
+                error = retry.error;
+            }
             if (error) console.error('❌ Supabase updateTournament error:', error.message);
             else console.log('⚡ Supabase cloud: Tournament updated ->', id);
         } catch (e) {
@@ -435,22 +465,29 @@ const hydrateFromSupabase = async () => {
 
         const currentLocal = readData();
 
-        const tournaments = (tournRes.data || []).map(r => ({
-            _id: r._id,
-            name: r.name,
-            status: r.status,
-            auctionType: r.auction_type,
-            biddingState: r.bidding_state,
-            squadSizeLimit: r.squad_size_limit,
-            startDate: r.start_date,
-            time: r.time,
-            description: r.description,
-            logo: r.logo,
-            activeSlotId: r.active_slot_id,
-            currentBiddingPlayerId: r.current_bidding_player_id,
-            bidIncrementRules: r.bid_increment_rules || [],
-            registrationOpen: r.registration_open !== false
-        }));
+        const tournaments = (tournRes.data || []).map(r => {
+            const local = (currentLocal.tournaments || []).find(lt => lt._id === r._id);
+            const scale = r.budget_scale || (r.description && r.description.includes('SCALE:K_TO_L') ? 'K_TO_L' : (r.description && r.description.includes('SCALE:L_TO_CR') ? 'L_TO_CR' : (local?.budgetScale || 'L_TO_CR')));
+            const cleanDesc = r.description ? r.description.replace(/\[SCALE:[^\]]+\]\s*/g, '').trim() : (local?.description || '');
+            return {
+                _id: r._id,
+                name: r.name,
+                status: r.status,
+                auctionType: r.auction_type,
+                biddingState: r.bidding_state,
+                squadSizeLimit: r.squad_size_limit,
+                startDate: r.start_date,
+                time: r.time,
+                description: cleanDesc,
+                logo: r.logo,
+                budgetScale: scale,
+                activeSlotId: r.active_slot_id,
+                slotDrawMode: r.slot_draw_mode || local?.slotDrawMode || 'order',
+                currentBiddingPlayerId: r.current_bidding_player_id,
+                bidIncrementRules: r.bid_increment_rules || [],
+                registrationOpen: r.registration_open !== false
+            };
+        });
 
         const slots = (slotsRes.data || []).map(r => ({
             _id: r._id,
@@ -482,28 +519,32 @@ const hydrateFromSupabase = async () => {
             };
         });
 
-        const players = (playersRes.data || []).map(r => ({
-            _id: r._id,
-            tournamentId: r.tournament_id,
-            slotId: r.slot_id,
-            name: r.name,
-            category: r.category,
-            battingStyle: r.batting_style,
-            bowlingStyle: r.bowling_style,
-            basePrice: Number(r.base_price) || 0,
-            currentBid: Number(r.current_bid) || 0,
-            soldPrice: Number(r.sold_price) > 0 ? Number(r.sold_price) : (r.status === 'sold' && Number(r.current_bid) > 0 ? Number(r.current_bid) : (Number(r.sold_price) || 0)),
-            status: r.status,
-            currentLeadTeamId: r.current_lead_team_id,
-            soldToTeamId: r.sold_to_team_id,
-            image: r.image,
-            cricHeroesProfileUrl: r.cric_heroes_profile_url,
-            mobile: r.mobile,
-            age: r.age,
-            stats: r.stats || {},
-            isReAuction: r.is_re_auction,
-            isCaptain: Boolean(r.is_captain) || String(r._id || '').startsWith('pl_cap_')
-        }));
+        const players = (playersRes.data || []).map(r => {
+            const sPrice = Number(r.sold_price) > 0 ? Number(r.sold_price) : (r.status === 'sold' && Number(r.current_bid) > 0 ? Number(r.current_bid) : (Number(r.sold_price) || 0));
+            return {
+                _id: r._id,
+                tournamentId: r.tournament_id,
+                slotId: r.slot_id,
+                name: r.name,
+                category: r.category,
+                battingStyle: r.batting_style,
+                bowlingStyle: r.bowling_style,
+                basePrice: Number(r.base_price) || 0,
+                currentBid: Number(r.current_bid) || 0,
+                soldPrice: sPrice,
+                sold_price: sPrice,
+                status: r.status,
+                currentLeadTeamId: r.current_lead_team_id,
+                soldToTeamId: r.sold_to_team_id,
+                image: r.image,
+                cricHeroesProfileUrl: r.cric_heroes_profile_url,
+                mobile: r.mobile,
+                age: r.age,
+                stats: r.stats || {},
+                isReAuction: r.is_re_auction,
+                isCaptain: Boolean(r.is_captain) || String(r._id || '').startsWith('pl_cap_')
+            };
+        });
 
         // Preserve any local captain players not yet in Supabase
         const localCaptains = (currentLocal.players || []).filter(lp => (lp.isCaptain || String(lp._id || '').startsWith('pl_cap_')) && !players.some(p => p._id === lp._id));
@@ -563,21 +604,65 @@ const writeData = (data) => {
 };
 
 const DEFAULT_BID_RULES = [
-    { upTo: 100, increment: 10 },    // Up to 1 Cr: +10 Lakhs
-    { upTo: 500, increment: 25 },    // 1 Cr to 5 Cr: +25 Lakhs
-    { upTo: 1000, increment: 50 },   // 5 Cr to 10 Cr: +50 Lakhs
-    { upTo: 999999, increment: 100 } // Above 10 Cr: +100 Lakhs (1 Cr)
+    { from: 0, fromUnit: 'L', upTo: 1, toUnit: 'Cr', increment: 10, incrementUnit: 'L', label: 'Up to ₹1 Cr (100 L)' },
+    { from: 1, fromUnit: 'Cr', upTo: 5, toUnit: 'Cr', increment: 25, incrementUnit: 'L', label: '₹1 Cr - ₹5 Cr (500 L)' },
+    { from: 5, fromUnit: 'Cr', upTo: 10, toUnit: 'Cr', increment: 50, incrementUnit: 'L', label: '₹5 Cr - ₹10 Cr (1000 L)' },
+    { from: 10, fromUnit: 'Cr', upTo: 999999, toUnit: 'Cr', increment: 100, incrementUnit: 'L', label: 'Above ₹10 Cr (> 1000 L)' }
 ];
 
-function getBidIncrement(currentBid, rules = DEFAULT_BID_RULES) {
+const toBaseBidUnit = (value, unit, budgetScale = 'L_TO_CR') => {
+    const val = Number(value) || 0;
+    const isKtoL = budgetScale === 'K_TO_L';
+
+    if (isKtoL) {
+        if (unit === 'Cr') return val * 10000;
+        if (unit === 'L') return val * 100;
+        return val;
+    } else {
+        if (unit === 'Cr') return val * 100;
+        if (unit === 'K') return Math.max(1, Math.round(val / 100));
+        return val;
+    }
+};
+
+function getBidIncrement(currentBid, rules = DEFAULT_BID_RULES, budgetScale = 'L_TO_CR') {
+    const isKtoL = budgetScale === 'K_TO_L';
+    const defaultSmallUnit = isKtoL ? 'K' : 'L';
     const list = Array.isArray(rules) && rules.length > 0 ? rules : DEFAULT_BID_RULES;
-    const sorted = [...list].sort((a, b) => Number(a.upTo) - Number(b.upTo));
-    for (const rule of sorted) {
-        if (Number(currentBid) < Number(rule.upTo)) {
-            return Number(rule.increment) || 10;
+
+    const normalized = list.map((r, i, arr) => {
+        const fUnit = r.fromUnit || r.rangeUnit || defaultSmallUnit;
+        const tUnit = r.toUnit || r.rangeUnit || defaultSmallUnit;
+        const iUnit = r.incrementUnit || defaultSmallUnit;
+        const upToRaw = Number(r.upTo);
+        const isUnlimited = isNaN(upToRaw) || upToRaw <= 0 || upToRaw >= 999999;
+
+        const normUpTo = isUnlimited ? 999999999 : toBaseBidUnit(upToRaw, tUnit, budgetScale);
+        const prevUpTo = i > 0 ? Number(arr[i - 1].upTo) : 0;
+        const fromRaw = r.from !== undefined ? Number(r.from) : prevUpTo;
+        const normFrom = toBaseBidUnit(fromRaw, fUnit, budgetScale);
+        const normInc = toBaseBidUnit(Number(r.increment) || (isKtoL ? 5 : 10), iUnit, budgetScale);
+
+        return {
+            ...r,
+            fromUnit: fUnit,
+            toUnit: tUnit,
+            incrementUnit: iUnit,
+            normFrom,
+            normUpTo,
+            normInc: Math.max(1, normInc)
+        };
+    });
+
+    normalized.sort((a, b) => a.normUpTo - b.normUpTo);
+
+    const bid = Number(currentBid) || 0;
+    for (const rule of normalized) {
+        if (bid < rule.normUpTo) {
+            return rule.normInc;
         }
     }
-    return Number(sorted[sorted.length - 1]?.increment) || 100;
+    return normalized[normalized.length - 1]?.normInc || (isKtoL ? 50 : 100);
 }
 
 const db = {
@@ -1146,10 +1231,28 @@ const db = {
                 cleanUpdate.budgetScale = cleanUpdate.budgetScale === 'K_TO_L' ? 'K_TO_L' : 'L_TO_CR';
             }
             if (cleanUpdate.bidIncrementRules && Array.isArray(cleanUpdate.bidIncrementRules)) {
-                cleanUpdate.bidIncrementRules = cleanUpdate.bidIncrementRules.map(r => ({
-                    upTo: Number(r.upTo) || 100,
-                    increment: Number(r.increment) || 10
-                }));
+                const scale = cleanUpdate.budgetScale || state.tournaments[idx]?.budgetScale || 'L_TO_CR';
+                const defUnit = scale === 'K_TO_L' ? 'K' : 'L';
+                const allowedUnits = scale === 'K_TO_L' ? ['K', 'L'] : ['L', 'Cr'];
+                cleanUpdate.bidIncrementRules = cleanUpdate.bidIncrementRules.map((r, i, arr) => {
+                    const prevUpTo = i > 0 ? (Number(arr[i - 1].upTo) || 0) : 0;
+                    let fUnit = r.fromUnit || r.rangeUnit || defUnit;
+                    let tUnit = r.toUnit || r.rangeUnit || defUnit;
+                    let iUnit = r.incrementUnit || defUnit;
+                    if (!allowedUnits.includes(fUnit)) fUnit = defUnit;
+                    if (!allowedUnits.includes(tUnit)) tUnit = defUnit;
+                    if (!allowedUnits.includes(iUnit)) iUnit = defUnit;
+                    return {
+                        from: r.from !== undefined ? Number(r.from) : prevUpTo,
+                        fromUnit: fUnit,
+                        upTo: Number(r.upTo) || 100,
+                        toUnit: tUnit,
+                        rangeUnit: tUnit, // keep for backward compatibility
+                        increment: Number(r.increment) || (scale === 'K_TO_L' ? 5 : 10),
+                        incrementUnit: iUnit,
+                        label: r.label || ''
+                    };
+                });
             }
             state.tournaments[idx] = { ...state.tournaments[idx], ...cleanUpdate };
             writeData(state);
@@ -1448,9 +1551,19 @@ const db = {
             if (update.basePrice !== undefined) {
                 const newPrice = Number(update.basePrice) || 0;
                 extra.basePrice = newPrice;
-                if (current.status !== 'sold') {
+                // Only initialize currentBid to basePrice if currentBid is NOT explicitly passed in update,
+                // and player is not sold, and there is no active bid on the player yet
+                if (update.currentBid === undefined && update.status !== 'sold' && current.status !== 'sold' && (!current.currentBid || current.currentBid === 0)) {
                     extra.currentBid = newPrice;
                 }
+            }
+
+            // Ensure explicit currentBid and soldPrice in update are preserved and not overwritten
+            if (update.currentBid !== undefined) {
+                extra.currentBid = Number(update.currentBid);
+            }
+            if (update.soldPrice !== undefined) {
+                extra.soldPrice = Number(update.soldPrice);
             }
 
             // If this player is a team captain
@@ -1487,9 +1600,29 @@ const db = {
                 }
             }
 
-            state.players[idx] = { ...current, ...update, ...extra };
+            const finalSoldPrice = update.soldPrice !== undefined
+                ? Number(update.soldPrice)
+                : (extra.soldPrice !== undefined
+                    ? Number(extra.soldPrice)
+                    : (update.status === 'sold' && Number(update.currentBid || current.currentBid) > 0
+                        ? Number(update.currentBid || current.currentBid)
+                        : current.soldPrice));
+
+            const finalCurrentBid = update.currentBid !== undefined
+                ? Number(update.currentBid)
+                : (extra.currentBid !== undefined ? Number(extra.currentBid) : current.currentBid);
+
+            state.players[idx] = {
+                ...current,
+                ...update,
+                ...extra,
+                soldPrice: finalSoldPrice,
+                sold_price: finalSoldPrice,
+                currentBid: finalCurrentBid,
+                current_bid: finalCurrentBid
+            };
             writeData(state);
-            await supaSync.updatePlayer(id, { ...update, ...extra });
+            await supaSync.updatePlayer(id, { ...update, ...extra, soldPrice: finalSoldPrice, currentBid: finalCurrentBid });
             return state.players[idx];
         }
         return null;

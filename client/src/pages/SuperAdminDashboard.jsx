@@ -589,7 +589,7 @@ const SuperAdminDashboard = () => {
                                             </div>
                                             <div className="px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-xl">
                                                 <span className="text-[9px] font-black text-emerald-700 uppercase block">Sold Price</span>
-                                                <div className="text-sm font-black text-emerald-700">₹{player.soldPrice || player.currentBid || player.basePrice || 0}{smallUnit}</div>
+                                                <div className="text-sm font-black text-emerald-700">₹{player.soldPrice || player.sold_price || player.currentBid || player.basePrice || 0}{smallUnit}</div>
                                             </div>
                                             {player.status === 'injured' ? (
                                                 <span className="px-2.5 py-1.5 bg-rose-100 text-rose-800 border border-rose-300 rounded-xl text-xs font-black flex items-center gap-1">
@@ -732,13 +732,34 @@ const SuperAdminDashboard = () => {
                                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                             </div>
 
-                            <div className="p-3 bg-slate-50 border border-slate-200/80 rounded-2xl mb-3">
-                                <h4 className="font-extrabold text-xs text-slate-900 truncate" title={selectedTournament.name}>
-                                    {selectedTournament.name}
-                                </h4>
-                                <p className="text-[11px] text-slate-500 font-medium capitalize mt-0.5">
-                                    {selectedTournament.status} • {selectedTournament.auctionType?.replace('_', ' ') || 'owner driven'}
-                                </p>
+                            <div className="p-3 bg-slate-50 border border-slate-200/80 rounded-2xl mb-3 flex items-center gap-2.5">
+                                {selectedTournament.logo ? (
+                                    <div 
+                                        className="w-9 h-9 rounded-xl bg-white border border-slate-200 overflow-hidden shrink-0 shadow-xs flex items-center justify-center p-0.5 cursor-pointer hover:ring-2 hover:ring-blue-400"
+                                        title="Click to view logo"
+                                    >
+                                        <SafeImage
+                                            src={selectedTournament.logo}
+                                            alt={selectedTournament.name}
+                                            previewable
+                                            previewTitle={selectedTournament.name}
+                                            className="w-full h-full object-contain rounded-lg"
+                                            fallback={<Trophy className="w-4 h-4 text-slate-400" />}
+                                        />
+                                    </div>
+                                ) : (
+                                    <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center text-white text-xs font-black shrink-0">
+                                        {selectedTournament.name?.substring(0, 2).toUpperCase()}
+                                    </div>
+                                )}
+                                <div className="min-w-0 flex-1">
+                                    <h4 className="font-extrabold text-xs text-slate-900 truncate" title={selectedTournament.name}>
+                                        {selectedTournament.name}
+                                    </h4>
+                                    <p className="text-[11px] text-slate-500 font-medium capitalize mt-0.5">
+                                        {selectedTournament.status} • {selectedTournament.auctionType?.replace('_', ' ') || 'owner driven'}
+                                    </p>
+                                </div>
                             </div>
 
                             <div className="space-y-1">
@@ -954,9 +975,30 @@ const SuperAdminDashboard = () => {
                                             <div>
                                                 <div className="flex justify-between items-start mb-4">
                                                     <div className="flex gap-3.5 items-center">
-                                                        <div className="w-12 h-12 bg-gradient-to-tr from-blue-700 to-indigo-600 rounded-2xl flex items-center justify-center text-white text-base font-black shadow-xs">
-                                                            {t.name.substring(0, 2).toUpperCase()}
-                                                        </div>
+                                                        {t.logo ? (
+                                                            <div 
+                                                                className="w-12 h-12 rounded-2xl bg-white border border-slate-200 overflow-hidden shrink-0 shadow-xs flex items-center justify-center p-0.5 cursor-pointer hover:ring-2 hover:ring-blue-400 transition-all"
+                                                                onClick={(e) => e.stopPropagation()}
+                                                                title="Click to view tournament logo"
+                                                            >
+                                                                <SafeImage
+                                                                    src={t.logo}
+                                                                    alt={t.name}
+                                                                    previewable
+                                                                    previewTitle={t.name}
+                                                                    className="w-full h-full object-contain rounded-xl"
+                                                                    fallback={
+                                                                        <div className="w-full h-full bg-gradient-to-tr from-blue-700 to-indigo-600 rounded-xl flex items-center justify-center text-white text-base font-black">
+                                                                            {t.name.substring(0, 2).toUpperCase()}
+                                                                        </div>
+                                                                    }
+                                                                />
+                                                            </div>
+                                                        ) : (
+                                                            <div className="w-12 h-12 bg-gradient-to-tr from-blue-700 to-indigo-600 rounded-2xl flex items-center justify-center text-white text-base font-black shadow-xs">
+                                                                {t.name.substring(0, 2).toUpperCase()}
+                                                            </div>
+                                                        )}
                                                         <div>
                                                             <h3 className="text-base font-black text-slate-900 group-hover:text-blue-600 transition-colors">
                                                                 {t.name}
@@ -990,6 +1032,17 @@ const SuperAdminDashboard = () => {
                                                             title="Click to toggle status: Active -> Completed -> Inactive"
                                                         >
                                                             {t.status === 'completed' ? '🏆 COMPLETED' : (t.status === 'active' || t.status === 'live') ? '● ACTIVE' : '○ INACTIVE'}
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleEditTournament(t);
+                                                            }}
+                                                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-colors"
+                                                            title="Edit Tournament"
+                                                        >
+                                                            <Edit className="w-4 h-4" />
                                                         </button>
                                                         <button
                                                             type="button"
@@ -1214,9 +1267,9 @@ const SuperAdminDashboard = () => {
                                                             )}
                                                         </div>
                                                         <div className="text-xs text-slate-500 font-bold mt-0.5">
-                                                            {p.category} • {isCap ? `Fee: ₹${p.soldPrice || p.basePrice}${smallUnit}` : p.status === 'sold' ? (
+                                                            {p.category} • {isCap ? `Fee: ₹${p.soldPrice || p.sold_price || p.basePrice}${smallUnit}` : p.status === 'sold' ? (
                                                                 <span className="text-emerald-700 font-extrabold">
-                                                                    Sold: ₹{p.soldPrice || p.currentBid || p.basePrice}{smallUnit} <span className="text-slate-400 font-semibold">(Base: ₹{p.basePrice}{smallUnit})</span>
+                                                                    Sold: ₹{p.soldPrice || p.sold_price || p.currentBid || p.basePrice}{smallUnit} <span className="text-slate-400 font-semibold">(Base: ₹{p.basePrice}{smallUnit})</span>
                                                                 </span>
                                                             ) : `Base: ₹${p.basePrice}${smallUnit}`}
                                                         </div>
@@ -1234,7 +1287,7 @@ const SuperAdminDashboard = () => {
                                                                 {isCap 
                                                                     ? `🚫 NOT IN AUCTION (DIRECT SQUAD)` 
                                                                     : p.status === 'sold'
-                                                                    ? `SOLD • ₹${p.soldPrice || p.currentBid || p.basePrice}${smallUnit}`
+                                                                    ? `SOLD • ₹${p.soldPrice || p.sold_price || p.currentBid || p.basePrice}${smallUnit}`
                                                                     : p.status === 'unsold'
                                                                     ? `UNSOLD`
                                                                     : p.status === 'injured'

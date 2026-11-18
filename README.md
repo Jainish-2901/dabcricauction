@@ -1,7 +1,7 @@
 # 🏏 Dab Cric Auction Pro
 
-> **Enterprise-Grade Live Cricket Auction Platform**  
-> Multi-tenant tournament management with real-time WebSocket bidding, Supabase Cloud synchronization, Cloudinary CDN asset pipelines, React Web management hub, and React Native Expo mobile application with EAS Over-The-Air updates and standalone APK builds.
+> **Enterprise-Grade Live Cricket Auction Cloud Platform**  
+> Multi-tenant tournament management with sub-second WebSocket bidding, Supabase Cloud real-time synchronization, Cloudinary CDN asset pipelines, React Web management hub, and React Native Expo mobile application with EAS Over-The-Air updates and standalone Android APK builds.
 
 ---
 
@@ -10,7 +10,7 @@
 | Layer | Technology | Hosting / Provider |
 | :--- | :--- | :--- |
 | **Web Frontend** | React 18, Vite, Tailwind CSS, Lucide Icons, Framer Motion | [Vercel](https://vercel.com) |
-| **Mobile App** | React Native, Expo SDK 58, EAS Update (`expo-updates`), EAS Build | Expo Application Services (EAS) |
+| **Mobile App** | React Native, Expo SDK 58, EAS Update (`expo-updates`), EAS Standalone Build | Expo Application Services (EAS) |
 | **Backend API** | Node.js, Express, Socket.io (WebSockets) | [Render](https://render.com) / [Railway](https://railway.app) |
 | **Database** | PostgreSQL, Realtime Sync, ACID Transactions, RLS Policies | [Supabase](https://supabase.com) |
 | **Asset CDN** | 1:1 Aspect Cropper, Fast Cloud Delivery | [Cloudinary](https://cloudinary.com) |
@@ -19,20 +19,44 @@
 
 ## 🚀 Key Features
 
-- **🏆 Multi-Tenant Tournament Hub**: Scope players, teams, slots, budgets, and logins cleanly per tournament.
-- **👑 Direct Owner & Captain Integration**: Team owners are automatically linked as team captains with dedicated profiles, photos, and base price adjustments.
-- **⚡ Real-Time Live Bidding Engine**: Sub-millisecond WebSocket auctions with instant leader updates, timer sync, and dynamic bid increments (+500, +1K, +5K).
-- **🎛️ Master Auctioneer Console**: Gavel controls, force-sell, unsold queuing, pause/resume, audio gavel effects, and zero-loss undo & rollback capabilities.
-- **🔄 Franchise Player Trades & Swaps**: Post-auction player trading with dynamic price differential calculation and automated team purse re-balancing across Web and Mobile.
-- **🚑 Injury Replacement & Recovery Window**: Dedicated injury replacement system with automatic purse adjustment (refund injured player's price, debit replacement player's fee) and 1-click recovery back to the unsold pool.
-- **🖼️ Interactive Fullscreen Previews**: 1-click modal preview for all player photos and team logos with Android status-bar safe offset in `SafeImage`.
-- **📜 Live Bid & Transfer Audit Ledger**: Real-time bid logs (`bids` table) and complete trade/injury audit history (`transfers` table) with instant Supabase persistence.
-- **🔒 Player Self-Registration with Open/Close Switch**: Public player nomination portal with 1-click organizer toggle to open or close submissions.
-- **✂️ 1:1 Image Crop & Upload**: Built-in interactive cropper for team logos and captain portraits with automatic Cloudinary storage.
-- **📲 Standalone Android APK & EAS OTA Updates**: Downloadable `.apk` builds via EAS Build plus instant over-the-air code pushes without reinstalling.
-- **📊 Public Spectator View & Slots Explorer**: Live audience broadcast screen with current player stats, live bid stream, sold boards, and interactive Slots / Sets explorer with active slot tracking.
-- **🎯 Clean In-Card Auction Status Messages**: Unified status cards for Completed, Standby/Not Started, Short Break, and Paused by Auctioneer embedded directly inside the main auction stage card.
-- **✨ Executive Full-Width Landing Page**: Complete service showcase and developer contact hub crafted for community cricket leagues.
+### 🏆 Tournament & Budget Management
+- **Dual Currency & Budget Scales**:
+  - **Lakhs to Crores (`L_TO_CR`)**: Designed for mega IPL-scale tournaments with purse in Crores (`Cr`) and increments in Lakhs (`L`). Unit selectors strictly show `['L', 'Cr']`.
+  - **Thousands to Lakhs (`K_TO_L`)**: Designed for local club, box cricket, and village/corporate tournaments with purse in Lakhs (`L`) and increments in Thousands (`K`). Unit selectors strictly show `['K', 'L']`.
+- **Dynamic Bid Increment Slabs**: Per-slab `from`, `to`, `increment`, and independent unit selection pills (`K`, `L`, `Cr`). Supports adding, removing, and reordering slabs with seamless parity between Web and Mobile.
+- **Tournament Logo Full CRUD & Lightbox**: Upload, 1:1 square crop, view, change, and remove tournament logos at creation and edit time. Click-to-open high-resolution lightbox modal preview across tournament cards, modals, and hub.
+- **Interactive Date & Time Pickers**: Native-feeling date pickers and time pickers on both Web (`WebDatePickerModal`, `WebTimePickerModal`) and Mobile (`DatePickerModal`, `TimePickerModal`) for tournament scheduling.
+- **Multi-Tenant Tournament Hub**: Scope players, teams, slots, budgets, and logins cleanly per tournament.
+
+### ⚡ Live Auction Engine & Gavel Controls
+- **Real-Time Live Bidding Engine**: Sub-100ms WebSocket auctions with instant leader updates, timer sync, and dynamic bid increments.
+- **Master Auctioneer Console**: Gavel controls, force-sell, unsold queuing, pause/resume, audio gavel effects, and zero-loss undo & rollback capabilities.
+- **Zero-Loss Undo & Rollback Engine**:
+  - Reverts misclicked or invalid bids to previous bidder and amount.
+  - Rollback completed sales: refunds team purse in Postgres, removes player from winning roster, restores player to active bidding, and alerts all rooms.
+- **Direct Owner & Captain Integration**: Team owners are automatically linked as team captains with dedicated profiles, photos, and base price adjustments.
+
+### 🔄 Post-Auction Management
+- **Franchise Player Trades & Swaps**: Post-auction player trading with dynamic price differential calculation and automated team purse re-balancing across Web and Mobile.
+- **Injury Replacement & Recovery Window**: Dedicated injury replacement system with automatic purse adjustment (refund injured player's price, debit replacement player's fee) and 1-click recovery back to the unsold pool.
+- **Live Bid & Transfer Audit Ledger**: Real-time bid logs (`bids` table) and complete trade/injury audit history (`transfers` table) with instant Supabase persistence.
+
+### 📱 Android Mobile App & Cross-Platform Parity
+- **100% Full Access on Both Platforms (Web & Mobile)**: All roles (SuperAdmin, Auctioneer, Team Owner, Spectator) have full feature parity across both Desktop Web and Android Mobile App. Use any device, or mix them simultaneously for the same tournament (e.g. Auctioneer on laptop, Owners on mobile). Good internet speed (Wi-Fi or 4G/5G) is recommended for seamless real-time sub-second synchronization.
+- **Standalone Android APK (v1.1.0)**:
+  - Download Link: [Download dab-cric-auction-v1.1.0.apk](https://github.com/Jainish-2901/dabcricauction/releases/download/v1.1.0/dab-cric-auction-v1.1.0.apk)
+  - Standalone build for Android smartphones (Android 8.0+).
+  - 100ms quick bids, live purse counter, 1:1 camera crop for player/team photos.
+- **Interactive Fullscreen Previews (`SafeImage`)**: 1-click modal preview for all player photos, team logos, and tournament badges with Android status-bar safe offset.
+- **Public Spectator View & Slots Explorer**: Live audience broadcast screen (`/auction/:tournamentId`) with current player stats, live bid stream, sold boards, and interactive Slots / Sets explorer.
+
+### 🌐 Public Web Routes
+- **`/`**: Executive Landing Page with live auction spectator joiner, cross-platform overview, Android APK download showcase, and developer contact.
+- **`/about`**: Mission, technical architecture, feature breakdown, developer spotlight, and 1-click photo lightboxes.
+- **`/download`**: Dedicated Android APK download page with step-by-step 4-step installation guide.
+- **`/terms`**: Complete Terms and Conditions for tournament organizers and franchise owners.
+- **`/privacy`**: Comprehensive Privacy Policy detailing Supabase PostgreSQL data protection, Cloudinary asset storage, and user rights.
+- **`/404` (or any invalid route `*`)**: Cricket-themed "Clean Bowled! Page Not Found" error page with quick links to Home, Download, About, and Sign In.
 
 ---
 
@@ -40,11 +64,21 @@
 
 ```
 CricAuction/
-├── client/          # React + Vite Web Portal (SuperAdmin, Auctioneer, Spectator, Landing)
-├── mobile/          # React Native Expo Mobile App (Team Owners Keypad & Live Bidding)
+├── client/          # React 18 + Vite Web Portal
+│   ├── src/
+│   │   ├── components/    # Reusable modals, headers, footers, SafeImage, cropper
+│   │   ├── pages/         # Landing, About, Download, Terms, Privacy, Console, SuperAdmin
+│   │   └── utils/         # Currency, slab converters, auth context
+├── mobile/          # React Native Expo SDK 58 Mobile App
+│   ├── components/  # SuperAdmin, AdminConsole, LiveBiddingRoom, Hub, Modals
+│   ├── lib/         # Supabase service, API client, currency logic
+│   └── app.json     # Expo & EAS configuration (package: com.dabcricauction.app)
 ├── server/          # Node.js + Express + Socket.io Real-time API
+│   ├── controllers/ # Tournament, team, player, bid, transfer controllers
+│   ├── services/    # Hybrid JSON DB + Supabase bidirectional sync service
+│   └── routes/      # Express REST API endpoints
 ├── supabase/        # PostgreSQL SQL Schema (`supabase_schema_for_dabcricauction.sql`)
-└── docs/            # Master Production Deployment Guide
+└── docs/            # Master Production Architecture & Deployment Guides
 ```
 
 ---
@@ -56,6 +90,7 @@ CricAuction/
 cd server
 npm install
 npm run dev
+# Server runs on http://localhost:5000
 ```
 
 ### 2. Web Client Setup
@@ -66,7 +101,7 @@ npm run dev
 # Open http://localhost:5173
 ```
 
-### 3. Mobile App Setup (Expo Go)
+### 3. Mobile App Setup (Expo Go / EAS)
 ```bash
 cd mobile
 npm install
@@ -75,18 +110,24 @@ npx expo start --go --tunnel
 
 ---
 
-## 🌐 Production Deployment Guide
+## 📲 Android Mobile App (APK Download)
 
-For full step-by-step instructions on deploying the Web Portal on **Vercel**, the Mobile App via **Expo EAS (Direct APK Download)**, the Backend on **Render**, and the Database on **Supabase**, please check:
+The native mobile app is compiled as a standalone Universal Android APK:
 
-👉 **[Master Production Deployment Guide](docs/DEPLOYMENT_GUIDE.md)**
+- **Direct Download**: [dab-cric-auction-v1.1.0.apk](https://github.com/Jainish-2901/dabcricauction/releases/download/v1.1.0/dab-cric-auction-v1.1.0.apk)
+- **Compatibility**: Android 8.0 (Oreo) through Android 15
+- **Architecture**: Universal (`arm64-v8a`, `armeabi-v7a`)
+- **Web Download Page**: Visit [`/download`](http://localhost:5173/download) for a full step-by-step installation guide.
+
+*Note for iOS Users: Apple iPhone / iPad users can open the responsive Web App directly in Safari or Chrome without installing an APK.*
 
 ---
 
 ## 👨‍💻 Developer & Credits
 
-Designed & Crafted by **Jainish Dabgar**  
-*Full-Stack Developer & UI/UX Designer*  
+Designed, Architected & Engineered by **Jainish Dabgar**  
+*Full-Stack Engineer & UI/UX Designer*  
+
 - 📞 Phone: [+91 97732 72749](tel:+919773272749)  
 - 🌐 Portfolio: [jainishdabgar.vercel.app](https://jainishdabgar.vercel.app/)  
 - 💼 LinkedIn: [Jainish Dabgar](https://www.linkedin.com/in/jainish-dabgar-87474a320/)  
@@ -97,4 +138,4 @@ Designed & Crafted by **Jainish Dabgar**
 ---
 
 ## 📄 License
-ISC
+ISC License • Dab Cric Auction Pro © 2026

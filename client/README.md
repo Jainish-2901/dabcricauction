@@ -1,16 +1,30 @@
 # 🌐 Dab Cric Auction - Web Client
 
-The web portal for **Dab Cric Auction**, built with **React**, **Vite**, and **Tailwind CSS**.
+The responsive web application for **Dab Cric Auction**, built with **React 18**, **Vite**, and **Tailwind CSS**.
 
 ---
 
-## 🎯 Portals Included
+## 🎯 Portals & Pages Included
 
-1. **Super Admin Dashboard**: Multi-tournament creation, team roster, player catalog with 1:1 image cropping, category/slot queues, and user credential management.
-2. **Auctioneer Master Console**: Live bidding controller with pause/resume, countdown timers, force-sell, unsold queuing, and rollback capabilities.
-3. **Owner Bidding Dashboard**: Interactive web room for team owners to place bids.
-4. **Public Spectator View**: Projector/TV-ready broadcast view displaying live auction progress, player cards, and team budgets.
-5. **Player Self-Registration Page**: Open registration form for tournament applicants.
+1. **Executive Landing Page (`/`)**: Service showcase, live auction room joiner, cross-platform capabilities, Android APK download card, and developer contact.
+2. **About Us (`/about`)**: Architecture blueprint, mission, technology overview, feature catalog, and developer profile.
+3. **Download Android App (`/download`)**: Dedicated APK download portal with universal Android APK release (v1.1.0) and step-by-step installation instructions.
+4. **Terms & Conditions (`/terms`)**: Platform agreement, auctioneer authority, purse policies, and intellectual property.
+5. **Privacy Policy (`/privacy`)**: Supabase PostgreSQL data security, Cloudinary CDN asset protection, and minimal permission models.
+6. **Super Admin Dashboard (`/admin`)**: Multi-tournament creation (dual scales: L→Cr and K→L), dynamic bid increment slab manager, tournament logo CRUD with 1:1 cropper and click-to-open lightbox, team purse allocation, player catalog, franchise trades, and injury replacement engine.
+7. **Auctioneer Master Console (`/admin/console/:tournamentId`)**: Live bidding gavel controller with countdown timers, force-sell, unsold queuing, audio effects, and zero-loss undo & rollback capabilities.
+8. **Owner Bidding Dashboard (`/owner/dashboard`)**: Interactive web bidding room for franchise owners.
+9. **Public Spectator View (`/auction/:tournamentId`)**: TV/Projector-ready live audience broadcast view displaying real-time bids, sold players, remaining budgets, and interactive slots/sets explorer.
+10. **Player Self-Registration (`/register-player/:tournamentId`)**: Public player nomination portal with 1:1 image cropping and category selection.
+11. **Page Not Found (`/404` and `*`)**: Cricket-themed "Clean Bowled! Page Not Found" error page with fast redirection back to Home, Download, About, or Sign In.
+
+---
+
+## 🎨 UI & Layout System Highlights
+- **Unified Public Navigation (`PublicHeader.jsx` & `PublicFooter.jsx`)**: Consistent branding, real-time active tab pill highlights, developer photo with 1-click full-screen lightbox, and responsive mobile hamburger drawer.
+- **High-Contrast Dark Typography**: All paragraphs and tables use crisp, deep black fonts (`text-slate-900` / `text-slate-950 font-bold`) ensuring effortless readability without pale reflection glare.
+- **Interactive Lightboxes (`SafeImage`)**: Click-to-open fullscreen modal inspection on tournament logos, team emblems, player photos, and developer portraits.
+- **Interactive Date & Time Pickers (`DateTimePickerModal.jsx`)**: Visual calendar and clock selector for setting auction start dates and times cleanly.
 
 ---
 

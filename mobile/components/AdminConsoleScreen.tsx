@@ -42,7 +42,7 @@ import {
 } from 'lucide-react-native';
 import socket from '../lib/socket';
 import { apiFetch } from '../lib/api';
-import { getBudgetUnits } from '../lib/currency';
+import { getBudgetUnits, getBidIncrement } from '../lib/currency';
 import { toast } from '../lib/toast';
 import { handleExportCSVAction } from '../lib/csvExport';
 
@@ -54,22 +54,6 @@ export interface AdminConsoleScreenProps {
     onBackToDashboard?: () => void;
     canSwitchRole?: boolean;
 }
-
-const getBidIncrement = (bid: number, rules?: any[]) => {
-    const list = Array.isArray(rules) && rules.length > 0 ? rules : [
-        { upTo: 100, increment: 10 },
-        { upTo: 500, increment: 25 },
-        { upTo: 1000, increment: 50 },
-        { upTo: 999999, increment: 100 }
-    ];
-    const sorted = [...list].sort((a, b) => Number(a.upTo) - Number(b.upTo));
-    for (const rule of sorted) {
-        if (Number(bid) < Number(rule.upTo)) {
-            return Number(rule.increment) || 10;
-        }
-    }
-    return Number(sorted[sorted.length - 1]?.increment) || 100;
-};
 
 export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
     tournamentId,
@@ -83,6 +67,7 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
     const [teams, setTeams] = useState<any[]>([]);
     const [slots, setSlots] = useState<any[]>([]);
     const [activeSlotId, setActiveSlotId] = useState<string | null>(null);
+    const [slotDrawMode, setSlotDrawMode] = useState<'order' | 'random'>('order');
     const [showSlotModal, setShowSlotModal] = useState<boolean>(false);
     const [slotModalContext, setSlotModalContext] = useState<'start' | 'resume' | 'manual' | 'completed'>('start');
     const [viewingTeam, setViewingTeam] = useState<any | null>(null);
@@ -177,7 +162,15 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
 
         socket.on('slot_changed', (data: any) => {
             setActiveSlotId(data.activeSlotId || null);
-            if (data?.tournament) setTournament((prev: any) => ({ ...prev, ...data.tournament }));
+            if (data?.slotDrawMode) {
+                setSlotDrawMode(data.slotDrawMode);
+            }
+            if (data?.tournament) {
+                setTournament((prev: any) => ({ ...prev, ...data.tournament }));
+                if (data.tournament.slotDrawMode) {
+                    setSlotDrawMode(data.tournament.slotDrawMode);
+                }
+            }
         });
 
         socket.on('auction_status_changed', (data: any) => {
@@ -185,6 +178,9 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                 setTournament((prev: any) => ({ ...prev, ...data.tournament }));
                 if (data.tournament.activeSlotId !== undefined) {
                     setActiveSlotId(data.tournament.activeSlotId || null);
+                }
+                if (data.tournament.slotDrawMode) {
+                    setSlotDrawMode(data.tournament.slotDrawMode);
                 }
             }
             if (data?.biddingState) setBiddingState(data.biddingState);
@@ -218,7 +214,7 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                     type: 'sold',
                     player: data.player,
                     team: data.team,
-                    price: data.player.soldPrice || data.player.currentBid || 0
+                    price: data.player.soldPrice || data.player.sold_price || data.player.currentBid || 0
                 });
             }
             setCountdownTimer(null);
@@ -341,6 +337,9 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
             const tourneyObj = tRes?.tournament || tRes;
             if (tourneyObj && (tourneyObj._id || tourneyObj.id)) {
                 setTournament(tourneyObj);
+                if (tourneyObj.slotDrawMode) {
+                    setSlotDrawMode(tourneyObj.slotDrawMode);
+                }
                 if (tourneyObj.activeSlotId) {
                     setActiveSlotId(tourneyObj.activeSlotId);
                 } else if (Array.isArray(sRes) && sRes.length > 0 && !activeSlotId) {
@@ -506,7 +505,7 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
         }
     };
 
-    const handleConfirmStartAuction = async (selectedSlotId: string | null) => {
+    const handleConfirmStartAuction = async (selectedSlotId: string | null, modeToUse: 'order' | 'random' = slotDrawMode) => {
         const slotObj = slots.find(s => s._id === selectedSlotId);
         if (slotObj && (slotObj.isDefaultUnsold || slotObj.slotType === 'unsold')) {
             await handleBringAllUnsoldToSlot();
@@ -517,18 +516,21 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                     body: JSON.stringify({
                         status: 'live',
                         biddingState: 'active',
-                        activeSlotId: selectedSlotId || null
+                        activeSlotId: selectedSlotId || null,
+                        slotDrawMode: modeToUse
                     })
                 });
             } catch (e) {}
-            socket.emit('start_auction', { tournamentId, activeSlotId: selectedSlotId || null });
+            socket.emit('start_auction', { tournamentId, activeSlotId: selectedSlotId || null, slotDrawMode: modeToUse });
             setTournament((prev: any) => ({
                 ...prev,
                 status: 'live',
                 biddingState: 'active',
-                activeSlotId: selectedSlotId || null
+                activeSlotId: selectedSlotId || null,
+                slotDrawMode: modeToUse
             }));
             setBiddingState('active');
+            setSlotDrawMode(modeToUse);
             return;
         }
 
@@ -539,35 +541,44 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                 body: JSON.stringify({
                     status: 'live',
                     biddingState: 'active',
-                    activeSlotId: selectedSlotId || null
+                    activeSlotId: selectedSlotId || null,
+                    slotDrawMode: modeToUse
                 })
             });
         } catch (e) {
             console.error("API update error:", e);
         }
 
-        socket.emit('start_auction', { tournamentId, activeSlotId: selectedSlotId || null });
+        socket.emit('start_auction', { tournamentId, activeSlotId: selectedSlotId || null, slotDrawMode: modeToUse });
         setTournament((prev: any) => ({
             ...prev,
             status: 'live',
             biddingState: 'active',
-            activeSlotId: selectedSlotId || null
+            activeSlotId: selectedSlotId || null,
+            slotDrawMode: modeToUse
         }));
         setBiddingState('active');
         setActiveSlotId(selectedSlotId || null);
+        setSlotDrawMode(modeToUse);
         setShowSlotModal(false);
 
         const pool = selectedSlotId
             ? players.filter(p => p.slotId === selectedSlotId && p.status === 'pending')
             : players.filter(p => p.status === 'pending');
         if (pool.length > 0) {
-            selectPlayer(pool[0]);
+            if (modeToUse === 'random') {
+                const picked = pool[Math.floor(Math.random() * pool.length)];
+                selectPlayer(picked);
+            } else {
+                const sorted = [...pool].sort((a, b) => (Number(a.order || 0) - Number(b.order || 0)));
+                selectPlayer(sorted[0]);
+            }
         }
 
-        showNotice('🚀 Official Live Auction Started!');
+        showNotice(`🚀 Official Live Auction Started (${modeToUse === 'random' ? '🎲 Random in Slot' : '🔢 Order-wise'})!`);
     };
 
-    const handleSelectSlot = async (slotId: string | null, autoSelectFirst = true) => {
+    const handleSelectSlot = async (slotId: string | null, autoSelectFirst = true, modeToUse: 'order' | 'random' = slotDrawMode) => {
         const slotObj = slots.find(s => s._id === slotId);
         if (slotObj && (slotObj.isDefaultUnsold || slotObj.slotType === 'unsold')) {
             await handleBringAllUnsoldToSlot();
@@ -578,32 +589,39 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
             await apiFetch(`/api/tournaments/${tournamentId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ activeSlotId: slotId || null })
+                body: JSON.stringify({ activeSlotId: slotId || null, slotDrawMode: modeToUse })
             });
         } catch (e) {
             console.error(e);
         }
 
-        socket.emit('set_active_slot', { tournamentId, slotId: slotId || null });
+        socket.emit('set_active_slot', { tournamentId, slotId: slotId || null, slotDrawMode: modeToUse });
         setActiveSlotId(slotId || null);
-        setTournament((prev: any) => ({ ...prev, activeSlotId: slotId || null }));
+        setSlotDrawMode(modeToUse);
+        setTournament((prev: any) => ({ ...prev, activeSlotId: slotId || null, slotDrawMode: modeToUse }));
         setShowSlotModal(false);
 
-        showNotice(`Active Slot: ${slotObj ? slotObj.name : 'All Players'}`);
+        showNotice(`Active Slot: ${slotObj ? slotObj.name : 'All Players'} (${modeToUse === 'random' ? '🎲 Random in Slot' : '🔢 Order-wise'})`);
 
         if (autoSelectFirst) {
             const pool = slotId
                 ? players.filter(p => p.slotId === slotId && p.status === 'pending')
                 : players.filter(p => p.status === 'pending');
             if (pool.length > 0) {
-                selectPlayer(pool[0]);
+                if (modeToUse === 'random') {
+                    const picked = pool[Math.floor(Math.random() * pool.length)];
+                    selectPlayer(picked);
+                } else {
+                    const sorted = [...pool].sort((a, b) => (Number(a.order || 0) - Number(b.order || 0)));
+                    selectPlayer(sorted[0]);
+                }
             }
         }
     };
 
     const handleResumeWithSlot = async (slotId: string | null) => {
         if (slotId !== undefined && slotId !== activeSlotId) {
-            await handleSelectSlot(slotId, true);
+            await handleSelectSlot(slotId, true, slotDrawMode);
         }
         handleToggleState();
         setShowSlotModal(false);
@@ -653,7 +671,12 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
             toast.warning('No Bid', 'There is no active bid to hammer sell.');
             return;
         }
-        socket.emit('sell_player', { tournamentId, playerId: currentPlayer._id });
+        socket.emit('sell_player', {
+            tournamentId,
+            playerId: currentPlayer._id,
+            teamId: leadTeam._id,
+            soldPrice: currentBid
+        });
     };
 
     const handleUnsold = () => {
@@ -732,14 +755,17 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
 
     const handleNextPlayer = () => {
         let pool = activeSlotId
-            ? players.filter(p => p.slotId === activeSlotId && p.status === 'pending')
-            : players.filter(p => p.status === 'pending');
+            ? players.filter(p => p.slotId === activeSlotId && p.status === 'pending' && p._id !== currentPlayer?._id)
+            : players.filter(p => p.status === 'pending' && p._id !== currentPlayer?._id);
 
-        const curIdx = currentPlayer ? pool.findIndex(p => p._id === currentPlayer._id) : -1;
-        const next = pool.slice(curIdx + 1)[0] || pool.find(p => p._id !== currentPlayer?._id);
-
-        if (next) {
-            selectPlayer(next);
+        if (pool.length > 0) {
+            if (slotDrawMode === 'random') {
+                const picked = pool[Math.floor(Math.random() * pool.length)];
+                selectPlayer(picked);
+            } else {
+                const sorted = [...pool].sort((a, b) => (Number(a.order || 0) - Number(b.order || 0)));
+                selectPlayer(sorted[0]);
+            }
         } else {
             setCurrentPlayer(null);
             setLeadTeam(null);
@@ -749,12 +775,12 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                     players.some(p => p.slotId === s._id && p.status === 'pending') ||
                     ((s.isDefaultUnsold || s.slotType === 'unsold') && players.some(p => p.status === 'unsold'))
                 ));
+                setSlotModalContext('completed');
+                setShowSlotModal(true);
                 if (otherSlots.length > 0) {
-                    setSlotModalContext('completed');
-                    setShowSlotModal(true);
-                    showNotice(`Slot ${currentSlotObj?.name || ''} completed! Select next slot.`);
+                    showNotice(`🎉 Slot ${currentSlotObj?.name || ''} completed! Select next slot.`);
                 } else {
-                    showNotice('All players concluded in this slot.');
+                    showNotice('🎉 All players concluded in this slot.');
                 }
             } else {
                 showNotice('All players concluded.');
@@ -762,7 +788,7 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
         }
     };
 
-    const dynamicInc = getBidIncrement(currentBid, tournament?.bidIncrementRules);
+    const dynamicInc = getBidIncrement(currentBid, tournament?.bidIncrementRules, tournament?.budgetScale);
     const nextBidAmount = (!leadTeam && currentBid === (currentPlayer?.basePrice || 0))
         ? (currentPlayer?.basePrice || 20)
         : currentBid + dynamicInc;
@@ -794,7 +820,9 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
         }
         socket.emit('place_bid', {
             tournamentId,
+            playerId: currentPlayer._id,
             teamId: team._id,
+            bidAmount: nextBidAmount,
             amount: nextBidAmount
         });
     };
@@ -1043,7 +1071,7 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                                             <Text style={styles.poolPlayerName} numberOfLines={1}>{p.name}</Text>
                                             {p.status === 'sold' ? (
                                                 <Text style={[styles.poolPlayerMeta, { color: '#15803d', fontWeight: '800' }]} numberOfLines={1}>
-                                                    {p.category} • Sold ₹{p.soldPrice || p.currentBid || p.basePrice}{smallUnit} (Base ₹{p.basePrice}{smallUnit})
+                                                    {p.category} • Sold ₹{p.soldPrice || p.sold_price || p.currentBid || p.basePrice}{smallUnit} (Base ₹{p.basePrice}{smallUnit})
                                                 </Text>
                                             ) : (
                                                 <Text style={styles.poolPlayerMeta} numberOfLines={1}>
@@ -1052,7 +1080,7 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                                             )}
                                             {p.status === 'sold' && (
                                                 <Text style={styles.poolPlayerSoldInfo} numberOfLines={1}>
-                                                    Sold to {soldTeam?.name || 'Team'} • ₹{p.soldPrice || p.currentBid || p.basePrice}{smallUnit}
+                                                    Sold to {soldTeam?.name || 'Team'} • ₹{p.soldPrice || p.sold_price || p.currentBid || p.basePrice}{smallUnit}
                                                 </Text>
                                             )}
                                         </View>
@@ -1072,7 +1100,7 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                                                     p.status === 'unsold' ? { color: '#dc2626' } :
                                                     isPassed ? { color: '#b45309' } : { color: '#475569' }
                                                 ]}>
-                                                    {isCurrent ? 'LIVE' : p.status === 'sold' ? `SOLD (₹${p.soldPrice || p.currentBid || p.basePrice}${smallUnit})` : isPassed ? 'PASSED' : (p.status || 'pending').toUpperCase()}
+                                                    {isCurrent ? 'LIVE' : p.status === 'sold' ? `SOLD (₹${p.soldPrice || p.sold_price || p.currentBid || p.basePrice}${smallUnit})` : isPassed ? 'PASSED' : (p.status || 'pending').toUpperCase()}
                                                 </Text>
                                             </View>
 
@@ -1222,7 +1250,7 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                                                                 </View>
                                                             ) : p.status === 'sold' ? (
                                                                 <Text style={{ fontSize: 10, fontWeight: '800', color: '#16a34a' }}>
-                                                                    SOLD ₹{p.soldPrice || p.currentBid || p.basePrice}{smallUnit}
+                                                                    SOLD ₹{p.soldPrice || p.sold_price || p.currentBid || p.basePrice}{smallUnit}
                                                                 </Text>
                                                             ) : (
                                                                 <TouchableOpacity
@@ -1677,7 +1705,7 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                                             }}
                                             disabled={!currentPlayer || biddingState !== 'active' || leadTeam?._id === t._id}
                                         >
-                                            <Text style={styles.quickBidBtnText}>+Bid ₹{nextBidAmount}{smallUnit}</Text>
+                                            <Text style={styles.quickBidBtnText}>+Bid ₹{formatAmount(nextBidAmount)}</Text>
                                         </TouchableOpacity>
                                     ) : (leadTeam?._id === t._id || (leadTeam as any)?.id === t._id) ? (
                                         <View style={styles.leadTeamBadge}>
@@ -1828,6 +1856,47 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
 
                         {/* Slots List */}
                         <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
+                            {/* Slot Draw Mode Selection (Order-wise vs Random) */}
+                            <View style={styles.drawModeContainer}>
+                                <View style={styles.drawModeHeaderRow}>
+                                    <Text style={styles.drawModeLabel}>PLAYER SELECTION MODE (પ્લેયર ક્રમ)</Text>
+                                    <Text style={[styles.drawModeBadge, slotDrawMode === 'random' ? styles.drawModeBadgePurple : styles.drawModeBadgeIndigo]}>
+                                        {slotDrawMode === 'random' ? '🎲 Random in Slot' : '🔢 Order-wise'}
+                                    </Text>
+                                </View>
+                                <View style={styles.drawModeButtonsRow}>
+                                    <TouchableOpacity
+                                        style={[styles.drawModeBtn, slotDrawMode === 'order' && styles.drawModeBtnActiveIndigo]}
+                                        onPress={() => setSlotDrawMode('order')}
+                                    >
+                                        <Text style={styles.drawModeBtnIcon}>🔢</Text>
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={[styles.drawModeBtnTitle, slotDrawMode === 'order' && styles.drawModeBtnTitleActive]}>
+                                                Order-wise (ક્રમ)
+                                            </Text>
+                                            <Text style={[styles.drawModeBtnSub, slotDrawMode === 'order' && styles.drawModeBtnSubActive]}>
+                                                1, 2, 3 sequence
+                                            </Text>
+                                        </View>
+                                    </TouchableOpacity>
+
+                                    <TouchableOpacity
+                                        style={[styles.drawModeBtn, slotDrawMode === 'random' && styles.drawModeBtnActivePurple]}
+                                        onPress={() => setSlotDrawMode('random')}
+                                    >
+                                        <Text style={styles.drawModeBtnIcon}>🎲</Text>
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={[styles.drawModeBtnTitle, slotDrawMode === 'random' && styles.drawModeBtnTitleActive]}>
+                                                Random in Slot
+                                            </Text>
+                                            <Text style={[styles.drawModeBtnSub, slotDrawMode === 'random' && styles.drawModeBtnSubActive]}>
+                                                Random draw in slot
+                                            </Text>
+                                        </View>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+
                             {/* Dedicated Re-Auction Unsold Card */}
                             <View style={styles.modalUnsoldCard}>
                                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
@@ -1862,9 +1931,9 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                                         style={styles.unslottedBtn}
                                         onPress={() => {
                                             if (slotModalContext === 'start') {
-                                                handleConfirmStartAuction(null);
+                                                handleConfirmStartAuction(null, slotDrawMode);
                                             } else {
-                                                handleSelectSlot(null);
+                                                handleSelectSlot(null, true, slotDrawMode);
                                             }
                                         }}
                                     >
@@ -1893,11 +1962,11 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                                                 ]}
                                                 onPress={() => {
                                                     if (slotModalContext === 'start') {
-                                                        handleConfirmStartAuction(s._id);
+                                                        handleConfirmStartAuction(s._id, slotDrawMode);
                                                     } else if (slotModalContext === 'resume') {
                                                         handleResumeWithSlot(s._id);
                                                     } else {
-                                                        handleSelectSlot(s._id);
+                                                        handleSelectSlot(s._id, true, slotDrawMode);
                                                     }
                                                 }}
                                                 disabled={isFinished && sPending.length === 0}
@@ -1997,7 +2066,7 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                                                     Acquired: <Text style={styles.squadModalStatsBold}>{teamPlayers.length}</Text> / {tournament?.squadSizeLimit || 25}
                                                 </Text>
                                                 <Text style={styles.squadModalStatsText}>
-                                                    Total Spent: <Text style={styles.squadModalStatsBold}>₹{teamPlayers.reduce((acc, p) => acc + (Number(p.soldPrice || p.currentBid || p.basePrice) || 0), 0)} {smallUnit}</Text>
+                                                    Total Spent: <Text style={styles.squadModalStatsBold}>₹{teamPlayers.reduce((acc, p) => acc + (Number(p.soldPrice || p.sold_price || p.currentBid || p.basePrice) || 0), 0)} {smallUnit}</Text>
                                                 </Text>
                                             </View>
 
@@ -2022,7 +2091,7 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                                                             </Text>
                                                         </View>
                                                         <View style={styles.squadModalPlayerPrice}>
-                                                            <Text style={styles.squadModalPlayerPriceText}>₹{p.soldPrice || p.currentBid || p.basePrice} {smallUnit}</Text>
+                                                            <Text style={styles.squadModalPlayerPriceText}>₹{p.soldPrice || p.sold_price || p.currentBid || p.basePrice} {smallUnit}</Text>
                                                             <Text style={styles.squadModalPlayerBasePrice}>Base: ₹{p.basePrice}{smallUnit}</Text>
                                                         </View>
                                                     </View>
@@ -2839,6 +2908,84 @@ const styles = StyleSheet.create({
     },
     modalScroll: {
         padding: 16,
+    },
+    drawModeContainer: {
+        backgroundColor: '#f1f5f9',
+        borderWidth: 1,
+        borderColor: '#e2e8f0',
+        borderRadius: 14,
+        padding: 12,
+        marginBottom: 12,
+    },
+    drawModeHeaderRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 8,
+    },
+    drawModeLabel: {
+        fontSize: 10,
+        fontWeight: '900',
+        color: '#1e293b',
+        letterSpacing: 0.5,
+    },
+    drawModeBadge: {
+        fontSize: 9,
+        fontWeight: '900',
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 4,
+    },
+    drawModeBadgeIndigo: {
+        backgroundColor: '#e0e7ff',
+        color: '#3730a3',
+    },
+    drawModeBadgePurple: {
+        backgroundColor: '#f3e8ff',
+        color: '#6b21a8',
+    },
+    drawModeButtonsRow: {
+        flexDirection: 'row',
+        gap: 8,
+    },
+    drawModeBtn: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        backgroundColor: '#ffffff',
+        borderWidth: 1.5,
+        borderColor: '#cbd5e1',
+        borderRadius: 10,
+        padding: 8,
+    },
+    drawModeBtnActiveIndigo: {
+        backgroundColor: '#4f46e5',
+        borderColor: '#4338ca',
+    },
+    drawModeBtnActivePurple: {
+        backgroundColor: '#7c3aed',
+        borderColor: '#6d28d9',
+    },
+    drawModeBtnIcon: {
+        fontSize: 18,
+    },
+    drawModeBtnTitle: {
+        fontSize: 11,
+        fontWeight: '900',
+        color: '#0f172a',
+    },
+    drawModeBtnTitleActive: {
+        color: '#ffffff',
+    },
+    drawModeBtnSub: {
+        fontSize: 9,
+        fontWeight: '600',
+        color: '#64748b',
+        marginTop: 1,
+    },
+    drawModeBtnSubActive: {
+        color: '#e0e7ff',
     },
     slotCard: {
         backgroundColor: '#f8fafc',

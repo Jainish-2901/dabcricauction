@@ -53,7 +53,9 @@ import {
     User,
     TrendingUp,
     HeartPulse,
-    ArrowLeftRight
+    ArrowLeftRight,
+    Calendar,
+    Clock
 } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import TournamentHubModal from './TournamentHubModal';
@@ -62,6 +64,7 @@ import AddTeamModal from './AddTeamModal';
 import AddPlayerModal from './AddPlayerModal';
 import ReplaceInjuredModal from './ReplaceInjuredModal';
 import TradePlayersModal from './TradePlayersModal';
+import { DatePickerModal, TimePickerModal } from './DateTimePickerModal';
 import { apiFetch, getApiUrl } from '../lib/api';
 import { getBudgetUnits } from '../lib/currency';
 import { checkForAppUpdates } from '../lib/updateManager';
@@ -69,17 +72,17 @@ import { toast, ToastOverlay } from '../lib/toast';
 import { handleExportCSVAction } from '../lib/csvExport';
 
 const DEFAULT_SLABS_L_CR = [
-    { upTo: 100, increment: 10, label: 'Up to ₹1 Cr (100 L)' },
-    { upTo: 500, increment: 25, label: '₹1 Cr - ₹5 Cr (500 L)' },
-    { upTo: 1000, increment: 50, label: '₹5 Cr - ₹10 Cr (1000 L)' },
-    { upTo: 999999, increment: 100, label: 'Above ₹10 Cr (> 1000 L)' }
+    { from: 0, fromUnit: 'L', upTo: 1, toUnit: 'Cr', increment: 10, incrementUnit: 'L', label: 'Up to ₹1 Cr (100 L)' },
+    { from: 1, fromUnit: 'Cr', upTo: 5, toUnit: 'Cr', increment: 25, incrementUnit: 'L', label: '₹1 Cr - ₹5 Cr (500 L)' },
+    { from: 5, fromUnit: 'Cr', upTo: 10, toUnit: 'Cr', increment: 50, incrementUnit: 'L', label: '₹5 Cr - ₹10 Cr (1000 L)' },
+    { from: 10, fromUnit: 'Cr', upTo: 999999, toUnit: 'Cr', increment: 100, incrementUnit: 'L', label: 'Above ₹10 Cr (> 1000 L)' }
 ];
 
 const DEFAULT_SLABS_K_L = [
-    { upTo: 100, increment: 10, label: 'Up to ₹1 L (100 K)' },
-    { upTo: 500, increment: 25, label: '₹1 L - ₹5 L (500 K)' },
-    { upTo: 1000, increment: 50, label: '₹5 L - ₹10 L (1000 K)' },
-    { upTo: 999999, increment: 100, label: 'Above ₹10 L (> 1000 K)' }
+    { from: 0, fromUnit: 'K', upTo: 100, toUnit: 'K', increment: 5, incrementUnit: 'K', label: 'Up to ₹1 L (100 K)' },
+    { from: 1, fromUnit: 'L', upTo: 5, toUnit: 'L', increment: 10, incrementUnit: 'K', label: '₹1 L - ₹5 L (500 K)' },
+    { from: 5, fromUnit: 'L', upTo: 10, toUnit: 'L', increment: 25, incrementUnit: 'K', label: '₹5 L - ₹10 L (1000 K)' },
+    { from: 10, fromUnit: 'L', upTo: 999999, toUnit: 'L', increment: 50, incrementUnit: 'K', label: 'Above ₹10 L (> 1000 K)' }
 ];
 
 export type SuperAdminTab = 'tournaments' | 'teams' | 'players' | 'slots' | 'credentials' | 'transfers';
@@ -118,6 +121,7 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
     const [newTourneyName, setNewTourneyName] = useState('');
     const [newTourneySquadLimit, setNewTourneySquadLimit] = useState('25');
     const [newTourneyScale, setNewTourneyScale] = useState<'L_TO_CR' | 'K_TO_L'>('L_TO_CR');
+    const [newTourneyLogo, setNewTourneyLogo] = useState('');
 
     // Teams Tab States
     const [newTeamName, setNewTeamName] = useState('');
@@ -168,6 +172,9 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
     const [editTourneyAuctionType, setEditTourneyAuctionType] = useState<'owner_driven' | 'admin_driven'>('owner_driven');
     const [editTourneyStartDate, setEditTourneyStartDate] = useState('');
     const [editTourneyTime, setEditTourneyTime] = useState('');
+    const [editTourneyLogo, setEditTourneyLogo] = useState('');
+    const [showDatePicker, setShowDatePicker] = useState(false);
+    const [showTimePicker, setShowTimePicker] = useState(false);
     const [editTourneyBidRules, setEditTourneyBidRules] = useState<any[]>(DEFAULT_SLABS_L_CR);
     const [savingTourney, setSavingTourney] = useState(false);
 
@@ -237,6 +244,16 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
     const handlePickEditPlayerImage = async () => {
         const cropped = await pickImageWith1to1Crop();
         if (cropped) setEditPlayerImage(cropped);
+    };
+
+    const handlePickNewTourneyLogo = async () => {
+        const cropped = await pickImageWith1to1Crop();
+        if (cropped) setNewTourneyLogo(cropped);
+    };
+
+    const handlePickEditTourneyLogo = async () => {
+        const cropped = await pickImageWith1to1Crop();
+        if (cropped) setEditTourneyLogo(cropped);
     };
 
     useEffect(() => {
@@ -321,17 +338,7 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
             return;
         }
         const squadLimit = parseInt(newTourneySquadLimit) || 25;
-        const defaultRules = newTourneyScale === 'K_TO_L' ? [
-            { upTo: 20, increment: 2 },
-            { upTo: 50, increment: 5 },
-            { upTo: 100, increment: 10 },
-            { upTo: 999999, increment: 25 }
-        ] : [
-            { upTo: 100, increment: 10 },
-            { upTo: 500, increment: 25 },
-            { upTo: 1000, increment: 50 },
-            { upTo: 999999, increment: 100 }
-        ];
+        const defaultRules = newTourneyScale === 'K_TO_L' ? DEFAULT_SLABS_K_L : DEFAULT_SLABS_L_CR;
 
         const newT = {
             _id: 'tourney_' + Date.now(),
@@ -341,7 +348,8 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
             auctionType: 'owner_driven',
             squadSizeLimit: squadLimit,
             budgetScale: newTourneyScale,
-            bidIncrementRules: defaultRules
+            bidIncrementRules: defaultRules,
+            logo: newTourneyLogo.trim()
         };
         try {
             await apiFetch('/api/tournaments', {
@@ -355,6 +363,7 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
         setSelectedTournament(newT);
         setNewTourneyName('');
         setNewTourneySquadLimit('25');
+        setNewTourneyLogo('');
         toast.success('Tournament Created', `"${newT.name}" (${newTourneyScale === 'K_TO_L' ? 'K → L' : 'L → Cr'} Scale) • Limit: ${squadLimit}`);
     };
 
@@ -429,14 +438,31 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
         }
         setEditTourneyStartDate(dateStr);
         setEditTourneyTime(t.time || '');
+        setEditTourneyLogo(t.logo || t.image || '');
 
         const defaultSlabs = scale === 'K_TO_L' ? DEFAULT_SLABS_K_L : DEFAULT_SLABS_L_CR;
+        const defUnit = scale === 'K_TO_L' ? 'K' : 'L';
+        const allowedUnits: ('K' | 'L' | 'Cr')[] = scale === 'K_TO_L' ? ['K', 'L'] : ['L', 'Cr'];
         const slabs = (t.bidIncrementRules && t.bidIncrementRules.length > 0)
-            ? t.bidIncrementRules.map((r: any, i: number) => ({
-                upTo: Number(r.upTo) || 100,
-                increment: Number(r.increment) || 10,
-                label: r.label || defaultSlabs[i]?.label || `Up to ₹${r.upTo} ${scale === 'K_TO_L' ? 'K' : 'L'}`
-            }))
+            ? t.bidIncrementRules.map((r: any, i: number, arr: any[]) => {
+                const prevUpTo = i > 0 ? (Number(arr[i - 1].upTo) || 0) : 0;
+                let fUnit = r.fromUnit || r.rangeUnit || defUnit;
+                let tUnit = r.toUnit || r.rangeUnit || defUnit;
+                let iUnit = r.incrementUnit || defUnit;
+                if (!allowedUnits.includes(fUnit)) fUnit = defUnit;
+                if (!allowedUnits.includes(tUnit)) tUnit = defUnit;
+                if (!allowedUnits.includes(iUnit)) iUnit = defUnit;
+                return {
+                    from: r.from !== undefined ? Number(r.from) : prevUpTo,
+                    fromUnit: fUnit,
+                    upTo: Number(r.upTo) || 100,
+                    toUnit: tUnit,
+                    rangeUnit: tUnit,
+                    increment: Number(r.increment) || (scale === 'K_TO_L' ? 5 : 10),
+                    incrementUnit: iUnit,
+                    label: r.label || defaultSlabs[i]?.label || ''
+                };
+            })
             : defaultSlabs;
         setEditTourneyBidRules(slabs);
         setEditTourneyModalVisible(true);
@@ -445,10 +471,78 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
     const handleSwitchEditScale = (newScale: 'L_TO_CR' | 'K_TO_L') => {
         setEditTourneyScale(newScale);
         const defaultSlabs = newScale === 'K_TO_L' ? DEFAULT_SLABS_K_L : DEFAULT_SLABS_L_CR;
-        setEditTourneyBidRules(prev => prev.map((r, i) => ({
-            ...r,
-            label: defaultSlabs[i]?.label || `Up to ₹${r.upTo} ${newScale === 'K_TO_L' ? 'K' : 'L'}`
-        })));
+        const defUnit = newScale === 'K_TO_L' ? 'K' : 'L';
+        const allowedUnits: ('K' | 'L' | 'Cr')[] = newScale === 'K_TO_L' ? ['K', 'L'] : ['L', 'Cr'];
+        setEditTourneyBidRules(prev => prev.map((r, i) => {
+            let fUnit = r.fromUnit || defUnit;
+            let tUnit = r.toUnit || defUnit;
+            let iUnit = r.incrementUnit || defUnit;
+            if (!allowedUnits.includes(fUnit)) fUnit = defUnit;
+            if (!allowedUnits.includes(tUnit)) tUnit = defUnit;
+            if (!allowedUnits.includes(iUnit)) iUnit = defUnit;
+            return {
+                ...r,
+                fromUnit: fUnit,
+                toUnit: tUnit,
+                rangeUnit: tUnit,
+                incrementUnit: iUnit,
+                label: defaultSlabs[i]?.label || ''
+            };
+        }));
+    };
+
+    const handleAddEditSlab = () => {
+        setEditTourneyBidRules(prev => {
+            const last = prev[prev.length - 1];
+            const defUnit = editTourneyScale === 'K_TO_L' ? 'K' : 'L';
+            const allowedUnits: ('K' | 'L' | 'Cr')[] = editTourneyScale === 'K_TO_L' ? ['K', 'L'] : ['L', 'Cr'];
+            const lastFrom = last ? Number(last.from) || 0 : 0;
+            const lastUpTo = (last && Number(last.upTo) < 999999) ? Number(last.upTo) : (lastFrom + 5);
+            const newFrom = lastUpTo;
+            const newUpTo = newFrom * 2 || 10;
+            const newInc = last ? (Number(last.increment) * 2 || 20) : 10;
+            let fUnit = last?.toUnit || defUnit;
+            let tUnit = last?.toUnit || defUnit;
+            let iUnit = last?.incrementUnit || defUnit;
+            if (!allowedUnits.includes(fUnit as any)) fUnit = defUnit;
+            if (!allowedUnits.includes(tUnit as any)) tUnit = defUnit;
+            if (!allowedUnits.includes(iUnit as any)) iUnit = defUnit;
+
+            return [...prev, {
+                from: newFrom,
+                fromUnit: fUnit,
+                upTo: newUpTo,
+                toUnit: tUnit,
+                rangeUnit: tUnit,
+                increment: newInc,
+                incrementUnit: iUnit,
+                label: `₹${newFrom} ${fUnit} - ₹${newUpTo} ${tUnit}`
+            }];
+        });
+    };
+
+    const handleRemoveEditSlab = (idx: number) => {
+        if (editTourneyBidRules.length <= 1) {
+            toast.warning('Required', 'At least one slab rule is required.');
+            return;
+        }
+        setEditTourneyBidRules(prev => prev.filter((_, i) => i !== idx));
+    };
+
+    const handleUpdateEditSlab = (idx: number, field: string, value: any) => {
+        setEditTourneyBidRules(prev => {
+            const next = [...prev];
+            next[idx] = { ...next[idx], [field]: value };
+            if (field === 'toUnit') {
+                next[idx].rangeUnit = value;
+            }
+            return next;
+        });
+    };
+
+    const handleResetEditSlabs = () => {
+        const defaultSlabs = editTourneyScale === 'K_TO_L' ? DEFAULT_SLABS_K_L : DEFAULT_SLABS_L_CR;
+        setEditTourneyBidRules(defaultSlabs);
     };
 
     const handleSaveEditTournament = async () => {
@@ -458,6 +552,8 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
         }
         setSavingTourney(true);
         try {
+            const defUnit = editTourneyScale === 'K_TO_L' ? 'K' : 'L';
+            const allowedUnits: ('K' | 'L' | 'Cr')[] = editTourneyScale === 'K_TO_L' ? ['K', 'L'] : ['L', 'Cr'];
             const payload = {
                 name: editTourneyName.trim(),
                 startDate: editTourneyStartDate.trim() || null,
@@ -465,11 +561,26 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                 squadSizeLimit: parseInt(editTourneySquadLimit) || 25,
                 budgetScale: editTourneyScale,
                 auctionType: editTourneyAuctionType,
-                bidIncrementRules: editTourneyBidRules.map(s => ({
-                    upTo: Number(s.upTo) || 100,
-                    increment: Number(s.increment) || 10,
-                    label: s.label
-                }))
+                logo: editTourneyLogo.trim(),
+                bidIncrementRules: editTourneyBidRules.map((s, i, arr) => {
+                    const prevUpTo = i > 0 ? (Number(arr[i - 1].upTo) || 0) : 0;
+                    let fUnit = s.fromUnit || s.rangeUnit || defUnit;
+                    let tUnit = s.toUnit || s.rangeUnit || defUnit;
+                    let iUnit = s.incrementUnit || defUnit;
+                    if (!allowedUnits.includes(fUnit)) fUnit = defUnit;
+                    if (!allowedUnits.includes(tUnit)) tUnit = defUnit;
+                    if (!allowedUnits.includes(iUnit)) iUnit = defUnit;
+                    return {
+                        from: s.from !== undefined ? Number(s.from) : prevUpTo,
+                        fromUnit: fUnit,
+                        upTo: Number(s.upTo) || 100,
+                        toUnit: tUnit,
+                        rangeUnit: tUnit,
+                        increment: Number(s.increment) || (editTourneyScale === 'K_TO_L' ? 5 : 10),
+                        incrementUnit: iUnit,
+                        label: s.label || ''
+                    };
+                })
             };
 
             const res = await apiFetch(`/api/tournaments/${editingTourney._id}`, {
@@ -1216,6 +1327,41 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                                     <Sparkles size={14} color="#2563eb" />
                                     <Text style={styles.formTitle}>CREATE NEW TOURNAMENT</Text>
                                 </View>
+
+                                {/* Tournament Logo Upload (1:1 Frame) */}
+                                <View style={{ marginBottom: 10 }}>
+                                    <Text style={styles.inputLabel}>TOURNAMENT LOGO (1:1 CROP & UPLOAD)</Text>
+                                    <View style={styles.logoInputRow}>
+                                        <View style={styles.logoPreviewBox}>
+                                            <SafeImage
+                                                uri={newTourneyLogo}
+                                                style={styles.logoPreviewImg}
+                                                previewable={true}
+                                                previewTitle={newTourneyName || 'New Tournament Logo'}
+                                                fallback={<Trophy size={20} color="#94a3b8" />}
+                                            />
+                                        </View>
+                                        <View style={{ flex: 1, gap: 4 }}>
+                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                                <TouchableOpacity style={styles.uploadBtnSmall} onPress={handlePickNewTourneyLogo}>
+                                                    <Upload size={13} color="#2563eb" />
+                                                    <Text style={styles.uploadBtnSmallText}>
+                                                        {newTourneyLogo ? 'Change Logo' : 'Upload Logo'}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                                {newTourneyLogo ? (
+                                                    <TouchableOpacity onPress={() => setNewTourneyLogo('')}>
+                                                        <Text style={styles.clearLogoText}>✕ Remove</Text>
+                                                    </TouchableOpacity>
+                                                ) : null}
+                                            </View>
+                                            <Text style={{ fontSize: 10, color: '#94a3b8', fontWeight: '500' }}>
+                                                Square 1:1 image. Tap thumbnail to view full.
+                                            </Text>
+                                        </View>
+                                    </View>
+                                </View>
+
                                 <TextInput
                                     style={styles.input}
                                     placeholder="Tournament Name (e.g. World Cricket League 2026)"
@@ -1286,11 +1432,32 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                                         activeOpacity={0.7}
                                     >
                                         <View style={styles.tourneyCardTop}>
-                                            <View style={{ flex: 1, marginRight: 8 }}>
-                                                <Text style={styles.tourneyName}>{t.name}</Text>
-                                                <Text style={styles.tourneyMeta}>
-                                                    {t.auctionType === 'admin_driven' ? 'Admin Driven' : 'Owner Driven'} • Squad: {t.squadSizeLimit || 25} • {t.budgetScale === 'K_TO_L' ? 'K → L (Club)' : 'L → Cr (IPL)'}
-                                                </Text>
+                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, marginRight: 8 }}>
+                                                {t.logo ? (
+                                                    <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#e2e8f0', overflow: 'hidden', padding: 2, justifyContent: 'center', alignItems: 'center' }}>
+                                                        <SafeImage
+                                                            uri={t.logo}
+                                                            style={{ width: '100%', height: '100%', borderRadius: 8 }}
+                                                            previewable={true}
+                                                            previewTitle={t.name}
+                                                            fallback={
+                                                                <View style={{ width: '100%', height: '100%', backgroundColor: '#2563eb', borderRadius: 8, justifyContent: 'center', alignItems: 'center' }}>
+                                                                    <Text style={{ color: '#ffffff', fontSize: 13, fontWeight: '900' }}>{t.name.substring(0, 2).toUpperCase()}</Text>
+                                                                </View>
+                                                            }
+                                                        />
+                                                    </View>
+                                                ) : (
+                                                    <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: '#eff6ff', borderWidth: 1, borderColor: '#bfdbfe', justifyContent: 'center', alignItems: 'center' }}>
+                                                        <Text style={{ color: '#2563eb', fontSize: 13, fontWeight: '900' }}>{t.name.substring(0, 2).toUpperCase()}</Text>
+                                                    </View>
+                                                )}
+                                                <View style={{ flex: 1 }}>
+                                                    <Text style={styles.tourneyName}>{t.name}</Text>
+                                                    <Text style={styles.tourneyMeta}>
+                                                        {t.auctionType === 'admin_driven' ? 'Admin Driven' : 'Owner Driven'} • Squad: {t.squadSizeLimit || 25} • {t.budgetScale === 'K_TO_L' ? 'K → L (Club)' : 'L → Cr (IPL)'}
+                                                    </Text>
+                                                </View>
                                             </View>
                                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                                                 <TouchableOpacity
@@ -1725,7 +1892,7 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                                                         )}
                                                     </View>
                                                     <Text style={styles.cardSub}>
-                                                        Role: {p.category} • {isCap ? `Fee: ₹${p.soldPrice || p.basePrice} ${smallUnit}` : p.status === 'sold' ? `Sold: ₹${p.soldPrice || p.currentBid || p.basePrice} ${smallUnit} (Base: ₹${p.basePrice} ${smallUnit})` : `Base: ₹${p.basePrice} ${smallUnit}`}
+                                                        Role: {p.category} • {isCap ? `Fee: ₹${p.soldPrice || p.sold_price || p.basePrice} ${smallUnit}` : p.status === 'sold' ? `Sold: ₹${p.soldPrice || p.sold_price || p.currentBid || p.basePrice} ${smallUnit} (Base: ₹${p.basePrice} ${smallUnit})` : `Base: ₹${p.basePrice} ${smallUnit}`}
                                                     </Text>
 
                                                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
@@ -1740,7 +1907,7 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                                                                 fontWeight: '800',
                                                                 color: isCap ? '#92400e' : p.status === 'sold' ? '#15803d' : p.status === 'unsold' ? '#b91c1c' : p.status === 'injured' ? '#e11d48' : '#64748b'
                                                             }}>
-                                                                {isCap ? `🚫 DIRECT SQUAD (₹${p.soldPrice || p.basePrice} ${smallUnit})` : p.status === 'sold' ? `SOLD • ₹${p.soldPrice || p.currentBid || p.basePrice} ${smallUnit}` : p.status === 'injured' ? `🚑 INJURED` : `${(p.status || 'AVAILABLE').toUpperCase()}`}
+                                                                {isCap ? `🚫 DIRECT SQUAD (₹${p.soldPrice || p.sold_price || p.basePrice} ${smallUnit})` : p.status === 'sold' ? `SOLD • ₹${p.soldPrice || p.sold_price || p.currentBid || p.basePrice} ${smallUnit}` : p.status === 'injured' ? `🚑 INJURED` : `${(p.status || 'AVAILABLE').toUpperCase()}`}
                                                             </Text>
                                                         </View>
                                                         {p.status === 'injured' && (
@@ -2566,7 +2733,7 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                                         </View>
                                         <View style={{ alignItems: 'flex-end', gap: 4 }}>
                                             <View style={styles.soldPriceBadge}>
-                                                <Text style={styles.soldPriceText}>Sold: ₹{p.soldPrice || p.currentBid || p.basePrice} {smallUnit}</Text>
+                                                <Text style={styles.soldPriceText}>Sold: ₹{p.soldPrice || p.sold_price || p.currentBid || p.basePrice} {smallUnit}</Text>
                                             </View>
                                             {p.status === 'injured' ? (
                                                 <View style={{ backgroundColor: '#ffe4e6', paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, flexDirection: 'row', alignItems: 'center', gap: 3 }}>
@@ -2742,6 +2909,38 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                             showsVerticalScrollIndicator={false}
                             keyboardShouldPersistTaps="handled"
                         >
+                            {/* Tournament Logo (1:1 Frame) */}
+                            <Text style={styles.fieldLabel}>TOURNAMENT LOGO (1:1 CROP & UPLOAD)</Text>
+                            <View style={[styles.logoInputRow, { marginBottom: 12 }]}>
+                                <View style={styles.logoPreviewBox}>
+                                    <SafeImage
+                                        uri={editTourneyLogo}
+                                        style={styles.logoPreviewImg}
+                                        previewable={true}
+                                        previewTitle={editTourneyName || 'Tournament Logo'}
+                                        fallback={<Trophy size={20} color="#94a3b8" />}
+                                    />
+                                </View>
+                                <View style={{ flex: 1, gap: 4 }}>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                        <TouchableOpacity style={styles.uploadBtnSmall} onPress={handlePickEditTourneyLogo}>
+                                            <Upload size={13} color="#2563eb" />
+                                            <Text style={styles.uploadBtnSmallText}>
+                                                {editTourneyLogo ? 'Change Logo' : 'Upload Logo'}
+                                            </Text>
+                                        </TouchableOpacity>
+                                        {editTourneyLogo ? (
+                                            <TouchableOpacity onPress={() => setEditTourneyLogo('')}>
+                                                <Text style={styles.clearLogoText}>✕ Remove Logo</Text>
+                                            </TouchableOpacity>
+                                        ) : null}
+                                    </View>
+                                    <Text style={{ fontSize: 10, color: '#94a3b8', fontWeight: '500' }}>
+                                        Square 1:1 image. Tap thumbnail to view full.
+                                    </Text>
+                                </View>
+                            </View>
+
                             {/* 1. Tournament Name */}
                             <Text style={styles.fieldLabel}>TOURNAMENT NAME *</Text>
                             <TextInput
@@ -2756,23 +2955,45 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                             <View style={{ flexDirection: 'row', gap: 10 }}>
                                 <View style={{ flex: 1 }}>
                                     <Text style={styles.fieldLabel}>START DATE</Text>
-                                    <TextInput
-                                        style={styles.modalInput}
-                                        value={editTourneyStartDate}
-                                        onChangeText={setEditTourneyStartDate}
-                                        placeholder="YYYY-MM-DD"
-                                        placeholderTextColor="#94a3b8"
-                                    />
+                                    <TouchableOpacity
+                                        style={[
+                                            styles.modalInput,
+                                            {
+                                                flexDirection: 'row',
+                                                alignItems: 'center',
+                                                justifyContent: 'space-between',
+                                                height: 38
+                                            }
+                                        ]}
+                                        onPress={() => setShowDatePicker(true)}
+                                        activeOpacity={0.7}
+                                    >
+                                        <Text style={{ fontSize: 13, fontWeight: '700', color: editTourneyStartDate ? '#0f172a' : '#94a3b8' }}>
+                                            {editTourneyStartDate || 'Select Date'}
+                                        </Text>
+                                        <Calendar size={15} color="#2563eb" />
+                                    </TouchableOpacity>
                                 </View>
                                 <View style={{ flex: 1 }}>
                                     <Text style={styles.fieldLabel}>TIME</Text>
-                                    <TextInput
-                                        style={styles.modalInput}
-                                        value={editTourneyTime}
-                                        onChangeText={setEditTourneyTime}
-                                        placeholder="09:00 AM"
-                                        placeholderTextColor="#94a3b8"
-                                    />
+                                    <TouchableOpacity
+                                        style={[
+                                            styles.modalInput,
+                                            {
+                                                flexDirection: 'row',
+                                                alignItems: 'center',
+                                                justifyContent: 'space-between',
+                                                height: 38
+                                            }
+                                        ]}
+                                        onPress={() => setShowTimePicker(true)}
+                                        activeOpacity={0.7}
+                                    >
+                                        <Text style={{ fontSize: 13, fontWeight: '700', color: editTourneyTime ? '#0f172a' : '#94a3b8' }}>
+                                            {editTourneyTime || 'Select Time'}
+                                        </Text>
+                                        <Clock size={15} color="#2563eb" />
+                                    </TouchableOpacity>
                                 </View>
                             </View>
 
@@ -2878,48 +3099,160 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                                 </TouchableOpacity>
                             </View>
 
-                            {/* 6. Bid Increment Slabs Section */}
+                            {/* 6. Dynamic Bid Increment Slabs Section */}
                             <View style={styles.slabsBox}>
                                 <View style={styles.slabsHeader}>
-                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                        <TrendingUp size={14} color="#2563eb" />
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                                        <TrendingUp size={13} color="#2563eb" />
                                         <Text style={styles.slabsTitle}>BID INCREMENT SLABS</Text>
                                     </View>
-                                    <View style={styles.dynamicRulesBadge}>
-                                        <Text style={styles.dynamicRulesText}>Dynamic Rules</Text>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                        <TouchableOpacity
+                                            style={styles.slabActionBtn}
+                                            onPress={handleResetEditSlabs}
+                                        >
+                                            <RefreshCw size={10} color="#64748b" />
+                                            <Text style={styles.slabActionText}>Reset</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            style={[styles.slabActionBtn, { backgroundColor: '#dbeafe', borderColor: '#bfdbfe' }]}
+                                            onPress={handleAddEditSlab}
+                                        >
+                                            <Plus size={10} color="#1d4ed8" />
+                                            <Text style={[styles.slabActionText, { color: '#1d4ed8', fontWeight: '800' }]}>Add Slab</Text>
+                                        </TouchableOpacity>
                                     </View>
                                 </View>
                                 <Text style={styles.slabsSub}>
-                                    Configure how much bid increases at each price tier:
+                                    પ્રાઈઝ રેન્જ (From - To), યુનિટ ({editTourneyScale === 'K_TO_L' ? 'K / L' : 'L / Cr'}) અને વધારો (+₹ Increment & Unit) જાતે સેટ કરો:
                                 </Text>
 
-                                <View style={styles.slabsGrid}>
-                                    {editTourneyBidRules.map((slab, idx) => (
-                                        <View key={idx} style={styles.slabItemCard}>
-                                            <Text style={styles.slabItemLabel} numberOfLines={1}>
-                                                {slab.label}
-                                            </Text>
-                                            <View style={styles.slabInputRow}>
-                                                <Text style={styles.slabCurrencyPrefix}>+₹</Text>
-                                                <TextInput
-                                                    style={styles.slabInput}
-                                                    keyboardType="numeric"
-                                                    value={String(slab.increment)}
-                                                    onChangeText={(txt) => {
-                                                        const val = parseInt(txt) || 0;
-                                                        setEditTourneyBidRules(prev => {
-                                                            const next = [...prev];
-                                                            next[idx] = { ...next[idx], increment: val };
-                                                            return next;
-                                                        });
-                                                    }}
-                                                />
-                                                <Text style={styles.slabUnitSuffix}>
-                                                    {editTourneyScale === 'K_TO_L' ? 'K' : 'L'}
-                                                </Text>
+                                <View style={{ gap: 8 }}>
+                                    {editTourneyBidRules.map((slab, idx) => {
+                                        const isLast = idx === editTourneyBidRules.length - 1;
+                                        const isUnlimited = Number(slab.upTo) >= 999999;
+                                        const availableUnits: ('K' | 'L' | 'Cr')[] = editTourneyScale === 'K_TO_L' ? ['K', 'L'] : ['L', 'Cr'];
+                                        const defaultUnit = editTourneyScale === 'K_TO_L' ? 'K' : 'L';
+                                        const fromUnit = availableUnits.includes(slab.fromUnit) ? slab.fromUnit : (availableUnits.includes(slab.rangeUnit) ? slab.rangeUnit : defaultUnit);
+                                        const toUnit = availableUnits.includes(slab.toUnit) ? slab.toUnit : (availableUnits.includes(slab.rangeUnit) ? slab.rangeUnit : defaultUnit);
+                                        const incUnit = availableUnits.includes(slab.incrementUnit) ? slab.incrementUnit : defaultUnit;
+
+                                        return (
+                                            <View key={idx} style={styles.slabCardFull}>
+                                                <View style={styles.slabCardHeaderRow}>
+                                                    <View style={styles.slabIndexBadge}>
+                                                        <Text style={styles.slabIndexText}>Slab #{idx + 1}</Text>
+                                                    </View>
+                                                    {editTourneyBidRules.length > 1 && (
+                                                        <TouchableOpacity
+                                                            onPress={() => handleRemoveEditSlab(idx)}
+                                                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                                        >
+                                                            <Trash2 size={13} color="#ef4444" />
+                                                        </TouchableOpacity>
+                                                    )}
+                                                </View>
+
+                                                {/* Range Row */}
+                                                <View style={styles.slabSectionRow}>
+                                                    <Text style={styles.slabFieldLabel}>PRICE RANGE (પ્રાઈઝ રેન્જ)</Text>
+                                                    <View style={{ gap: 6 }}>
+                                                        {/* From Group */}
+                                                        <View style={styles.slabInputsGroup}>
+                                                            <Text style={[styles.slabInputPrefix, { width: 34 }]}>From</Text>
+                                                            <TextInput
+                                                                style={styles.slabSmallInput}
+                                                                keyboardType="numeric"
+                                                                value={slab.from !== undefined ? String(slab.from) : '0'}
+                                                                onChangeText={(txt) => handleUpdateEditSlab(idx, 'from', parseInt(txt) || 0)}
+                                                            />
+                                                            <View style={styles.slabUnitPillsRow}>
+                                                                {availableUnits.map(u => (
+                                                                    <TouchableOpacity
+                                                                        key={u}
+                                                                        style={[
+                                                                            styles.slabUnitPill,
+                                                                            fromUnit === u && styles.slabUnitPillActive
+                                                                        ]}
+                                                                        onPress={() => handleUpdateEditSlab(idx, 'fromUnit', u)}
+                                                                    >
+                                                                        <Text style={[
+                                                                            styles.slabUnitPillText,
+                                                                            fromUnit === u && styles.slabUnitPillTextActive
+                                                                        ]}>{u}</Text>
+                                                                    </TouchableOpacity>
+                                                                ))}
+                                                            </View>
+                                                        </View>
+
+                                                        {/* To Group */}
+                                                        <View style={styles.slabInputsGroup}>
+                                                            <Text style={[styles.slabInputPrefix, { width: 34 }]}>To</Text>
+                                                            <TextInput
+                                                                style={styles.slabSmallInput}
+                                                                keyboardType="numeric"
+                                                                placeholder={isLast ? "Above" : "Max"}
+                                                                placeholderTextColor="#94a3b8"
+                                                                value={isUnlimited ? '' : (slab.upTo !== undefined ? String(slab.upTo) : '')}
+                                                                onChangeText={(txt) => {
+                                                                    const v = txt.trim() === '' ? 999999 : parseInt(txt);
+                                                                    handleUpdateEditSlab(idx, 'upTo', isNaN(v) ? 999999 : v);
+                                                                }}
+                                                            />
+                                                            <View style={styles.slabUnitPillsRow}>
+                                                                {availableUnits.map(u => (
+                                                                    <TouchableOpacity
+                                                                        key={u}
+                                                                        style={[
+                                                                            styles.slabUnitPill,
+                                                                            toUnit === u && styles.slabUnitPillActive
+                                                                        ]}
+                                                                        onPress={() => handleUpdateEditSlab(idx, 'toUnit', u)}
+                                                                    >
+                                                                        <Text style={[
+                                                                            styles.slabUnitPillText,
+                                                                            toUnit === u && styles.slabUnitPillTextActive
+                                                                        ]}>{u}</Text>
+                                                                    </TouchableOpacity>
+                                                                ))}
+                                                            </View>
+                                                        </View>
+                                                    </View>
+                                                </View>
+
+                                                {/* Increment Row */}
+                                                <View style={styles.slabSectionRow}>
+                                                    <Text style={styles.slabFieldLabel}>INCREMENT (વધારો +₹)</Text>
+                                                    <View style={styles.slabInputsGroup}>
+                                                        <Text style={[styles.slabInputPrefix, { color: '#059669', fontWeight: '900' }]}>+₹</Text>
+                                                        <TextInput
+                                                            style={[styles.slabSmallInput, { width: 64, color: '#059669' }]}
+                                                            keyboardType="numeric"
+                                                            value={String(slab.increment || 0)}
+                                                            onChangeText={(txt) => handleUpdateEditSlab(idx, 'increment', parseInt(txt) || 0)}
+                                                        />
+                                                        <View style={styles.slabUnitPillsRow}>
+                                                            {availableUnits.map(u => (
+                                                                <TouchableOpacity
+                                                                    key={u}
+                                                                    style={[
+                                                                        styles.slabUnitPill,
+                                                                        incUnit === u && styles.slabUnitPillActiveEmerald
+                                                                    ]}
+                                                                    onPress={() => handleUpdateEditSlab(idx, 'incrementUnit', u)}
+                                                                >
+                                                                    <Text style={[
+                                                                        styles.slabUnitPillText,
+                                                                        incUnit === u && styles.slabUnitPillTextActiveEmerald
+                                                                    ]}>{u}</Text>
+                                                                </TouchableOpacity>
+                                                            ))}
+                                                        </View>
+                                                    </View>
+                                                </View>
                                             </View>
-                                        </View>
-                                    ))}
+                                        );
+                                    })}
                                 </View>
                             </View>
                         </ScrollView>
@@ -2948,6 +3281,21 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                     </View>
                 </KeyboardAvoidingView>
             </Modal>
+
+            {/* Date & Time Picker Modals for Tournament Start Date & Time */}
+            <DatePickerModal
+                visible={showDatePicker}
+                currentDate={editTourneyStartDate}
+                onSelect={(dateStr) => setEditTourneyStartDate(dateStr)}
+                onClose={() => setShowDatePicker(false)}
+            />
+
+            <TimePickerModal
+                visible={showTimePicker}
+                currentTime={editTourneyTime}
+                onSelect={(timeStr) => setEditTourneyTime(timeStr)}
+                onClose={() => setShowTimePicker(false)}
+            />
 
             {/* Edit Player Modal */}
             <Modal
@@ -4694,51 +5042,105 @@ const styles = StyleSheet.create({
         fontWeight: '500',
         marginBottom: 10,
     },
-    slabsGrid: {
+    slabActionBtn: {
         flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 8,
+        alignItems: 'center',
+        gap: 3,
+        backgroundColor: '#ffffff',
+        borderWidth: 1,
+        borderColor: '#e2e8f0',
+        paddingHorizontal: 7,
+        paddingVertical: 3,
+        borderRadius: 6,
     },
-    slabItemCard: {
-        width: '48%',
+    slabActionText: {
+        fontSize: 10,
+        fontWeight: '700',
+        color: '#475569',
+    },
+    slabCardFull: {
         backgroundColor: '#ffffff',
         borderWidth: 1,
         borderColor: '#e2e8f0',
         borderRadius: 10,
         padding: 8,
+        gap: 6,
     },
-    slabItemLabel: {
+    slabCardHeaderRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    slabIndexBadge: {
+        backgroundColor: '#eff6ff',
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 4,
+    },
+    slabIndexText: {
         fontSize: 9.5,
-        fontWeight: '800',
-        color: '#475569',
-        marginBottom: 5,
+        fontWeight: '900',
+        color: '#1d4ed8',
     },
-    slabInputRow: {
+    slabSectionRow: {
+        gap: 3,
+    },
+    slabFieldLabel: {
+        fontSize: 8.5,
+        fontWeight: '900',
+        color: '#64748b',
+        letterSpacing: 0.5,
+    },
+    slabInputsGroup: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 4,
     },
-    slabCurrencyPrefix: {
-        fontSize: 11,
-        fontWeight: '800',
-        color: '#94a3b8',
+    slabInputPrefix: {
+        fontSize: 10,
+        fontWeight: '700',
+        color: '#64748b',
     },
-    slabInput: {
-        flex: 1,
+    slabSmallInput: {
+        width: 52,
         backgroundColor: '#f8fafc',
         borderWidth: 1,
         borderColor: '#e2e8f0',
         borderRadius: 6,
-        paddingHorizontal: 6,
-        paddingVertical: 4,
-        fontSize: 12,
+        paddingHorizontal: 5,
+        paddingVertical: 3,
+        fontSize: 11,
         fontWeight: '900',
         color: '#0f172a',
     },
-    slabUnitSuffix: {
-        fontSize: 10,
+    slabUnitPillsRow: {
+        flexDirection: 'row',
+        backgroundColor: '#f1f5f9',
+        borderRadius: 6,
+        padding: 2,
+        gap: 2,
+    },
+    slabUnitPill: {
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 4,
+    },
+    slabUnitPillActive: {
+        backgroundColor: '#2563eb',
+    },
+    slabUnitPillActiveEmerald: {
+        backgroundColor: '#059669',
+    },
+    slabUnitPillText: {
+        fontSize: 9.5,
         fontWeight: '800',
         color: '#64748b',
+    },
+    slabUnitPillTextActive: {
+        color: '#ffffff',
+    },
+    slabUnitPillTextActiveEmerald: {
+        color: '#ffffff',
     },
     editModalFooter: {
         flexDirection: 'row',
