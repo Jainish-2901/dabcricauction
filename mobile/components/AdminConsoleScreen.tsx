@@ -38,7 +38,9 @@ import {
     Radio,
     Search,
     Sparkles,
-    FileText
+    FileText,
+    User,
+    Check
 } from 'lucide-react-native';
 import socket from '../lib/socket';
 import { apiFetch } from '../lib/api';
@@ -77,7 +79,7 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
     const [leadTeam, setLeadTeam] = useState<any>(null);
     const [biddingState, setBiddingState] = useState<'active' | 'paused' | 'break' | 'stopped'>('active');
     const [tournament, setTournament] = useState<any>(null);
-    const { largeUnit, smallUnit, formatAmount, formatBid, isKtoL } = getBudgetUnits(tournament);
+    const { largeUnit, smallUnit, formatAmount, formatPrice, formatBid, isKtoL } = getBudgetUnits(tournament);
     const [countdownTimer, setCountdownTimer] = useState<{ timeLeft: number } | null>(null);
     const [lastSoldPlayer, setLastSoldPlayer] = useState<any>(null);
     const [notice, setNotice] = useState<string | null>(null);
@@ -88,6 +90,10 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
     const [playerSearch, setPlayerSearch] = useState('');
     const [slotAdminSearch, setSlotAdminSearch] = useState('');
     const [onlyActiveSlotInQueue, setOnlyActiveSlotInQueue] = useState(false);
+    const [showDirectSellModal, setShowDirectSellModal] = useState(false);
+    const [directSellTargetPlayer, setDirectSellTargetPlayer] = useState<any>(null);
+    const [directSellTeamId, setDirectSellTeamId] = useState<string>('');
+    const [directSellPrice, setDirectSellPrice] = useState<string>('');
 
     useEffect(() => {
         if (announcementModal) {
@@ -242,10 +248,22 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
             handleNextPlayer();
         });
 
-        socket.on('bid_undone', (data: { currentBid: number; leadTeam: any }) => {
+        socket.on('bid_undone', (data: { currentBid: number; leadTeam: any; bids?: any[]; message?: string }) => {
             setCurrentBid(data.currentBid);
             setLeadTeam(data.leadTeam);
-            showNotice('Last bid was undone.');
+            setCountdownTimer(null);
+            if (Array.isArray(data.bids)) {
+                setBidLogs(data.bids.map((b: any) => ({
+                    team: { name: b.teamName, _id: b.teamId, logo: b.teamLogo, shortName: b.teamShortName },
+                    amount: b.bidAmount,
+                    time: new Date(b.createdAt),
+                    playerId: b.playerId,
+                    bidId: b._id
+                })));
+            } else {
+                setBidLogs(prev => prev.slice(1));
+            }
+            showNotice(data.message || 'Last bid was erased.');
         });
 
         socket.on('sale_rolled_back', (data: { player: any }) => {
@@ -297,6 +315,17 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
             showNotice('🏆 AUCTION OFFICIALLY CONCLUDED!');
         });
 
+        socket.on('player_released_to_pending', (data: any) => {
+            if (data?.player) {
+                setPlayers(prev => prev.map(p => (p._id === data.player._id || (p as any).id === data.player._id) ? { ...p, ...data.player } : p));
+            }
+            if (data?.team) {
+                setTeams(prev => prev.map(t => (t._id === data.team._id || (t as any).id === data.team._id) ? { ...t, ...data.team } : t));
+                setViewingTeam((prev: any) => (prev && (prev._id === data.team._id || (prev as any).id === data.team._id)) ? { ...prev, ...data.team } : prev);
+            }
+            toast.info('Player Released', data.message || 'Player returned to Pending pool.');
+        });
+
         return () => {
             socket.off('bid_update');
             socket.off('bidding_state_changed');
@@ -310,6 +339,7 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
             socket.off('team_updated');
             socket.off('bid_undone');
             socket.off('sale_rolled_back');
+            socket.off('player_released_to_pending');
             socket.off('unsold_reopened_to_slot');
             socket.off('player_passed');
             socket.off('passed_reopened');
@@ -685,6 +715,50 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
         handleNextPlayer();
     };
 
+    const handleOpenDirectSellModal = (playerToSell: any = null) => {
+        const target = playerToSell || currentPlayer;
+        if (!target) {
+            toast.warning('No Player', 'Please select a player to sell.');
+            return;
+        }
+        setDirectSellTargetPlayer(target);
+        setDirectSellPrice(String(target.basePrice || 20));
+        setDirectSellTeamId(leadTeam?._id || teams[0]?._id || '');
+        setShowDirectSellModal(true);
+    };
+
+    const handleConfirmDirectSell = () => {
+        if (!directSellTargetPlayer || !directSellTeamId) return;
+        const priceNum = Number(directSellPrice);
+        if (isNaN(priceNum) || priceNum < 0) {
+            Alert.alert('Invalid Price', 'Please enter a valid price.');
+            return;
+        }
+
+        const team = teams.find(t => t._id === directSellTeamId);
+        const remainingPurse = Number(((Number(team?.budget) || 100) - (Number(team?.spent) || 0)).toFixed(2));
+        const priceInLarge = Number((priceNum / 100).toFixed(2));
+        if (team && priceInLarge > remainingPurse) {
+            Alert.alert('Insufficient Purse', `${team.name} only has ₹${remainingPurse} ${largeUnit} remaining.`);
+            return;
+        }
+
+        socket.emit('manual_sell_player', {
+            tournamentId,
+            playerId: directSellTargetPlayer._id,
+            teamId: directSellTeamId,
+            soldPrice: priceNum
+        }, (res: any) => {
+            if (res?.success) {
+                toast.success('Player Sold', `Directly sold ${directSellTargetPlayer.name} to ${team?.name} for ${formatPrice(priceNum)}!`);
+                setShowDirectSellModal(false);
+                setDirectSellTargetPlayer(null);
+            } else if (res?.error) {
+                Alert.alert('Sale Error', res.error);
+            }
+        });
+    };
+
     const handleUndoBid = () => {
         if (!currentPlayer) return;
         socket.emit('undo_last_bid', { tournamentId, playerId: currentPlayer._id });
@@ -706,6 +780,31 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                     text: 'Rollback',
                     style: 'destructive',
                     onPress: () => socket.emit('rollback_sale', { tournamentId, playerId: target._id })
+                }
+            ]
+        );
+    };
+
+    const handleReleasePlayer = (player: any, team: any) => {
+        if (!player || !team) return;
+        const soldAmt = player.soldPrice || player.sold_price || player.currentBid || player.basePrice || 0;
+        const formattedPrice = formatPrice(soldAmt);
+        Alert.alert(
+            'Release Player to Unsold',
+            `Remove "${player.name}" from ${team.name} and return them to the Unsold pool without an exchange?\n\nPurse ${formattedPrice} will be refunded to ${team.name}.`,
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Release to Unsold',
+                    style: 'destructive',
+                    onPress: () => {
+                        socket.emit('release_player_to_pending', {
+                            tournamentId,
+                            playerId: player._id,
+                            teamId: team._id,
+                            targetStatus: 'unsold'
+                        });
+                    }
                 }
             ]
         );
@@ -1105,19 +1204,28 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                                             </View>
 
                                             {p.status !== 'sold' && !isCurrent && (
-                                                <TouchableOpacity
-                                                    style={styles.bringToStageBtn}
-                                                    onPress={() => {
-                                                        selectPlayer(p);
-                                                        setConsoleTab('stage');
-                                                        showNotice(`Brought ${p.name} to Live Bidding Stage!`);
-                                                    }}
-                                                >
-                                                    <Play size={10} color="#ffffff" />
-                                                    <Text style={styles.bringToStageBtnText}>
-                                                        {isPassed || p.status === 'unsold' ? 'Re-Auction' : 'Auction'}
-                                                    </Text>
-                                                </TouchableOpacity>
+                                                <View style={{ flexDirection: 'row', gap: 4 }}>
+                                                    <TouchableOpacity
+                                                        style={styles.bringToStageBtn}
+                                                        onPress={() => {
+                                                            selectPlayer(p);
+                                                            setConsoleTab('stage');
+                                                            showNotice(`Brought ${p.name} to Live Bidding Stage!`);
+                                                        }}
+                                                    >
+                                                        <Play size={10} color="#ffffff" />
+                                                        <Text style={styles.bringToStageBtnText}>
+                                                            {isPassed || p.status === 'unsold' ? 'Re-Auction' : 'Auction'}
+                                                        </Text>
+                                                    </TouchableOpacity>
+                                                    <TouchableOpacity
+                                                        style={[styles.bringToStageBtn, { backgroundColor: '#059669', borderColor: '#059669' }]}
+                                                        onPress={() => handleOpenDirectSellModal(p)}
+                                                    >
+                                                        <Gavel size={10} color="#ffffff" />
+                                                        <Text style={styles.bringToStageBtnText}>Direct Sell</Text>
+                                                    </TouchableOpacity>
+                                                </View>
                                             )}
                                         </View>
                                     </View>
@@ -1494,10 +1602,10 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                                 <Text style={styles.noBidText}>Awaiting bids from owners...</Text>
                             )}
 
-                            {currentBid > (currentPlayer.basePrice || 0) && (
+                            {(currentBid > (currentPlayer.basePrice || 0) || leadTeam || bidLogs.length > 0) && (
                                 <TouchableOpacity style={styles.undoButton} onPress={handleUndoBid}>
                                     <Undo2 size={12} color="#dc2626" />
-                                    <Text style={styles.undoText}>Undo Last Bid</Text>
+                                    <Text style={styles.undoText}>Erase Last Bid (Undo Recent)</Text>
                                 </TouchableOpacity>
                             )}
                         </View>
@@ -1552,6 +1660,14 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                                     <ArrowRight size={14} color="#ffffff" />
                                 </TouchableOpacity>
                             </View>
+
+                            <TouchableOpacity
+                                style={[styles.actionBtn, { backgroundColor: '#0d9488', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 8 }]}
+                                onPress={() => handleOpenDirectSellModal(currentPlayer)}
+                            >
+                                <Gavel size={14} color="#ffffff" />
+                                <Text style={{ color: '#ffffff', fontSize: 12, fontWeight: '800' }}>Direct Sell to Team...</Text>
+                            </TouchableOpacity>
 
                             <TouchableOpacity
                                 style={styles.rollbackBtn}
@@ -1665,6 +1781,8 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
 
                     {teams.map(t => {
                         const tPlayers = players.filter(p => p.soldToTeamId === t._id || p.soldToTeamId === (t as any).id);
+                        const hasCap = t.isOwnerCaptain && !tPlayers.some(p => p.isCaptain || String(p._id || '').startsWith('pl_cap_') || String(p._id || '').startsWith('owner_cap_'));
+                        const squadCount = tPlayers.length + (hasCap ? 1 : 0);
                         return (
                             <TouchableOpacity
                                 key={t._id}
@@ -1685,7 +1803,7 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                                     <View style={{ flex: 1 }}>
                                         <Text style={styles.teamRowName}>{t.name}</Text>
                                         <Text style={styles.teamSquadCount}>
-                                            {tPlayers.length} {tPlayers.length === 1 ? 'player' : 'players'} • Tap squad
+                                            {squadCount} {squadCount === 1 ? 'player' : 'players'} • Tap squad
                                         </Text>
                                     </View>
                                 </View>
@@ -2016,6 +2134,7 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                     </View>
                 </View>
             </Modal>
+
             {/* Team Purchased Squad Modal */}
             <Modal
                 visible={!!viewingTeam}
@@ -2058,7 +2177,40 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                                 </View>
 
                                 {(() => {
-                                    const teamPlayers = players.filter(p => p.soldToTeamId === viewingTeam._id || p.soldToTeamId === (viewingTeam as any).id);
+                                    const rawBought = players.filter(p => (p.soldToTeamId === viewingTeam._id || p.soldToTeamId === (viewingTeam as any).id || (viewingTeam.players && viewingTeam.players.includes(p._id))) && p.status === 'sold');
+                                    let captainPlayer = rawBought.find((p: any) => p.isCaptain || String(p._id || '').startsWith('pl_cap_') || String(p._id || '').startsWith('owner_cap_'));
+
+                                    if (!captainPlayer && viewingTeam.isOwnerCaptain) {
+                                        captainPlayer = {
+                                            _id: `owner_cap_${viewingTeam._id}`,
+                                            name: viewingTeam.captainName || `${viewingTeam.name} Captain`,
+                                            image: viewingTeam.captainPhoto || '',
+                                            category: 'Captain (All-Rounder)',
+                                            battingStyle: 'Right-Hand Bat',
+                                            bowlingStyle: 'Right-Arm Medium',
+                                            basePrice: Number(viewingTeam.captainPrice) || 0,
+                                            soldPrice: Number(viewingTeam.captainPrice) || 0,
+                                            sold_price: Number(viewingTeam.captainPrice) || 0,
+                                            status: 'sold',
+                                            isCaptain: true,
+                                            soldToTeamId: viewingTeam._id,
+                                            soldToTeamName: viewingTeam.name
+                                        };
+                                    }
+
+                                    let teamPlayers = rawBought;
+                                    if (captainPlayer) {
+                                        const capPrice = Number(viewingTeam.captainPrice) || Number(captainPlayer.soldPrice) || Number(captainPlayer.basePrice) || 0;
+                                        const updatedCap = {
+                                            ...captainPlayer,
+                                            basePrice: capPrice,
+                                            soldPrice: capPrice,
+                                            sold_price: capPrice,
+                                            isCaptain: true
+                                        };
+                                        teamPlayers = [updatedCap, ...rawBought.filter((p: any) => p._id !== captainPlayer._id)];
+                                    }
+
                                     return (
                                         <ScrollView style={styles.squadModalScroll} showsVerticalScrollIndicator={false}>
                                             <View style={styles.squadModalStatsBar}>
@@ -2066,7 +2218,7 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                                                     Acquired: <Text style={styles.squadModalStatsBold}>{teamPlayers.length}</Text> / {tournament?.squadSizeLimit || 25}
                                                 </Text>
                                                 <Text style={styles.squadModalStatsText}>
-                                                    Total Spent: <Text style={styles.squadModalStatsBold}>₹{teamPlayers.reduce((acc, p) => acc + (Number(p.soldPrice || p.sold_price || p.currentBid || p.basePrice) || 0), 0)} {smallUnit}</Text>
+                                                    Total Spent: <Text style={styles.squadModalStatsBold}>{formatPrice(teamPlayers.reduce((acc, p) => acc + (Number(p.soldPrice || p.sold_price || p.currentBid || p.basePrice) || 0), 0))}</Text>
                                                 </Text>
                                             </View>
 
@@ -2080,19 +2232,38 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                                                 </View>
                                             ) : (
                                                 teamPlayers.map((p, idx) => (
-                                                    <View key={p._id || idx} style={styles.squadModalPlayerRow}>
+                                                    <View key={p._id || idx} style={[styles.squadModalPlayerRow, p.isCaptain && { backgroundColor: '#fffbeb', borderColor: '#fde68a' }]}>
                                                         <View style={styles.squadModalPlayerIndex}>
                                                             <Text style={styles.squadModalPlayerIndexText}>{idx + 1}</Text>
                                                         </View>
                                                         <View style={styles.squadModalPlayerInfo}>
-                                                            <Text style={styles.squadModalPlayerName}>{p.name}</Text>
+                                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                                                <Text style={styles.squadModalPlayerName}>{p.name}</Text>
+                                                                {p.isCaptain && (
+                                                                    <View style={{ backgroundColor: '#fef3c7', paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 }}>
+                                                                        <Text style={{ fontSize: 8, fontWeight: '900', color: '#92400e' }}>👑 C</Text>
+                                                                    </View>
+                                                                )}
+                                                            </View>
                                                             <Text style={styles.squadModalPlayerCategory}>
                                                                 {p.category} {p.battingStyle ? `• ${p.battingStyle}` : ''}
                                                             </Text>
                                                         </View>
-                                                        <View style={styles.squadModalPlayerPrice}>
-                                                            <Text style={styles.squadModalPlayerPriceText}>₹{p.soldPrice || p.sold_price || p.currentBid || p.basePrice} {smallUnit}</Text>
-                                                            <Text style={styles.squadModalPlayerBasePrice}>Base: ₹{p.basePrice}{smallUnit}</Text>
+                                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                                            <View style={styles.squadModalPlayerPrice}>
+                                                                <Text style={styles.squadModalPlayerPriceText}>{formatPrice(p.soldPrice || p.sold_price || p.currentBid || p.basePrice)}</Text>
+                                                                <Text style={styles.squadModalPlayerBasePrice}>{p.isCaptain ? 'Retention Fee' : `Base: ${formatPrice(p.basePrice)}`}</Text>
+                                                            </View>
+                                                            {!p.isCaptain && (
+                                                                <TouchableOpacity
+                                                                    style={styles.releasePlayerBtn}
+                                                                    onPress={() => handleReleasePlayer(p, viewingTeam)}
+                                                                    activeOpacity={0.7}
+                                                                >
+                                                                    <RotateCcw size={11} color="#b91c1c" />
+                                                                    <Text style={styles.releasePlayerBtnText}>To Unsold</Text>
+                                                                </TouchableOpacity>
+                                                            )}
                                                         </View>
                                                     </View>
                                                 ))
@@ -2201,6 +2372,153 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                                 </TouchableOpacity>
                             </>
                         )}
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Direct Sell Player to Team Modal */}
+            <Modal
+                visible={showDirectSellModal}
+                animationType="fade"
+                transparent={true}
+                onRequestClose={() => setShowDirectSellModal(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={[styles.modalContainer, { maxWidth: 440 }]}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                                <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: '#ecfdf5', alignItems: 'center', justifyContent: 'center' }}>
+                                    <Gavel size={18} color="#059669" />
+                                </View>
+                                <View>
+                                    <Text style={{ fontSize: 15, fontWeight: '900', color: '#0f172a' }}>Direct Sell to Team</Text>
+                                    <Text style={{ fontSize: 11, fontWeight: '600', color: '#64748b' }}>Custom price sale override</Text>
+                                </View>
+                            </View>
+                            <TouchableOpacity onPress={() => setShowDirectSellModal(false)} style={{ padding: 4 }}>
+                                <X size={18} color="#475569" />
+                            </TouchableOpacity>
+                        </View>
+
+                        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                            {directSellTargetPlayer && (
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, backgroundColor: '#f8fafc', borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0', marginBottom: 14 }}>
+                                    <View style={{ width: 48, height: 48, borderRadius: 10, overflow: 'hidden', backgroundColor: '#e2e8f0', justifyContent: 'center', alignItems: 'center' }}>
+                                        <SafeImage
+                                            uri={directSellTargetPlayer.image}
+                                            style={{ width: '100%', height: '100%' }}
+                                            fallback={<User size={20} color="#94a3b8" />}
+                                        />
+                                    </View>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={{ fontSize: 14, fontWeight: '800', color: '#0f172a' }}>{directSellTargetPlayer.name}</Text>
+                                        <Text style={{ fontSize: 11, fontWeight: '600', color: '#64748b', marginTop: 2 }}>
+                                            {directSellTargetPlayer.category} • Base: <Text style={{ color: '#2563eb', fontWeight: '800' }}>{formatPrice(directSellTargetPlayer.basePrice || 0)}</Text>
+                                        </Text>
+                                    </View>
+                                </View>
+                            )}
+
+                            {/* Destination Team Picker */}
+                            <Text style={{ fontSize: 10, fontWeight: '900', color: '#475569', textTransform: 'uppercase', marginBottom: 6 }}>
+                                DESTINATION TEAM *
+                            </Text>
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
+                                <View style={{ flexDirection: 'row', gap: 8 }}>
+                                    {teams.map((t: any) => {
+                                        const isSelected = directSellTeamId === t._id;
+                                        const remaining = ((Number(t.budget) || 100) - (Number(t.spent) || 0)).toFixed(2);
+                                        return (
+                                            <TouchableOpacity
+                                                key={t._id}
+                                                onPress={() => setDirectSellTeamId(t._id)}
+                                                style={{
+                                                    paddingHorizontal: 12,
+                                                    paddingVertical: 8,
+                                                    borderRadius: 10,
+                                                    borderWidth: 1.5,
+                                                    borderColor: isSelected ? '#059669' : '#e2e8f0',
+                                                    backgroundColor: isSelected ? '#ecfdf5' : '#ffffff',
+                                                    alignItems: 'center',
+                                                    minWidth: 100
+                                                }}
+                                            >
+                                                <Text style={{ fontSize: 12, fontWeight: '800', color: isSelected ? '#047857' : '#1e293b' }} numberOfLines={1}>
+                                                    {t.name}
+                                                </Text>
+                                                <Text style={{ fontSize: 10, fontWeight: '600', color: isSelected ? '#059669' : '#64748b', marginTop: 2 }}>
+                                                    Purse: ₹{remaining} {largeUnit}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        );
+                                    })}
+                                </View>
+                            </ScrollView>
+
+                            {/* Sold Price Input */}
+                            <Text style={{ fontSize: 10, fontWeight: '900', color: '#475569', textTransform: 'uppercase', marginBottom: 6 }}>
+                                SOLD PRICE ({smallUnit}) *
+                            </Text>
+                            <View style={{ position: 'relative', marginBottom: 14 }}>
+                                <TextInput
+                                    style={{
+                                        backgroundColor: '#f8fafc',
+                                        borderWidth: 1,
+                                        borderColor: '#cbd5e1',
+                                        borderRadius: 10,
+                                        paddingHorizontal: 12,
+                                        paddingVertical: 10,
+                                        fontSize: 13,
+                                        fontWeight: '800',
+                                        color: '#0f172a',
+                                        paddingRight: 45
+                                    }}
+                                    value={directSellPrice}
+                                    onChangeText={setDirectSellPrice}
+                                    keyboardType="numeric"
+                                    placeholder={`Price in ${smallUnit}`}
+                                    placeholderTextColor="#94a3b8"
+                                />
+                                <Text style={{ position: 'absolute', right: 14, top: 12, fontSize: 12, fontWeight: '800', color: '#94a3b8' }}>
+                                    {smallUnit}
+                                </Text>
+                            </View>
+
+                            {directSellPrice !== '' && !isNaN(Number(directSellPrice)) && (
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 8, backgroundColor: '#f0fdf4', borderRadius: 8, borderWidth: 1, borderColor: '#bbf7d0', marginBottom: 14 }}>
+                                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#166534' }}>Display Value:</Text>
+                                    <Text style={{ fontSize: 12, fontWeight: '900', color: '#15803d' }}>
+                                        {formatPrice(Number(directSellPrice))}
+                                    </Text>
+                                </View>
+                            )}
+                        </ScrollView>
+
+                        <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 10 }}>
+                            <TouchableOpacity
+                                onPress={() => setShowDirectSellModal(false)}
+                                style={{ paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: '#f1f5f9' }}
+                            >
+                                <Text style={{ fontSize: 12, fontWeight: '800', color: '#475569' }}>Cancel</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                onPress={handleConfirmDirectSell}
+                                disabled={!directSellTeamId}
+                                style={{
+                                    backgroundColor: '#059669',
+                                    paddingHorizontal: 18,
+                                    paddingVertical: 10,
+                                    borderRadius: 10,
+                                    flexDirection: 'row',
+                                    alignItems: 'center',
+                                    gap: 6,
+                                    opacity: !directSellTeamId ? 0.5 : 1
+                                }}
+                            >
+                                <Check size={14} color="#ffffff" />
+                                <Text style={{ color: '#ffffff', fontSize: 12, fontWeight: '800' }}>Confirm Sale</Text>
+                            </TouchableOpacity>
+                        </View>
                     </View>
                 </View>
             </Modal>
@@ -3199,6 +3517,22 @@ const styles = StyleSheet.create({
         fontSize: 10,
         fontWeight: '600',
         color: '#94a3b8',
+    },
+    releasePlayerBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 3,
+        backgroundColor: '#fef2f2',
+        borderWidth: 1,
+        borderColor: '#fecaca',
+        paddingHorizontal: 8,
+        paddingVertical: 5,
+        borderRadius: 8,
+    },
+    releasePlayerBtnText: {
+        fontSize: 10,
+        fontWeight: '800',
+        color: '#b91c1c',
     },
     squadModalFooter: {
         padding: 12,

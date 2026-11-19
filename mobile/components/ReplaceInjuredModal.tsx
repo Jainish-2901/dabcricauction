@@ -40,7 +40,7 @@ export const ReplaceInjuredModal: React.FC<ReplaceInjuredModalProps> = ({
     const [replacementFee, setReplacementFee] = useState('');
     const [submitting, setSubmitting] = useState(false);
 
-    const { smallUnit, largeUnit } = getBudgetUnits(tournament);
+    const { smallUnit, largeUnit, formatPrice } = getBudgetUnits(tournament);
 
     // Eligible players in team's squad (non-captains, sold)
     const teamSquad = (players || []).filter(p =>
@@ -201,7 +201,7 @@ export const ReplaceInjuredModal: React.FC<ReplaceInjuredModalProps> = ({
                                                     {p.name}
                                                 </Text>
                                                 <Text style={styles.playerPickRole}>{p.category}</Text>
-                                                <Text style={styles.playerPickPrice}>Sold: ₹{pPrice}{smallUnit}</Text>
+                                                <Text style={styles.playerPickPrice}>Sold: {formatPrice(pPrice)}</Text>
                                             </TouchableOpacity>
                                         );
                                     })}
@@ -231,7 +231,7 @@ export const ReplaceInjuredModal: React.FC<ReplaceInjuredModalProps> = ({
                                                     {p.name}
                                                 </Text>
                                                 <Text style={styles.playerPickRole}>{p.category}</Text>
-                                                <Text style={styles.playerPickPrice}>Base: ₹{p.basePrice || 0}{smallUnit}</Text>
+                                                <Text style={styles.playerPickPrice}>Base: {formatPrice(p.basePrice || 0)}</Text>
                                             </TouchableOpacity>
                                         );
                                     })}

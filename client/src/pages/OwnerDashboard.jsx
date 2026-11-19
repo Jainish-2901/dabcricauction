@@ -16,7 +16,7 @@ const OwnerDashboard = () => {
     const [allPlayers, setAllPlayers] = useState([]);
     const [otherTeams, setOtherTeams] = useState([]);
     const [tournament, setTournament] = useState(null);
-    const { largeUnit, smallUnit, formatAmount, formatBid } = getBudgetUnits(tournament);
+    const { largeUnit, smallUnit, formatAmount, formatPrice, formatBid } = getBudgetUnits(tournament);
     const [slots, setSlots] = useState([]);
     const [viewingTeam, setViewingTeam] = useState(null);
     const [announcementModal, setAnnouncementModal] = useState(null);
@@ -170,6 +170,18 @@ const OwnerDashboard = () => {
             socket.on('bid_undone', (data) => {
                 setCurrentBid(data.currentBid);
                 setCurrentLeadTeam(data.leadTeam);
+                setCountdownTimer(null);
+                if (Array.isArray(data.bids)) {
+                    setBidLogs(data.bids.map(b => ({
+                        team: { name: b.teamName, _id: b.teamId, logo: b.teamLogo, shortName: b.teamShortName },
+                        amount: b.bidAmount,
+                        time: new Date(b.createdAt),
+                        playerId: b.playerId
+                    })));
+                } else {
+                    setBidLogs(prev => prev.slice(1));
+                }
+                toast.info(data.message || 'Auctioneer erased the last bid. Bidding resumed.');
             });
 
             socket.on('sale_rolled_back', (data) => {
@@ -191,6 +203,15 @@ const OwnerDashboard = () => {
                 }
             });
 
+            socket.on('player_released_to_pending', (data) => {
+                fetchTeamData();
+                fetchSquad();
+                if (data?.player) {
+                    setAllPlayers(prev => prev.map(p => (p._id === data.player._id || p.id === data.player._id) ? { ...p, ...data.player } : p));
+                }
+                if (data?.message) toast.info(data.message);
+            });
+
             return () => {
                 socket.off('connect', handleConnect);
                 socket.off('new_player');
@@ -207,6 +228,7 @@ const OwnerDashboard = () => {
                 socket.off('bid_undone');
                 socket.off('sale_rolled_back');
                 socket.off('unsold_reopened_to_slot');
+                socket.off('player_released_to_pending');
             };
         }
     }, [user]);
@@ -229,13 +251,72 @@ const OwnerDashboard = () => {
         }
     };
 
+    const buildFullSquad = (targetTeam, playersList) => {
+        if (!targetTeam) return [];
+        const teamId = targetTeam._id || targetTeam.id;
+        const acquired = (playersList || []).filter(p => {
+            const soldId = typeof p.soldToTeamId === 'object' && p.soldToTeamId ? (p.soldToTeamId._id || p.soldToTeamId.id) : p.soldToTeamId;
+            return (soldId === teamId || (targetTeam.players && targetTeam.players.includes(p._id))) && p.status === 'sold';
+        });
+
+        let captainPlayer = acquired.find(p => p.isCaptain || String(p._id || '').startsWith('pl_cap_') || String(p._id || '').startsWith('owner_cap_'));
+
+        const myTeamId = typeof user?.teamId === 'object' ? user?.teamId?._id : user?.teamId;
+        const hasCaptain = targetTeam.isOwnerCaptain || targetTeam.captainName || (teamId === myTeamId && user?.captainName);
+
+        if (!captainPlayer && hasCaptain) {
+            const capName = targetTeam.captainName || (teamId === myTeamId ? (user?.captainName || user?.name || user?.username) : null) || `${targetTeam.name} Captain`;
+            const capPhoto = targetTeam.captainPhoto || (teamId === myTeamId ? user?.captainPhoto : '') || '';
+            const capPrice = Number(targetTeam.captainPrice) || 0;
+
+            captainPlayer = {
+                _id: `owner_cap_${teamId}`,
+                name: capName,
+                image: capPhoto,
+                category: targetTeam.category || (teamId === myTeamId ? user?.category : null) || 'Captain (All-Rounder)',
+                battingStyle: targetTeam.battingStyle || (teamId === myTeamId ? user?.battingStyle : null) || 'Right-Hand Bat',
+                bowlingStyle: targetTeam.bowlingStyle || (teamId === myTeamId ? user?.bowlingStyle : null) || 'Right-Arm Medium',
+                basePrice: capPrice,
+                soldPrice: capPrice,
+                sold_price: capPrice,
+                status: 'sold',
+                isCaptain: true,
+                soldToTeamId: teamId,
+                soldToTeamName: targetTeam.name
+            };
+        }
+
+        if (captainPlayer) {
+            const capPrice = Number(targetTeam.captainPrice) || Number(captainPlayer.soldPrice) || Number(captainPlayer.basePrice) || 0;
+            const updatedCap = {
+                ...captainPlayer,
+                basePrice: capPrice,
+                soldPrice: capPrice,
+                sold_price: capPrice,
+                isCaptain: true
+            };
+            const nonCaptains = acquired.filter(p => p._id !== captainPlayer._id);
+            return [updatedCap, ...nonCaptains];
+        }
+
+        return acquired;
+    };
+
+    useEffect(() => {
+        if (teamData && allPlayers) {
+            setSquad(buildFullSquad(teamData, allPlayers));
+        }
+    }, [teamData, allPlayers]);
+
     const fetchTournament = async () => {
         try {
             const tourneyId = typeof user.tournamentId === 'object' ? user.tournamentId._id : user.tournamentId;
-            const [tRes, sRes, pRes] = await Promise.all([
+            const teamId = typeof user.teamId === 'object' ? user.teamId._id : user.teamId;
+            const [tRes, sRes, pRes, teamsRes] = await Promise.all([
                 axios.get(`/api/tournaments/${tourneyId}`),
                 axios.get(`/api/tournaments/${tourneyId}/slots`).catch(() => ({ data: [] })),
-                axios.get(`/api/players/${tourneyId}`).catch(() => ({ data: [] }))
+                axios.get(`/api/players/${tourneyId}`).catch(() => ({ data: [] })),
+                axios.get(`/api/teams/${tourneyId}`).catch(() => ({ data: [] }))
             ]);
             setTournament(tRes.data);
             setSlots(sRes.data || []);
@@ -246,12 +327,16 @@ const OwnerDashboard = () => {
                 setBiddingState('active');
             }
 
-            // Sync currently staged player and all players
             const playersList = pRes.data || [];
             setAllPlayers(playersList);
-            const teamId = typeof user.teamId === 'object' ? user.teamId._id : user.teamId;
-            if (teamId) {
-                setSquad(playersList.filter(p => p.soldToTeamId === teamId));
+
+            if (teamsRes.data && Array.isArray(teamsRes.data)) {
+                const myTeam = teamsRes.data.find(t => t._id === teamId || t.id === teamId);
+                if (myTeam) {
+                    setTeamData(myTeam);
+                    setSquad(buildFullSquad(myTeam, playersList));
+                }
+                setOtherTeams(teamsRes.data.filter(t => t._id !== teamId && t.id !== teamId));
             }
 
             let active = null;
@@ -279,9 +364,12 @@ const OwnerDashboard = () => {
             const teamId = typeof user.teamId === 'object' ? user.teamId._id : user.teamId;
             const tourneyId = typeof user.tournamentId === 'object' ? user.tournamentId._id : user.tournamentId;
             const allTeamsRes = await axios.get(`/api/teams/${tourneyId}`);
-            const myTeam = allTeamsRes.data.find(t => t._id === teamId);
+            const myTeam = allTeamsRes.data.find(t => t._id === teamId || t.id === teamId);
             setTeamData(myTeam);
-            setOtherTeams(allTeamsRes.data.filter(t => t._id !== teamId));
+            setOtherTeams(allTeamsRes.data.filter(t => t._id !== teamId && t.id !== teamId));
+            if (allPlayers && allPlayers.length > 0 && myTeam) {
+                setSquad(buildFullSquad(myTeam, allPlayers));
+            }
         } catch (err) {
             console.error("Failed to fetch team data", err);
         }
@@ -289,13 +377,13 @@ const OwnerDashboard = () => {
 
     const fetchSquad = async () => {
         try {
-            const teamId = typeof user.teamId === 'object' ? user.teamId._id : user.teamId;
             const tourneyId = typeof user.tournamentId === 'object' ? user.tournamentId._id : user.tournamentId;
             const res = await axios.get(`/api/players/${tourneyId}`);
             const allP = res.data || [];
             setAllPlayers(allP);
-            const mySquad = allP.filter(p => p.soldToTeamId === teamId);
-            setSquad(mySquad);
+            if (teamData) {
+                setSquad(buildFullSquad(teamData, allP));
+            }
         } catch (err) {
             console.error(err);
         }
@@ -816,10 +904,10 @@ const OwnerDashboard = () => {
                                                 </td>
                                                 <td className="p-3 text-slate-600 font-bold">{p.category}</td>
                                                 <td className="p-3 text-right font-semibold text-slate-500 tabular-nums">
-                                                    ₹{p.basePrice || 0} {smallUnit}
+                                                    {formatPrice(p.basePrice || 0)}
                                                 </td>
                                                 <td className="p-3 text-right font-black text-emerald-700 tabular-nums">
-                                                    ₹{p.soldPrice || p.sold_price || p.currentBid || p.basePrice || 0} {smallUnit}
+                                                    {formatPrice(p.soldPrice || p.sold_price || p.currentBid || p.basePrice || 0)}
                                                 </td>
                                             </tr>
                                         )) : (
@@ -844,10 +932,10 @@ const OwnerDashboard = () => {
                                                         TOTAL SQUAD ACQUISITION ({squad.length} / {tournament?.squadSizeLimit || 25} PLAYERS)
                                                     </td>
                                                     <td className="p-3 text-right text-slate-600 tabular-nums font-extrabold">
-                                                        ₹{totalBase} {smallUnit}
+                                                        {formatPrice(totalBase)}
                                                     </td>
                                                     <td className="p-3 text-right text-emerald-800 tabular-nums font-black text-sm">
-                                                        ₹{totalSold} {smallUnit}
+                                                        {formatPrice(totalSold)}
                                                     </td>
                                                 </tr>
                                                 {/* Excel Balance Statement Row */}
@@ -1312,7 +1400,7 @@ const OwnerDashboard = () => {
 
                         <div className="space-y-2.5">
                             {otherTeams.map(t => {
-                                const teamSquad = allPlayers.filter(p => p.soldToTeamId === t._id || p.soldToTeamId === t.id);
+                                const teamSquad = buildFullSquad(t, allPlayers);
                                 return (
                                     <button
                                         key={t._id}
@@ -1407,7 +1495,7 @@ const OwnerDashboard = () => {
                         {/* Modal Content - Player List */}
                         <div className="p-5 md:p-6 overflow-y-auto flex-1 space-y-4">
                             {(() => {
-                                const teamSquad = allPlayers.filter(p => p.soldToTeamId === viewingTeam._id || p.soldToTeamId === viewingTeam.id);
+                                const teamSquad = buildFullSquad(viewingTeam, allPlayers);
                                 return (
                                     <>
                                         <div className="flex flex-wrap justify-between items-center bg-slate-50 p-3 rounded-2xl border border-slate-200 gap-2">
@@ -1416,14 +1504,14 @@ const OwnerDashboard = () => {
                                                 Acquired Players: <strong className="text-slate-900 font-black">{teamSquad.length}</strong> / {tournament?.squadSizeLimit || 25}
                                             </span>
                                             <span className="text-xs font-bold text-slate-600">
-                                                Total Spent: <strong className="text-emerald-700 font-black">₹{teamSquad.reduce((acc, p) => acc + (Number(p.soldPrice || p.sold_price || p.currentBid || p.basePrice) || 0), 0)} {smallUnit}</strong>
+                                                Total Spent: <strong className="text-emerald-700 font-black">{formatPrice(teamSquad.reduce((acc, p) => acc + (Number(p.soldPrice || p.sold_price || p.currentBid || p.basePrice) || 0), 0))}</strong>
                                             </span>
                                         </div>
 
                                         {teamSquad.length > 0 ? (
                                             <div className="divide-y divide-slate-100 border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-2xs">
                                                 {teamSquad.map((p, idx) => (
-                                                    <div key={p._id || idx} className="p-3.5 hover:bg-slate-50/80 transition-colors flex items-center justify-between gap-3">
+                                                    <div key={p._id || idx} className={`p-3.5 hover:bg-slate-50/80 transition-colors flex items-center justify-between gap-3 ${p.isCaptain ? 'bg-amber-50/40' : ''}`}>
                                                         <div className="flex items-center gap-3">
                                                             <div className="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center shrink-0">
                                                                 <SafeImage
@@ -1431,10 +1519,20 @@ const OwnerDashboard = () => {
                                                                     alt={p.name}
                                                                     className="w-full h-full object-cover"
                                                                     fallback={<User className="w-5 h-5 text-slate-400" />}
+                                                                    previewable={true}
+                                                                    previewTitle={p.name}
                                                                 />
                                                             </div>
                                                             <div>
-                                                                <h4 className="text-sm font-bold text-slate-900 leading-snug">{p.name}</h4>
+                                                                <h4 className="text-sm font-bold text-slate-900 leading-snug flex items-center gap-1.5">
+                                                                    {p.isCaptain && <Crown className="w-3.5 h-3.5 text-amber-500 fill-amber-500 shrink-0" />}
+                                                                    {p.name}
+                                                                    {p.isCaptain && (
+                                                                        <span className="px-1.5 py-0.2 bg-amber-100 text-amber-800 text-[9px] font-black rounded border border-amber-300 uppercase">
+                                                                            👑 CAPTAIN
+                                                                        </span>
+                                                                    )}
+                                                                </h4>
                                                                 <div className="flex items-center gap-2 mt-0.5">
                                                                     <span className="text-[11px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">
                                                                         {p.category}
@@ -1450,10 +1548,10 @@ const OwnerDashboard = () => {
 
                                                         <div className="text-right shrink-0">
                                                             <div className="text-sm font-black text-slate-900 tabular-nums">
-                                                                ₹{p.soldPrice || p.sold_price || p.currentBid || p.basePrice || 0} {smallUnit}
+                                                                {formatPrice(p.soldPrice || p.sold_price || p.currentBid || p.basePrice || 0)}
                                                             </div>
                                                             <div className="text-[10px] text-slate-400">
-                                                                Base: ₹{p.basePrice || 0} {smallUnit}
+                                                                {p.isCaptain ? 'Retention Fee' : `Base: ${formatPrice(p.basePrice || 0)}`}
                                                             </div>
                                                         </div>
                                                     </div>

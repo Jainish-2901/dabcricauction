@@ -16,7 +16,7 @@ const AdminAuctionConsole = () => {
     const navigate = useNavigate();
 
     const [tournament, setTournament] = useState(null);
-    const { largeUnit, smallUnit, formatAmount, formatBid } = getBudgetUnits(tournament);
+    const { largeUnit, smallUnit, formatAmount, formatPrice, formatBid } = getBudgetUnits(tournament);
     const [allTournaments, setAllTournaments] = useState([]);
     const [players, setPlayers] = useState([]);
     const [teams, setTeams] = useState([]);
@@ -41,6 +41,10 @@ const AdminAuctionConsole = () => {
     const [countdownTimer, setCountdownTimer] = useState(null);
     const [announcementModal, setAnnouncementModal] = useState(null);
     const [slotConsoleSearch, setSlotConsoleSearch] = useState('');
+    const [showDirectSellModal, setShowDirectSellModal] = useState(false);
+    const [directSellTargetPlayer, setDirectSellTargetPlayer] = useState(null);
+    const [directSellTeamId, setDirectSellTeamId] = useState('');
+    const [directSellPrice, setDirectSellPrice] = useState('');
 
     useEffect(() => {
         if (announcementModal) {
@@ -141,7 +145,19 @@ const AdminAuctionConsole = () => {
         socket.on('bid_undone', (data) => {
             setCurrentBid(data.currentBid);
             setWinningTeam(data.leadTeam);
-            showNotice('info', 'Last bid was undone by Auctioneer.');
+            setCountdownTimer(null);
+            if (Array.isArray(data.bids)) {
+                setBidLogs(data.bids.map(b => ({
+                    team: { name: b.teamName, _id: b.teamId, logo: b.teamLogo, shortName: b.teamShortName },
+                    amount: b.bidAmount,
+                    time: new Date(b.createdAt),
+                    playerId: b.playerId,
+                    bidId: b._id
+                })));
+            } else {
+                setBidLogs(prev => prev.slice(1));
+            }
+            showNotice('info', data.message || 'Last bid was undone by Auctioneer.');
         });
 
         socket.on('sale_rolled_back', (data) => {
@@ -220,6 +236,17 @@ const AdminAuctionConsole = () => {
             showNotice('success', `🔄 Brought ${data?.reopenedCount || ''} passed players back into pending auction queue!`);
         });
 
+        socket.on('player_released_to_pending', (data) => {
+            if (data?.player) {
+                setPlayers(prev => prev.map(p => (p._id === data.player._id || p.id === data.player._id) ? { ...p, ...data.player } : p));
+            }
+            if (data?.team) {
+                setTeams(prev => prev.map(t => (t._id === data.team._id || t.id === data.team._id) ? { ...t, ...data.team } : t));
+                setViewingTeam(prev => (prev && (prev._id === data.team._id || prev.id === data.team._id)) ? { ...prev, ...data.team } : prev);
+            }
+            showNotice('info', data.message || 'Player released to Pending list.');
+        });
+
         return () => {
             socket.off('bid_update');
             socket.off('player_sold');
@@ -228,6 +255,7 @@ const AdminAuctionConsole = () => {
             socket.off('slot_changed');
             socket.off('bid_undone');
             socket.off('sale_rolled_back');
+            socket.off('player_released_to_pending');
             socket.off('timer_tick');
             socket.off('timer_cancelled');
             socket.off('timer_completed');
@@ -532,6 +560,20 @@ const AdminAuctionConsole = () => {
         }
     };
 
+    const handleReleasePlayerToPending = (player, team) => {
+        if (!player || !team) return;
+        const soldAmt = player.soldPrice || player.sold_price || player.currentBid || player.basePrice || 0;
+        const formattedPrice = formatPrice(soldAmt);
+        if (window.confirm(`Are you sure you want to remove ${player.name} from ${team.name} and return them to the Unsold pool without an exchange?\n\nPurse ${formattedPrice} will be refunded to ${team.name}.`)) {
+            socket.emit('release_player_to_pending', {
+                tournamentId,
+                playerId: player._id,
+                teamId: team._id,
+                targetStatus: 'unsold'
+            });
+        }
+    };
+
     const handleEndAuction = async () => {
         if (!window.confirm('Are you sure you want to officially END and COMPLETE this auction? Bidding will be concluded and the tournament will be marked as Completed.')) {
             return;
@@ -615,6 +657,51 @@ const AdminAuctionConsole = () => {
                 tournamentId
             });
         }, 300);
+    };
+
+    const handleOpenDirectSellModal = (playerToSell = null) => {
+        const target = playerToSell || currentPlayer;
+        if (!target) {
+            showNotice('error', 'Please select a player to sell.');
+            return;
+        }
+        setDirectSellTargetPlayer(target);
+        setDirectSellPrice(target.basePrice || 20);
+        setDirectSellTeamId(winningTeam?._id || teams[0]?._id || '');
+        setShowDirectSellModal(true);
+    };
+
+    const handleConfirmDirectSell = (e) => {
+        if (e) e.preventDefault();
+        if (!directSellTargetPlayer || !directSellTeamId) return;
+        const priceNum = Number(directSellPrice);
+        if (isNaN(priceNum) || priceNum < 0) {
+            showNotice('error', 'Please enter a valid price.');
+            return;
+        }
+
+        const team = teams.find(t => t._id === directSellTeamId);
+        const remainingPurse = Number(((Number(team?.budget) || 100) - (Number(team?.spent) || 0)).toFixed(2));
+        const priceInLarge = Number((priceNum / 100).toFixed(2));
+        if (team && priceInLarge > remainingPurse) {
+            showNotice('error', `Insufficient purse! ${team.name} only has ₹${remainingPurse} ${largeUnit} remaining.`);
+            return;
+        }
+
+        socket.emit('manual_sell_player', {
+            tournamentId,
+            playerId: directSellTargetPlayer._id,
+            teamId: directSellTeamId,
+            soldPrice: priceNum
+        }, (res) => {
+            if (res?.success) {
+                showNotice('success', `Directly sold ${directSellTargetPlayer.name} to ${team?.name} for ₹${priceNum}${smallUnit}!`);
+                setShowDirectSellModal(false);
+                setDirectSellTargetPlayer(null);
+            } else if (res?.error) {
+                showNotice('error', res.error);
+            }
+        });
     };
 
     const handleAdminTeamBid = (team, e) => {
@@ -1139,13 +1226,13 @@ const AdminAuctionConsole = () => {
                                     </div>
 
                                     {/* Quick Undo Last Bid Button */}
-                                    {currentBid > currentPlayer.basePrice && !countdownTimer && (
+                                    {(currentBid > currentPlayer.basePrice || winningTeam || bidLogs.length > 0) && (
                                         <button
                                             onClick={handleUndoLastBid}
-                                            className="mt-3 text-xs text-rose-600 hover:text-rose-700 font-bold flex items-center justify-center gap-1 mx-auto transition-colors"
-                                            title="Undo last placed bid"
+                                            className="mt-3 text-xs text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 py-1 px-3 rounded-lg font-bold flex items-center justify-center gap-1.5 mx-auto transition-all shadow-xs"
+                                            title="Erase only the most recent bid and continue from the previous bid"
                                         >
-                                            <Undo2 className="w-3.5 h-3.5" /> Undo Last Bid
+                                            <Undo2 className="w-3.5 h-3.5" /> Erase Last Bid (Undo Recent)
                                         </button>
                                     )}
                                 </div>
@@ -1191,13 +1278,24 @@ const AdminAuctionConsole = () => {
                         </button>
 
                         {tournament.auctionType === 'owner_driven' ? (
-                            <button
-                                onClick={handleSellAtCurrentBid}
-                                disabled={!currentPlayer || !winningTeam}
-                                className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white rounded-xl font-bold shadow-sm transition-all flex items-center gap-2 text-xs"
-                            >
-                                <Gavel className="w-4 h-4" /> Hammer Sold to ({winningTeam?.shortName || winningTeam?.name || 'Leader'})
-                            </button>
+                            <div className="flex flex-wrap items-center gap-2">
+                                <button
+                                    onClick={handleSellAtCurrentBid}
+                                    disabled={!currentPlayer || !winningTeam}
+                                    className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white rounded-xl font-bold shadow-sm transition-all flex items-center gap-2 text-xs cursor-pointer"
+                                >
+                                    <Gavel className="w-4 h-4" /> Hammer Sold to ({winningTeam?.shortName || winningTeam?.name || 'Leader'})
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleOpenDirectSellModal(currentPlayer)}
+                                    disabled={!currentPlayer}
+                                    className="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 disabled:opacity-40 text-white rounded-xl font-bold shadow-sm transition-all flex items-center gap-1.5 text-xs cursor-pointer"
+                                    title="Directly sell/assign this player to any team at an entered custom price"
+                                >
+                                    <Gavel className="w-3.5 h-3.5" /> Direct Sell...
+                                </button>
+                            </div>
                         ) : (
                             <div className="flex items-center gap-2">
                                 <input
@@ -1278,7 +1376,9 @@ const AdminAuctionConsole = () => {
                             {teams.map(team => {
                                 const remaining = ((Number(team.budget) || 0) - (Number(team.spent) || 0)).toFixed(2);
                                 const isLeader = winningTeam?._id === team._id;
-                                const teamSquad = players.filter(p => p.soldToTeamId === team._id);
+                                const teamSquad = players.filter(p => p.soldToTeamId === team._id || (team.players && team.players.includes(p._id)));
+                                const hasCapInPlayers = teamSquad.some(p => p.isCaptain || String(p._id || '').startsWith('pl_cap_') || String(p._id || '').startsWith('owner_cap_'));
+                                const totalSquadCount = teamSquad.length + (team.isOwnerCaptain && !hasCapInPlayers ? 1 : 0);
 
                                 return (
                                     <div
@@ -1315,7 +1415,7 @@ const AdminAuctionConsole = () => {
                                                 <div className="text-[11px] text-slate-500 font-medium flex items-center gap-2 mt-0.5">
                                                     <span>Purse: <strong className="text-emerald-700 font-bold">₹{remaining} {largeUnit}</strong></span>
                                                     <span>•</span>
-                                                    <span className="text-blue-600 font-bold">{teamSquad.length} {teamSquad.length === 1 ? 'player' : 'players'}</span>
+                                                    <span className="text-blue-600 font-bold">{totalSquadCount} {totalSquadCount === 1 ? 'player' : 'players'}</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -1469,18 +1569,31 @@ const AdminAuctionConsole = () => {
 
                                                 <div className="flex items-center gap-1.5 shrink-0">
                                                     {p.status !== 'sold' && !isCurrent && (
-                                                        <button
-                                                            type="button"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                selectPlayer(p);
-                                                                showNotice('info', `Brought ${p.name} to Live Stage!`);
-                                                            }}
-                                                            className="px-2 py-1 bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white border border-blue-200 rounded-lg text-[10px] font-black transition-all cursor-pointer"
-                                                            title="Bring player directly to Live Bidding Stage"
-                                                        >
-                                                            {isPassed || p.status === 'unsold' ? 'Re-Auction' : 'Auction'}
-                                                        </button>
+                                                        <>
+                                                            <button
+                                                                type="button"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    selectPlayer(p);
+                                                                    showNotice('info', `Brought ${p.name} to Live Stage!`);
+                                                                }}
+                                                                className="px-2 py-1 bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white border border-blue-200 rounded-lg text-[10px] font-black transition-all cursor-pointer"
+                                                                title="Bring player directly to Live Bidding Stage"
+                                                            >
+                                                                {isPassed || p.status === 'unsold' ? 'Re-Auction' : 'Auction'}
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleOpenDirectSellModal(p);
+                                                                }}
+                                                                className="px-2 py-1 bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-200 rounded-lg text-[10px] font-black transition-all cursor-pointer"
+                                                                title="Directly sell/assign this pending player to team"
+                                                            >
+                                                                Direct Sell
+                                                            </button>
+                                                        </>
                                                     )}
                                                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${
                                                         isCurrent
@@ -2136,7 +2249,37 @@ const AdminAuctionConsole = () => {
                         {/* Modal Content - Player List */}
                         <div className="p-5 md:p-6 overflow-y-auto flex-1 space-y-4">
                             {(() => {
-                                const teamSquad = players.filter(p => p.soldToTeamId === viewingTeam._id || p.soldToTeamId === viewingTeam.id);
+                                const rawBought = players.filter(p => (p.soldToTeamId === viewingTeam._id || p.soldToTeamId === viewingTeam.id || (viewingTeam.players && viewingTeam.players.includes(p._id))) && p.status === 'sold');
+                                let captainPlayer = rawBought.find(p => p.isCaptain || String(p._id || '').startsWith('pl_cap_') || String(p._id || '').startsWith('owner_cap_'));
+
+                                if (!captainPlayer && viewingTeam.isOwnerCaptain) {
+                                    captainPlayer = {
+                                        _id: `owner_cap_${viewingTeam._id}`,
+                                        name: viewingTeam.captainName || `${viewingTeam.name} Captain`,
+                                        image: viewingTeam.captainPhoto || '',
+                                        category: 'Captain (All-Rounder)',
+                                        battingStyle: 'Right-Hand Bat',
+                                        basePrice: Number(viewingTeam.captainPrice) || 0,
+                                        soldPrice: Number(viewingTeam.captainPrice) || 0,
+                                        sold_price: Number(viewingTeam.captainPrice) || 0,
+                                        status: 'sold',
+                                        isCaptain: true
+                                    };
+                                }
+
+                                let teamSquad = rawBought;
+                                if (captainPlayer) {
+                                    const capPrice = Number(viewingTeam.captainPrice) || Number(captainPlayer.soldPrice) || Number(captainPlayer.basePrice) || 0;
+                                    const updatedCap = {
+                                        ...captainPlayer,
+                                        basePrice: capPrice,
+                                        soldPrice: capPrice,
+                                        sold_price: capPrice,
+                                        isCaptain: true
+                                    };
+                                    teamSquad = [updatedCap, ...rawBought.filter(p => p._id !== captainPlayer._id)];
+                                }
+
                                 return (
                                     <>
                                         <div className="flex flex-wrap justify-between items-center bg-slate-50 p-3 rounded-2xl border border-slate-200 gap-2">
@@ -2145,14 +2288,14 @@ const AdminAuctionConsole = () => {
                                                 Acquired Players: <strong className="text-slate-900 font-black">{teamSquad.length}</strong> / {tournament?.squadSizeLimit || 25}
                                             </span>
                                             <span className="text-xs font-bold text-slate-600">
-                                                Total Spent: <strong className="text-emerald-700 font-black">₹{teamSquad.reduce((acc, p) => acc + (Number(p.soldPrice || p.sold_price || p.currentBid || p.basePrice) || 0), 0)} {smallUnit}</strong>
+                                                Total Spent: <strong className="text-emerald-700 font-black">{formatPrice(teamSquad.reduce((acc, p) => acc + (Number(p.soldPrice || p.sold_price || p.currentBid || p.basePrice) || 0), 0))}</strong>
                                             </span>
                                         </div>
 
                                         {teamSquad.length > 0 ? (
                                             <div className="divide-y divide-slate-100 border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-2xs">
                                                 {teamSquad.map((p, idx) => (
-                                                    <div key={p._id || idx} className="p-3.5 hover:bg-slate-50/80 transition-colors flex items-center justify-between gap-3">
+                                                    <div key={p._id || idx} className={`p-3.5 hover:bg-slate-50/80 transition-colors flex items-center justify-between gap-3 ${p.isCaptain ? 'bg-amber-50/40' : ''}`}>
                                                         <div className="flex items-center gap-3">
                                                             <div className="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center shrink-0">
                                                                 <SafeImage
@@ -2165,7 +2308,12 @@ const AdminAuctionConsole = () => {
                                                                 />
                                                             </div>
                                                             <div>
-                                                                <h4 className="text-sm font-bold text-slate-900 leading-snug">{p.name}</h4>
+                                                                <div className="flex items-center gap-1.5">
+                                                                    <h4 className="text-sm font-bold text-slate-900 leading-snug">{p.name}</h4>
+                                                                    {p.isCaptain && (
+                                                                        <span className="px-1.5 py-0.5 bg-amber-100 text-amber-800 text-[9px] font-black rounded border border-amber-300">👑 CAPTAIN</span>
+                                                                    )}
+                                                                </div>
                                                                 <div className="flex items-center gap-2 mt-0.5">
                                                                     <span className="text-[11px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">
                                                                         {p.category}
@@ -2179,13 +2327,26 @@ const AdminAuctionConsole = () => {
                                                             </div>
                                                         </div>
 
-                                                        <div className="text-right shrink-0">
-                                                            <div className="text-sm font-black text-slate-900 tabular-nums">
-                                                                ₹{p.soldPrice || p.sold_price || p.currentBid || p.basePrice || 0} {smallUnit}
+                                                        <div className="flex items-center gap-2.5">
+                                                            <div className="text-right shrink-0">
+                                                                <div className="text-sm font-black text-slate-900 tabular-nums">
+                                                                    {formatPrice(p.soldPrice || p.sold_price || p.currentBid || p.basePrice || 0)}
+                                                                </div>
+                                                                <div className="text-[10px] text-slate-400">
+                                                                    {p.isCaptain ? 'Retention Fee' : `Base: ${formatPrice(p.basePrice || 0)}`}
+                                                                </div>
                                                             </div>
-                                                            <div className="text-[10px] text-slate-400">
-                                                                Base: ₹{p.basePrice || 0} {smallUnit}
-                                                            </div>
+                                                            {!p.isCaptain && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleReleasePlayerToPending(p, viewingTeam)}
+                                                                    title="Remove from team and return to Unsold pool without exchange"
+                                                                    className="px-2 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 hover:text-rose-800 border border-rose-200 transition-all flex items-center gap-1 text-[11px] font-bold cursor-pointer active:scale-95 shadow-2xs"
+                                                                >
+                                                                    <RotateCcw className="w-3 h-3" />
+                                                                    <span>To Unsold</span>
+                                                                </button>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 ))}
@@ -2334,6 +2495,133 @@ const AdminAuctionConsole = () => {
                                 Dismiss
                             </button>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Direct Sell Player to Team Modal */}
+            {showDirectSellModal && directSellTargetPlayer && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+                    <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+                        {/* Header */}
+                        <div className="px-6 py-5 bg-gradient-to-r from-emerald-600 to-teal-700 text-white flex items-center justify-between">
+                            <div className="flex items-center gap-2.5">
+                                <div className="w-9 h-9 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center">
+                                    <Gavel className="w-5 h-5 text-white" />
+                                </div>
+                                <div>
+                                    <h3 className="font-black text-sm tracking-tight">Direct Sell to Team</h3>
+                                    <p className="text-[11px] text-emerald-100 font-semibold">Assign player with custom price</p>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => { setShowDirectSellModal(false); setDirectSellTargetPlayer(null); }}
+                                className="p-1 rounded-xl text-white/80 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Body Form */}
+                        <form onSubmit={handleConfirmDirectSell} className="p-6 space-y-4">
+                            {/* Player Brief */}
+                            <div className="flex items-center gap-3.5 p-3.5 bg-slate-50 border border-slate-200/80 rounded-2xl">
+                                <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0 bg-white border border-slate-200 flex items-center justify-center">
+                                    <SafeImage
+                                        src={directSellTargetPlayer.image}
+                                        alt={directSellTargetPlayer.name}
+                                        previewable={true}
+                                        previewTitle={directSellTargetPlayer.name}
+                                        className="w-full h-full object-cover"
+                                        fallback={<User className="w-6 h-6 text-slate-400" />}
+                                    />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <h4 className="font-black text-slate-900 text-sm truncate">{directSellTargetPlayer.name}</h4>
+                                    <div className="text-xs text-slate-500 font-bold mt-0.5">
+                                        {directSellTargetPlayer.category} • Base: <span className="text-blue-700 font-black">{formatPrice(directSellTargetPlayer.basePrice || 0)}</span>
+                                    </div>
+                                    <div className="text-[11px] text-slate-400 font-medium">
+                                        {directSellTargetPlayer.battingStyle || 'Right-Hand Bat'}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Team Selection */}
+                            <div>
+                                <label className="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1.5">
+                                    Assign To Team <span className="text-rose-500">*</span>
+                                </label>
+                                <select
+                                    value={directSellTeamId}
+                                    onChange={(e) => setDirectSellTeamId(e.target.value)}
+                                    required
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-emerald-500"
+                                >
+                                    <option value="" disabled>-- Select Destination Team --</option>
+                                    {teams.map(t => {
+                                        const remaining = ((Number(t.budget) || 100) - (Number(t.spent) || 0)).toFixed(2);
+                                        const maxLimit = tournament?.squadSizeLimit || 25;
+                                        const squadCount = (t.players || []).length;
+                                        return (
+                                            <option key={t._id} value={t._id}>
+                                                {t.name} (Purse: ₹{remaining} {largeUnit} • Squad: {squadCount}/{maxLimit})
+                                            </option>
+                                        );
+                                    })}
+                                </select>
+                            </div>
+
+                            {/* Sold Price Input */}
+                            <div>
+                                <label className="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1.5">
+                                    Sold Price ({smallUnit}) <span className="text-rose-500">*</span>
+                                </label>
+                                <div className="relative">
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        step="any"
+                                        value={directSellPrice}
+                                        onChange={(e) => setDirectSellPrice(e.target.value)}
+                                        required
+                                        placeholder={`Enter price in ${smallUnit}`}
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-black text-slate-900 focus:outline-none focus:border-emerald-500"
+                                    />
+                                    <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-extrabold text-slate-400 pointer-events-none">
+                                        {smallUnit}
+                                    </div>
+                                </div>
+                                {directSellPrice !== '' && !isNaN(Number(directSellPrice)) && (
+                                    <div className="mt-1.5 flex items-center justify-between text-[11px] font-bold text-slate-500 bg-emerald-50/60 border border-emerald-100 rounded-lg px-2.5 py-1">
+                                        <span>Display Value:</span>
+                                        <span className="font-black text-emerald-800 text-xs">
+                                            {formatPrice(Number(directSellPrice))}
+                                        </span>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Submit / Cancel Buttons */}
+                            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+                                <button
+                                    type="button"
+                                    onClick={() => { setShowDirectSellModal(false); setDirectSellTargetPlayer(null); }}
+                                    className="px-4 py-2 text-xs font-extrabold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={!directSellTeamId}
+                                    className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-black rounded-xl shadow-md shadow-emerald-600/20 transition-all flex items-center gap-1.5 cursor-pointer"
+                                >
+                                    <Check className="w-3.5 h-3.5" />
+                                    Confirm Sale
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             )}

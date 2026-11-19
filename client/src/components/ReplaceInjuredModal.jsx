@@ -20,7 +20,7 @@ const ReplaceInjuredModal = ({
     const [replacementFee, setReplacementFee] = useState('');
     const [submitting, setSubmitting] = useState(false);
 
-    const { smallUnit, largeUnit, formatAmount } = getBudgetUnits(tournament);
+    const { smallUnit, largeUnit, formatAmount, formatPrice } = getBudgetUnits(tournament);
 
     // Eligible players in team's squad (non-captains, sold)
     const teamSquad = (players || []).filter(p =>
@@ -212,7 +212,7 @@ const ReplaceInjuredModal = ({
                                 <option value="">-- Choose Injured / Unavailable Player --</option>
                                 {teamSquad.map(p => (
                                     <option key={p._id} value={p._id}>
-                                        {p.name} ({p.category}) • Sold at: ₹{p.soldPrice || p.sold_price || p.currentBid || p.basePrice} {smallUnit}
+                                        {p.name} ({p.category}) • Sold at: {formatPrice(p.soldPrice || p.sold_price || p.currentBid || p.basePrice)}
                                     </option>
                                 ))}
                             </select>
@@ -230,7 +230,7 @@ const ReplaceInjuredModal = ({
                                 </div>
                                 <div className="text-right">
                                     <span className="text-[10px] font-black uppercase text-rose-600 block">Sold Price</span>
-                                    <span className="text-xs font-black text-rose-950">₹{oldPrice} {smallUnit}</span>
+                                    <span className="text-xs font-black text-rose-950">{formatPrice(oldPrice)}</span>
                                 </div>
                             </div>
                         )}
@@ -255,7 +255,7 @@ const ReplaceInjuredModal = ({
                                 <option value="">-- Choose Replacement from Unsold Pool --</option>
                                 {unsoldPool.map(p => (
                                     <option key={p._id} value={p._id}>
-                                        {p.name} ({p.category}) • Base Price: ₹{p.basePrice} {smallUnit}
+                                        {p.name} ({p.category}) • Base Price: {formatPrice(p.basePrice)}
                                     </option>
                                 ))}
                             </select>
@@ -273,7 +273,7 @@ const ReplaceInjuredModal = ({
                                 </div>
                                 <div className="text-right">
                                     <span className="text-[10px] font-black uppercase text-emerald-600 block">Base Price</span>
-                                    <span className="text-xs font-black text-emerald-950">₹{replacementPlayer.basePrice} {smallUnit}</span>
+                                    <span className="text-xs font-black text-emerald-950">{formatPrice(replacementPlayer.basePrice)}</span>
                                 </div>
                             </div>
                         )}

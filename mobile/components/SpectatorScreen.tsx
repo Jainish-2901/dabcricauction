@@ -52,7 +52,7 @@ export const SpectatorScreen: React.FC<SpectatorScreenProps> = ({
     const [leadTeam, setLeadTeam] = useState<any>(null);
     const [biddingState, setBiddingState] = useState<'active' | 'paused' | 'break' | 'stopped'>('active');
     const [tournament, setTournament] = useState<any>(null);
-    const { largeUnit, smallUnit, formatAmount, formatBid, isKtoL } = getBudgetUnits(tournament);
+    const { largeUnit, smallUnit, formatAmount, formatPrice, formatBid, isKtoL } = getBudgetUnits(tournament);
     const [teams, setTeams] = useState<any[]>([]);
     const [allPlayers, setAllPlayers] = useState<any[]>([]);
     const [slots, setSlots] = useState<any[]>([]);
@@ -96,7 +96,7 @@ export const SpectatorScreen: React.FC<SpectatorScreenProps> = ({
 
     useEffect(() => {
         socket.connect();
-        
+
         const handleConnect = () => {
             socket.emit('join_auction', tournamentId);
             setIsConnected(true);
@@ -202,10 +202,20 @@ export const SpectatorScreen: React.FC<SpectatorScreenProps> = ({
             }
         });
 
-        socket.on('bid_undone', (data: { currentBid: number; leadTeam: any }) => {
+        socket.on('bid_undone', (data: { currentBid: number; leadTeam: any; bids?: any[] }) => {
             setCurrentBid(data.currentBid);
             setLeadTeam(data.leadTeam);
-            setBidHistory(prev => prev.slice(1));
+            setCountdownTimer(null);
+            if (Array.isArray(data.bids)) {
+                setBidHistory(data.bids.map((b: any) => ({
+                    team: { name: b.teamName, _id: b.teamId, logo: b.teamLogo, shortName: b.teamShortName },
+                    amount: b.bidAmount,
+                    time: new Date(b.createdAt),
+                    playerId: b.playerId
+                })));
+            } else {
+                setBidHistory(prev => prev.slice(1));
+            }
         });
 
         socket.on('unsold_reopened_to_slot', (data: any) => {
@@ -223,6 +233,13 @@ export const SpectatorScreen: React.FC<SpectatorScreenProps> = ({
             setCountdownTimer(null);
         });
 
+        socket.on('player_released_to_pending', (data: any) => {
+            fetchTournament();
+            if (data?.player) {
+                setAllPlayers(prev => prev.map(p => (p._id === data.player._id || p.id === data.player._id) ? { ...p, ...data.player } : p));
+            }
+        });
+
         return () => {
             socket.off('new_player');
             socket.off('bid_update');
@@ -238,6 +255,7 @@ export const SpectatorScreen: React.FC<SpectatorScreenProps> = ({
             socket.off('bid_undone');
             socket.off('unsold_reopened_to_slot');
             socket.off('auction_ended');
+            socket.off('player_released_to_pending');
             socket.off('connect', handleConnect);
             socket.disconnect();
         };
@@ -554,6 +572,8 @@ export const SpectatorScreen: React.FC<SpectatorScreenProps> = ({
                         <View style={{ marginTop: 12, gap: 10 }}>
                             {teams.map(t => {
                                 const teamSquad = allPlayers.filter(p => p.soldToTeamId === t._id || p.soldToTeamId === (t as any).id);
+                                const hasCap = (t as any).isOwnerCaptain || (t as any).captainName;
+                                const squadCount = teamSquad.length + (hasCap ? 1 : 0);
                                 const remaining = ((Number(t.budget) || 0) - (Number(t.spent) || 0)).toFixed(2);
 
                                 return (
@@ -576,7 +596,7 @@ export const SpectatorScreen: React.FC<SpectatorScreenProps> = ({
                                             <View>
                                                 <Text style={styles.teamCardName}>{t.name}</Text>
                                                 <Text style={styles.teamCardSquad}>
-                                                    {teamSquad.length} {teamSquad.length === 1 ? 'player' : 'players'} • Tap for squad
+                                                    {squadCount} {squadCount === 1 ? 'player' : 'players'} • Tap for squad
                                                 </Text>
                                             </View>
                                         </View>
@@ -871,7 +891,44 @@ export const SpectatorScreen: React.FC<SpectatorScreenProps> = ({
                                 </View>
 
                                 {(() => {
-                                    const teamPlayers = allPlayers.filter(p => p.soldToTeamId === viewingTeam._id || p.soldToTeamId === (viewingTeam as any).id);
+                                    const rawBought = allPlayers.filter(p => {
+                                        const soldId = typeof p.soldToTeamId === 'object' && p.soldToTeamId ? (p.soldToTeamId._id || p.soldToTeamId.id) : p.soldToTeamId;
+                                        return soldId && (soldId === viewingTeam._id || soldId === (viewingTeam as any).id) && p.status === 'sold';
+                                    });
+
+                                    let captainPlayer = rawBought.find((p: any) => p.isCaptain || String(p._id || '').startsWith('pl_cap_') || String(p._id || '').startsWith('owner_cap_'));
+
+                                    if (!captainPlayer && (viewingTeam.isOwnerCaptain || (viewingTeam as any).captainName)) {
+                                        captainPlayer = {
+                                            _id: `owner_cap_${viewingTeam._id}`,
+                                            name: viewingTeam.captainName || `${viewingTeam.name} Captain`,
+                                            image: viewingTeam.captainPhoto || '',
+                                            category: 'Captain (All-Rounder)',
+                                            battingStyle: 'Right-Hand Bat',
+                                            bowlingStyle: 'Right-Arm Medium',
+                                            basePrice: Number(viewingTeam.captainPrice) || 0,
+                                            soldPrice: Number(viewingTeam.captainPrice) || 0,
+                                            sold_price: Number(viewingTeam.captainPrice) || 0,
+                                            status: 'sold',
+                                            isCaptain: true,
+                                            soldToTeamId: viewingTeam._id,
+                                            soldToTeamName: viewingTeam.name
+                                        };
+                                    }
+
+                                    let teamPlayers = rawBought;
+                                    if (captainPlayer) {
+                                        const capPrice = Number(viewingTeam.captainPrice) || Number(captainPlayer.soldPrice) || Number(captainPlayer.basePrice) || 0;
+                                        const updatedCap = {
+                                            ...captainPlayer,
+                                            basePrice: capPrice,
+                                            soldPrice: capPrice,
+                                            sold_price: capPrice,
+                                            isCaptain: true
+                                        };
+                                        teamPlayers = [updatedCap, ...rawBought.filter((p: any) => p._id !== captainPlayer._id)];
+                                    }
+
                                     return (
                                         <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
                                             <View style={styles.modalStatsBar}>
@@ -879,43 +936,18 @@ export const SpectatorScreen: React.FC<SpectatorScreenProps> = ({
                                                     Acquired: <Text style={{ fontWeight: '900', color: '#0f172a' }}>{teamPlayers.length}</Text> / {tournament?.squadSizeLimit || 25}
                                                 </Text>
                                                 <Text style={styles.modalStatsText}>
-                                                    Total: <Text style={{ fontWeight: '900', color: '#16a34a' }}>₹{teamPlayers.reduce((acc, p) => acc + (p.soldPrice || p.sold_price || p.currentBid || p.basePrice || 0), 0)} {smallUnit}</Text>
+                                                    Total: <Text style={{ fontWeight: '900', color: '#16a34a' }}>{formatPrice(teamPlayers.reduce((acc, p) => acc + (p.soldPrice || p.sold_price || p.currentBid || p.basePrice || 0), 0))}</Text>
                                                 </Text>
                                             </View>
 
-                                            {viewingTeam.isOwnerCaptain && (
-                                                <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#fef3c7', padding: 10, borderRadius: 12, marginBottom: 10, borderWidth: 1, borderColor: '#fde68a' }}>
-                                                    <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: '#fde68a', overflow: 'hidden', alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
-                                                        <SafeImage
-                                                            uri={viewingTeam.captainPhoto}
-                                                            style={{ width: 34, height: 34, borderRadius: 10 }}
-                                                            fallback={<Crown size={16} color="#b45309" />}
-                                                            previewable={true}
-                                                            previewTitle={viewingTeam.captainName || 'Team Captain'}
-                                                        />
-                                                    </View>
-                                                    <View style={{ flex: 1 }}>
-                                                        <Text style={{ fontSize: 13, fontWeight: '900', color: '#78350f' }}>
-                                                            {viewingTeam.captainName || 'Team Captain'}
-                                                        </Text>
-                                                        <Text style={{ fontSize: 10, fontWeight: '700', color: '#92400e' }}>
-                                                            👑 Retained Squad Leader
-                                                        </Text>
-                                                    </View>
-                                                    <Text style={{ fontSize: 12, fontWeight: '900', color: '#78350f' }}>
-                                                        ₹{viewingTeam.captainPrice || 0} {smallUnit}
-                                                    </Text>
-                                                </View>
-                                            )}
-
-                                            {teamPlayers.length === 0 && !viewingTeam.isOwnerCaptain ? (
+                                            {teamPlayers.length === 0 ? (
                                                 <View style={styles.modalEmptyBox}>
                                                     <Users size={32} color="#cbd5e1" />
                                                     <Text style={styles.modalEmptyText}>No players acquired yet</Text>
                                                 </View>
                                             ) : (
                                                 teamPlayers.map((p, idx) => (
-                                                    <View key={p._id || idx} style={styles.modalPlayerRow}>
+                                                    <View key={p._id || idx} style={[styles.modalPlayerRow, p.isCaptain && { backgroundColor: '#fffbeb', borderColor: '#fde68a' }]}>
                                                         <View style={styles.modalPlayerAvatar}>
                                                             <SafeImage
                                                                 uri={p.image}
@@ -926,14 +958,21 @@ export const SpectatorScreen: React.FC<SpectatorScreenProps> = ({
                                                             />
                                                         </View>
                                                         <View style={{ flex: 1 }}>
-                                                            <Text style={styles.modalPlayerName}>{p.name}</Text>
+                                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                                                <Text style={styles.modalPlayerName}>{p.name}</Text>
+                                                                {p.isCaptain && (
+                                                                    <View style={{ backgroundColor: '#fef3c7', paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 }}>
+                                                                        <Text style={{ fontSize: 8, fontWeight: '900', color: '#92400e' }}>👑 C</Text>
+                                                                    </View>
+                                                                )}
+                                                            </View>
                                                             <Text style={styles.modalPlayerCategory}>
                                                                 {p.category} {p.battingStyle ? `• ${p.battingStyle}` : ''}
                                                             </Text>
                                                         </View>
                                                         <View style={{ alignItems: 'flex-end' }}>
-                                                            <Text style={styles.modalPlayerPriceText}>₹{p.soldPrice || p.sold_price || p.currentBid || p.basePrice} {smallUnit}</Text>
-                                                            <Text style={styles.modalPlayerBasePrice}>Base: ₹{p.basePrice}{smallUnit}</Text>
+                                                            <Text style={styles.modalPlayerPriceText}>{formatPrice(p.soldPrice || p.sold_price || p.currentBid || p.basePrice)}</Text>
+                                                            <Text style={styles.modalPlayerBasePrice}>{p.isCaptain ? 'Retention Fee' : `Base: ${formatPrice(p.basePrice)}`}</Text>
                                                         </View>
                                                     </View>
                                                 ))

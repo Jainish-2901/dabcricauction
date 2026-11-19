@@ -4,8 +4,11 @@ import { X, Upload, FileText, Download, ChevronDown, ChevronUp, User, Trash2, Ca
 import ImageCropModal from './ImageCropModal';
 import toast from '../lib/toast';
 import SafeImage from './SafeImage';
+import { getBudgetUnits } from '../utils/currency';
 
-const AddPlayerModal = ({ isOpen, onClose, tournamentId, onAdded, initialData = null, isEdit = false }) => {
+const AddPlayerModal = ({ isOpen, onClose, tournamentId, tournament, onAdded, initialData = null, isEdit = false }) => {
+    const { smallUnit, smallName, isKtoL } = getBudgetUnits(tournament);
+    const defaultBase = isKtoL ? 20 : 100;
     const [mode, setMode] = useState('manual');
     const [showCricketDetails, setShowCricketDetails] = useState(false);
     const [formData, setFormData] = useState({
@@ -13,7 +16,7 @@ const AddPlayerModal = ({ isOpen, onClose, tournamentId, onAdded, initialData = 
         category: 'All-Rounder',
         battingStyle: 'Right Handed',
         bowlingStyle: 'Right-arm Fast',
-        basePrice: 20,
+        basePrice: defaultBase,
         mobile: '',
         age: '',
         cricHeroesProfileUrl: '',
@@ -38,7 +41,7 @@ const AddPlayerModal = ({ isOpen, onClose, tournamentId, onAdded, initialData = 
                     category: initialData.category || 'All-Rounder',
                     battingStyle: initialData.battingStyle || 'Right Handed',
                     bowlingStyle: initialData.bowlingStyle || 'Right-arm Fast',
-                    basePrice: initialData.basePrice || 20,
+                    basePrice: initialData.basePrice ?? defaultBase,
                     age: initialData.age || '',
                     cricHeroesProfileUrl: initialData.cricHeroesProfileUrl || '',
                     image: initialData.image || '',
@@ -56,7 +59,7 @@ const AddPlayerModal = ({ isOpen, onClose, tournamentId, onAdded, initialData = 
                     category: 'All-Rounder',
                     battingStyle: 'Right Handed',
                     bowlingStyle: 'Right-arm Fast',
-                    basePrice: 20,
+                    basePrice: defaultBase,
                     mobile: '',
                     age: '',
                     cricHeroesProfileUrl: '',
@@ -407,12 +410,14 @@ const AddPlayerModal = ({ isOpen, onClose, tournamentId, onAdded, initialData = 
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Base Price (Lakhs) *</label>
+                                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                                        Base Price ({smallName} / ₹{smallUnit}) *
+                                    </label>
                                     <input
                                         type="number"
                                         required
                                         min="0"
-                                        placeholder="e.g. 20"
+                                        placeholder={`e.g. ${defaultBase}`}
                                         className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-slate-900 text-sm focus:outline-none focus:border-blue-600 focus:bg-white"
                                         value={formData.basePrice}
                                         onChange={e => setFormData({ ...formData, basePrice: e.target.value })}

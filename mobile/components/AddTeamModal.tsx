@@ -49,7 +49,7 @@ export default function AddTeamModal({
     initialData = null,
     isEdit = false
 }: AddTeamModalProps) {
-    const { largeUnit } = getBudgetUnits(tournament);
+    const { largeUnit, smallUnit, isKtoL, smallName } = getBudgetUnits(tournament);
     const defaultBudget = largeUnit === 'L' ? '10' : '100';
 
     const [name, setName] = useState('');
@@ -88,7 +88,8 @@ export default function AddTeamModal({
 
     const budgetNum = Number(budget) || 0;
     const captainNum = isOwnerCaptain ? (Number(captainPrice) || 0) : 0;
-    const effectivePurse = Math.max(0, budgetNum - captainNum);
+    const captainSpentInLarge = Number((captainNum / 100).toFixed(2));
+    const effectivePurse = Math.max(0, Number((budgetNum - captainSpentInLarge).toFixed(2)));
 
     const pickCroppedImage = async (): Promise<string | null> => {
         try {
@@ -336,15 +337,18 @@ export default function AddTeamModal({
                                         </View>
                                     </View>
 
-                                    <Text style={styles.label}>CAPTAIN RETAINED AMOUNT (MINUS FROM PURSE IN ₹{largeUnit}) *</Text>
+                                    <Text style={styles.label}>CAPTAIN / OWNER BASE PRICE (IN ₹{smallUnit}) *</Text>
                                     <TextInput
                                         style={[styles.input, { backgroundColor: '#ffffff', fontWeight: '800' }]}
-                                        placeholder="e.g. 15"
+                                        placeholder={`e.g. ${isKtoL ? '15 or 20 (in Thousands)' : '15 or 20 (in Lakhs)'}`}
                                         placeholderTextColor="#94a3b8"
                                         keyboardType="numeric"
                                         value={captainPrice}
                                         onChangeText={setCaptainPrice}
                                     />
+                                    <Text style={[styles.hintText, { marginTop: -6, marginBottom: 8 }]}>
+                                        Auto-deducted from team purse (₹{captainNum} {smallUnit} = ₹{captainSpentInLarge} {largeUnit})
+                                    </Text>
 
                                     {/* Live Purse Strip */}
                                     <View style={styles.purseStrip}>
@@ -352,7 +356,7 @@ export default function AddTeamModal({
                                             <Calculator size={14} color="#2563eb" />
                                             <Text style={styles.purseStripLabel}>Remaining Live Auction Purse:</Text>
                                         </View>
-                                        <Text style={styles.purseStripVal}>₹{effectivePurse} {largeUnit}</Text>
+                                        <Text style={styles.purseStripVal}>₹{effectivePurse.toFixed(2)} {largeUnit}</Text>
                                     </View>
                                 </View>
                             )}

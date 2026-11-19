@@ -933,7 +933,7 @@ const db = {
                     existingCapPlayer.currentBid = parsedPrice;
                     if (team) {
                         team.captainPrice = parsedPrice;
-                        team.spent = Math.max(0, Number(((team.spent || 0) + diff).toFixed(2)));
+                        team.spent = Math.max(0, Number(((team.spent || 0) + (diff / 100)).toFixed(2)));
                     }
                 }
                 if (team) {
@@ -952,7 +952,7 @@ const db = {
                 if (finalCaptainPhoto) team.captainPhoto = finalCaptainPhoto;
                 if (hasCaptainPrice && diff !== 0) {
                     team.captainPrice = resolvedPrice;
-                    team.spent = Math.max(0, Number(((team.spent || 0) + diff).toFixed(2)));
+                    team.spent = Math.max(0, Number(((team.spent || 0) + (diff / 100)).toFixed(2)));
                 }
             } else if (team) {
                 // Team did not have a captain yet -> configure on team object cleanly
@@ -960,7 +960,7 @@ const db = {
                 team.captainName = finalCaptainName;
                 team.captainPrice = parsedPrice;
                 team.captainPhoto = finalCaptainPhoto;
-                team.spent = Math.max(0, Number(((team.spent || 0) + parsedPrice).toFixed(2)));
+                team.spent = Math.max(0, Number(((team.spent || 0) + (parsedPrice / 100)).toFixed(2)));
             }
         }
 
@@ -1110,7 +1110,7 @@ const db = {
                 const team = state.teams.find(t => t._id === targetTeamId);
                 if (team) {
                     team.captainPrice = newPrice;
-                    team.spent = Math.max(0, (team.spent || 0) + diff);
+                    team.spent = Math.max(0, Number(((team.spent || 0) + (diff / 100)).toFixed(2)));
                 }
             }
         } else if (targetTeamId && user.role === 'team_owner') {
@@ -1148,7 +1148,7 @@ const db = {
             if (team) {
                 team.players = (team.players || []).filter(p => (p._id || p) !== user.captainPlayerId);
                 if (user.captainPrice) {
-                    team.spent = Math.max(0, (team.spent || 0) - user.captainPrice);
+                    team.spent = Math.max(0, Number(((team.spent || 0) - (user.captainPrice / 100)).toFixed(2)));
                 }
                 team.isOwnerCaptain = false;
                 team.captainName = null;
@@ -1293,7 +1293,7 @@ const db = {
         const captainPrice = isOwnerCaptain ? (Number(data.captainPrice) || 0) : 0;
         const captainName = isOwnerCaptain ? (data.captainName ? data.captainName.trim() : null) : null;
         const captainPhoto = (data.captainPhoto || data.captainImage || '').trim();
-        const spent = captainPrice; // Auto-deducted from purse
+        const spent = Number((captainPrice / 100).toFixed(2)); // Auto-deducted from purse in large units
         const logo = data.logo || data.image || '';
 
         const newTeam = {
@@ -1365,13 +1365,13 @@ const db = {
                 const isOwnerCaptain = update.isOwnerCaptain !== undefined ? update.isOwnerCaptain : current.isOwnerCaptain;
                 const captainPrice = isOwnerCaptain ? (Number(update.captainPrice ?? current.captainPrice) || 0) : 0;
 
-                // Keep players spent sum (in Crores) + captain fee (in Crores)
+                // Keep players spent sum (in Large Units) + captain fee (in Large Units)
                 const playersSpentInCr = (current.players || []).reduce((acc, p) => {
                     const playerObj = typeof p === 'object' ? p : (state.players || []).find(x => x._id === p);
                     const pPrice = Number(playerObj?.soldPrice || playerObj?.currentBid) || 0;
                     return acc + (pPrice / 100);
                 }, 0);
-                updated.spent = Number((playersSpentInCr + captainPrice).toFixed(2));
+                updated.spent = Number((playersSpentInCr + (captainPrice / 100)).toFixed(2));
                 updated.isOwnerCaptain = isOwnerCaptain;
                 updated.captainPrice = captainPrice;
             }
@@ -1499,7 +1499,7 @@ const db = {
                     if (hasNewPrice) {
                         const diff = newPrice - oldPrice;
                         team.captainPrice = newPrice;
-                        team.spent = Math.max(0, Number(((team.spent || 0) + diff).toFixed(2)));
+                        team.spent = Math.max(0, Number(((team.spent || 0) + (diff / 100)).toFixed(2)));
                     }
                 }
                 if (user) {
@@ -1583,7 +1583,7 @@ const db = {
                     if (update.image !== undefined) team.captainPhoto = update.image;
                     team.captainPrice = newCaptainPrice;
                     const priceDiff = newCaptainPrice - oldCaptainPrice;
-                    team.spent = Math.max(0, (team.spent || 0) + priceDiff);
+                    team.spent = Math.max(0, Number(((team.spent || 0) + (priceDiff / 100)).toFixed(2)));
                 }
 
                 // Synchronize with user credential
@@ -1637,7 +1637,7 @@ const db = {
             const team = (state.teams || []).find(t => t._id === teamId);
             if (team) {
                 const capPrice = Number(team.captainPrice) || 0;
-                team.spent = Math.max(0, (team.spent || 0) - capPrice);
+                team.spent = Math.max(0, Number(((team.spent || 0) - (capPrice / 100)).toFixed(2)));
                 team.captainPhoto = '';
                 team.captainName = null;
                 team.captainPrice = 0;
@@ -1661,7 +1661,7 @@ const db = {
             const team = (state.teams || []).find(t => t._id === p.soldToTeamId || t.captainPlayerId === id);
             if (team) {
                 const capPrice = Number(p.soldPrice || p.basePrice) || 0;
-                team.spent = Math.max(0, (team.spent || 0) - capPrice);
+                team.spent = Math.max(0, Number(((team.spent || 0) - (capPrice / 100)).toFixed(2)));
                 team.captainPhoto = '';
                 team.captainName = null;
                 team.captainPrice = 0;
@@ -1990,7 +1990,7 @@ const db = {
         teams.forEach(t => {
             const ownerUser = (state.users || []).find(u => u.teamId === t._id && u.role === 'team_owner');
             const capName = t.captainName || ownerUser?.captainName || ownerUser?.name || ownerUser?.username || (t.isOwnerCaptain ? 'Captain' : '-');
-            
+
             // Retained Owner-Captain entry
             if (t.isOwnerCaptain) {
                 csv += `"${t.name}","${capName} (👑 OWNER & CAPTAIN)","${ownerUser?.category || 'Captain (All-Rounder)'}","${ownerUser?.battingStyle || 'Right-Hand Bat'}","${ownerUser?.bowlingStyle || 'Right-Arm Medium'}",${t.captainPrice || 0},${t.captainPrice || 0},"DIRECT RETAINED SQUAD"\n`;
@@ -2072,6 +2072,196 @@ const db = {
             list = list.filter(b => b.playerId === playerId);
         }
         return list.slice(0, 50);
+    },
+
+    async deleteBid(bidId, tournamentId, playerId) {
+        const state = readData();
+        if (state.bids && state.bids.length > 0) {
+            let idx = -1;
+            if (bidId) {
+                idx = state.bids.findIndex(b => b._id === bidId);
+            }
+            if (idx === -1 && tournamentId && playerId) {
+                idx = state.bids.findIndex(b => b.tournamentId === tournamentId && b.playerId === playerId);
+            }
+            if (idx !== -1) {
+                const removed = state.bids.splice(idx, 1)[0];
+                writeData(state);
+                if (supabase && (removed?._id || bidId)) {
+                    try {
+                        await supabase.from('bids').delete().eq('_id', removed?._id || bidId);
+                    } catch (err) {
+                        console.warn('Supabase deleteBid notice:', err.message);
+                    }
+                }
+                return removed;
+            }
+        }
+        if (supabase && bidId) {
+            try {
+                await supabase.from('bids').delete().eq('_id', bidId);
+            } catch (err) {
+                console.warn('Supabase deleteBid notice:', err.message);
+            }
+        }
+        return null;
+    },
+
+    // --- RELEASE PLAYER TO UNSOLD / PENDING (WITHOUT EXCHANGE) ---
+    async releasePlayerToPending(tournamentId, playerId, teamId, targetStatus = 'unsold') {
+        const state = readData();
+        const player = (state.players || []).find(p => p._id === playerId || p.id === playerId);
+        if (!player) throw new Error('Player not found');
+
+        const targetTeamId = teamId || player.soldToTeamId;
+        const team = (state.teams || []).find(t => t._id === targetTeamId || t.id === targetTeamId);
+
+        const soldPrice = Number(player.soldPrice || player.sold_price || player.currentBid || player.basePrice) || 0;
+        const refundInLarge = Number((soldPrice / 100).toFixed(2));
+
+        if (team) {
+            team.spent = Number(Math.max(0, (team.spent || 0) - refundInLarge).toFixed(2));
+            team.players = (team.players || []).filter(id => id !== playerId && id !== String(player._id));
+        }
+
+        const newStatus = targetStatus || 'unsold';
+        player.status = newStatus;
+        player.soldToTeamId = null;
+        player.soldToTeamName = null;
+        player.soldPrice = 0;
+        player.currentBid = player.basePrice || 0;
+        player.currentLeadTeamId = null;
+
+        // Clean bids for this player
+        if (state.bids) {
+            state.bids = state.bids.filter(b => b.playerId !== playerId);
+        }
+
+        writeData(state);
+
+        // Supabase cloud sync
+        if (supabase) {
+            try {
+                if (team) {
+                    await supabase.from('teams').update({
+                        spent: team.spent,
+                        players: team.players,
+                        updated_at: new Date().toISOString()
+                    }).eq('_id', team._id);
+                }
+                await supabase.from('players').update({
+                    status: newStatus,
+                    sold_to_team_id: null,
+                    sold_price: 0,
+                    current_bid: player.basePrice || 0,
+                    current_lead_team_id: null,
+                    updated_at: new Date().toISOString()
+                }).eq('_id', playerId);
+
+                await supabase.from('bids').delete().eq('player_id', playerId);
+            } catch (err) {
+                console.warn('Supabase releasePlayerToPending notice:', err.message);
+            }
+        }
+
+        return { player, team, refundedAmount: soldPrice, refundInLarge, status: newStatus };
+    },
+
+    // --- MANUAL ASSIGN / DIRECT SELL PLAYER TO TEAM ---
+    async manualAssignPlayer(tournamentId, playerId, teamId, soldPrice) {
+        const state = readData();
+        const player = (state.players || []).find(p => p._id === playerId || p.id === playerId);
+        if (!player) throw new Error('Player not found');
+        if (player.isCaptain) throw new Error('Retained Team Captain cannot be re-assigned');
+
+        const team = (state.teams || []).find(t => t._id === teamId || t.id === teamId);
+        if (!team) throw new Error('Team not found');
+
+        const parsedSoldPrice = Number(soldPrice);
+        if (isNaN(parsedSoldPrice) || parsedSoldPrice < 0) {
+            throw new Error('Invalid sold price provided');
+        }
+
+        // Check tournament squad limit
+        const tournament = (state.tournaments || []).find(t => t._id === tournamentId || t.id === tournamentId);
+        const maxSquadLimit = tournament?.squadSizeLimit ? Number(tournament.squadSizeLimit) : 25;
+        const currentSquadCount = (team.players || []).length;
+        if (currentSquadCount >= maxSquadLimit) {
+            throw new Error(`Cannot assign: ${team.name} has already reached the maximum squad limit of ${maxSquadLimit} players!`);
+        }
+
+        // Check budget purse
+        const priceInLarge = Number((parsedSoldPrice / 100).toFixed(2));
+        const remainingPurse = Number(((Number(team.budget) || 100) - (Number(team.spent) || 0)).toFixed(2));
+        if (priceInLarge > remainingPurse) {
+            throw new Error(`Insufficient budget! ${team.name} only has ₹${remainingPurse} remaining in purse, but player price requires ₹${priceInLarge}.`);
+        }
+
+        // If player was already sold to another team, remove from that team first
+        if (player.soldToTeamId && player.soldToTeamId !== team._id) {
+            const oldTeam = (state.teams || []).find(t => t._id === player.soldToTeamId);
+            if (oldTeam) {
+                const oldPrice = Number(player.soldPrice || player.currentBid || 0);
+                const oldPriceInLarge = Number((oldPrice / 100).toFixed(2));
+                oldTeam.spent = Number(Math.max(0, (oldTeam.spent || 0) - oldPriceInLarge).toFixed(2));
+                oldTeam.players = (oldTeam.players || []).filter(id => id !== playerId && id !== String(player._id));
+            }
+        }
+
+        // Update target team
+        team.spent = Number(((team.spent || 0) + priceInLarge).toFixed(2));
+        if (!team.players) team.players = [];
+        if (!team.players.includes(player._id)) team.players.push(player._id);
+
+        // Update player
+        player.status = 'sold';
+        player.soldToTeamId = team._id;
+        player.soldToTeamName = team.name;
+        player.soldPrice = parsedSoldPrice;
+        player.sold_price = parsedSoldPrice;
+        player.currentBid = parsedSoldPrice;
+        player.current_bid = parsedSoldPrice;
+        player.currentLeadTeamId = team._id;
+
+        // If player was in re-auction unsold slot, restore slotId to original category slot
+        if (player.slotId && (String(player.slotId).includes('slot_unsold_') || player.isReAuction)) {
+            if (player.originalSlotId) {
+                player.slotId = player.originalSlotId;
+            } else if (tournamentId) {
+                const allSlots = (state.slots || []).filter(s => s.tournamentId === tournamentId);
+                const matchingSlot = (allSlots || []).find(s => s.role === player.category || s.name?.toLowerCase().includes(player.category?.toLowerCase()));
+                if (matchingSlot) {
+                    player.slotId = matchingSlot._id;
+                }
+            }
+        }
+
+        writeData(state);
+
+        // Supabase cloud sync
+        if (supabase) {
+            try {
+                await supabase.from('teams').update({
+                    spent: team.spent,
+                    players: team.players,
+                    updated_at: new Date().toISOString()
+                }).eq('_id', team._id);
+
+                await supabase.from('players').update({
+                    status: 'sold',
+                    sold_to_team_id: team._id,
+                    sold_price: parsedSoldPrice,
+                    current_bid: parsedSoldPrice,
+                    current_lead_team_id: team._id,
+                    slot_id: player.slotId,
+                    updated_at: new Date().toISOString()
+                }).eq('_id', playerId);
+            } catch (err) {
+                console.warn('Supabase manualAssignPlayer notice:', err.message);
+            }
+        }
+
+        return { player, team, soldPrice: parsedSoldPrice, priceInLarge };
     },
 
     // --- INJURY REPLACEMENTS & PLAYER EXCHANGES ---

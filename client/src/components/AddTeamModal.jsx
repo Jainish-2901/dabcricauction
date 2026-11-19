@@ -58,7 +58,8 @@ const AddTeamModal = ({ isOpen, onClose, tournamentId, tournament = null, onAdde
 
     const budgetNum = Number(formData.budget) || 0;
     const captainNum = formData.isOwnerCaptain ? (Number(formData.captainPrice) || 0) : 0;
-    const effectivePurse = Math.max(0, budgetNum - captainNum);
+    const captainSpentInLarge = Number((captainNum / 100).toFixed(2));
+    const effectivePurse = Math.max(0, Number((budgetNum - captainSpentInLarge).toFixed(2)));
 
     const handleLogoChange = (e) => {
         const file = e.target.files?.[0];
@@ -334,18 +335,21 @@ const AddTeamModal = ({ isOpen, onClose, tournamentId, tournament = null, onAdde
 
                                 <div>
                                     <label className="block text-[11px] font-extrabold uppercase text-slate-600 mb-1">
-                                        Captain Retained Base Amount (to minus from purse in ₹{largeUnit})
+                                        Captain / Owner Base Price (in ₹{smallUnit}) *
                                     </label>
                                     <input
                                         type="number"
                                         min="0"
                                         step="1"
-                                        placeholder="e.g. 15"
+                                        placeholder={`e.g. ${isKtoL ? '15 or 20 (in Thousands)' : '15 or 20 (in Lakhs)'}`}
                                         className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-slate-900 text-xs font-bold focus:border-blue-600 focus:outline-none"
                                         value={formData.captainPrice}
                                         onChange={(e) => setFormData({ ...formData, captainPrice: e.target.value })}
                                         required
                                     />
+                                    <p className="text-[10px] text-slate-400 font-medium mt-1">
+                                        Auto-deducted from team purse (₹{captainNum} {smallUnit} = ₹{captainSpentInLarge} {largeUnit})
+                                    </p>
                                 </div>
 
                                 {/* Live Calculation Strip */}
@@ -355,7 +359,7 @@ const AddTeamModal = ({ isOpen, onClose, tournamentId, tournament = null, onAdde
                                         Remaining Live Auction Purse:
                                     </span>
                                     <span className="text-emerald-700 font-extrabold font-mono text-sm">
-                                        ₹{effectivePurse} {largeUnit} / Pts
+                                        ₹{effectivePurse.toFixed(2)} {largeUnit} / Pts
                                     </span>
                                 </div>
                             </div>

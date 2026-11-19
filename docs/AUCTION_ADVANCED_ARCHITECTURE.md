@@ -52,14 +52,28 @@ CricAuction Pro is architected as a cross-platform live auction ecosystem powere
   - `Manual Force-Sell`: Manually select any team and enter a custom hammer price (for phone/offline bids).
 
 ### 2.3. Zero-Loss Undo & Rollback Engine
-- **Undo Last Bid**:
-  - Reverts a misclicked or invalid bid to the previous bidder and previous bid amount instantly.
+- **Step-by-Step Erase Last Bid (Undo Recent Bid)**:
+  - Reverts only the single most recent bid in history back to the previous bidder and amount (e.g. 20k → 50k → 70k → 90k, clicking undo erases only 90k and restores bidding back to 70k) rather than resetting the round to base price.
 - **Rollback Sale & Re-Auction**:
   - If a sale was closed mistakenly (e.g. hammer dropped before an incoming bid):
   - Refunds the team's purse automatically in Postgres.
   - Removes the player from the winning team's roster.
   - Restores player status back to active bidding (`bidding`).
   - Broadcasts room re-opening so all owners can continue bidding seamlessly.
+
+### 2.4. Squad & Pool Governance
+- **1-Click Squad Release to Unsold Pool**:
+  - SuperAdmin and Auctioneer can remove any player from an acquired team squad directly back into the **Unsold Pool** without requiring a player exchange.
+  - Team's purse is refunded automatically by the exact sold price.
+  - The player immediately enters the Unsold Pool, eligible for Re-Auction or Direct Sale.
+- **Direct Manual Player Sale/Allocation**:
+  - SuperAdmin can manually sell/assign any player from the **Unsold Pool** or **Pending Pool** directly to any team at an entered price.
+  - Validates team budget, squad capacity limit, and updates PostgreSQL/local DB with zero latency.
+- **Dedicated Pending Pool & Status Filters**:
+  - Centralized Pending Players Pool card and quick status filter pills (`ALL`, `Pending`, `Sold`, `Unsold`, `Injured`) with real-time player counters.
+- **Captain Priority & Retention Fee Accounting**:
+  - Captains are pinned to the top row (#1) of all squad tables across Web and Mobile.
+  - Captain retention fees are accurately factored into team spent and purse balance calculations.
 
 ---
 

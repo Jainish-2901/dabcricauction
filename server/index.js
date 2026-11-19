@@ -422,6 +422,31 @@ io.on('connection', (socket) => {
         }
     });
 
+    socket.on('manual_sell_player', async (data, callback) => {
+        try {
+            const { tournamentId, playerId, teamId, soldPrice } = data;
+            const result = await db.manualAssignPlayer(tournamentId, playerId, teamId, soldPrice);
+
+            io.to(tournamentId).emit('player_sold', {
+                player: result.player,
+                team: result.team,
+                soldPrice: result.soldPrice
+            });
+            io.to(tournamentId).emit('team_updated', { team: result.team });
+            io.to(tournamentId).emit('player_updated', result.player);
+
+            if (typeof callback === 'function') {
+                callback({ success: true, ...result });
+            }
+        } catch (e) {
+            console.error('manual_sell_player error:', e);
+            if (typeof callback === 'function') {
+                callback({ success: false, error: e.message });
+            }
+            socket.emit('auction_error', { message: e.message });
+        }
+    });
+
     socket.on('mark_unsold', async (data) => {
         try {
             const { playerId, tournamentId } = data;
@@ -534,19 +559,92 @@ io.on('connection', (socket) => {
         }
     });
 
-    socket.on('undo_last_bid', async ({ tournamentId, playerId }) => {
+    socket.on('release_player_to_pending', async ({ tournamentId, playerId, teamId, targetStatus = 'unsold' }) => {
         try {
+            if (!playerId) return;
             const player = await db.getPlayerById(playerId);
             if (!player) return;
 
-            player.currentBid = player.basePrice;
-            player.currentLeadTeamId = null;
+            if (player.isCaptain || String(player._id || '').startsWith('pl_cap_') || String(player._id || '').startsWith('owner_cap_')) {
+                socket.emit('auction_error', { message: 'Retained Captain cannot be removed from team.' });
+                return;
+            }
+
+            const result = await db.releasePlayerToPending(tournamentId, playerId, teamId, targetStatus);
+
+            io.to(tournamentId).emit('player_released_to_pending', {
+                player: result.player,
+                team: result.team,
+                teamId: result.team?._id,
+                refundedAmount: result.refundedAmount,
+                message: `${result.player.name} was removed from ${result.team?.name || 'team'} and moved to ${result.player.status === 'unsold' ? 'Unsold' : 'Pending'} pool.`
+            });
+            if (result.team) {
+                io.to(tournamentId).emit('team_updated', { team: result.team });
+            }
+            io.to(tournamentId).emit('player_updated', result.player);
+        } catch (err) {
+            console.error('release_player_to_pending error:', err);
+            socket.emit('auction_error', { message: 'Failed to release player: ' + err.message });
+        }
+    });
+
+    socket.on('undo_last_bid', async ({ tournamentId, playerId }) => {
+        try {
+            if (!tournamentId) return;
+            if (!playerId) {
+                const tourney = await db.getTournamentById(tournamentId);
+                playerId = tourney?.currentBiddingPlayerId;
+            }
+            if (!playerId) return;
+
+            const player = await db.getPlayerById(playerId);
+            if (!player) return;
+
+            // Immediately cancel final countdown timer if running so player is not accidentally sold
+            if (tournamentId && finalBidTimers[tournamentId]) {
+                clearInterval(finalBidTimers[tournamentId].interval);
+                delete finalBidTimers[tournamentId];
+                io.to(tournamentId).emit('timer_cancelled', {
+                    reason: 'undo_bid',
+                    player
+                });
+            }
+
+            // Fetch bids recorded for this player (ordered by created_at desc, index 0 is latest bid)
+            const recentBids = await db.getBids(tournamentId, playerId);
+
+            if (recentBids && recentBids.length > 0) {
+                const erasedBid = recentBids[0];
+                await db.deleteBid(erasedBid._id, tournamentId, playerId);
+
+                const previousBid = recentBids[1];
+                if (previousBid) {
+                    const prevTeam = await db.getTeamById(previousBid.teamId);
+                    player.currentBid = previousBid.bidAmount;
+                    player.current_bid = previousBid.bidAmount;
+                    player.currentLeadTeamId = prevTeam || { _id: previousBid.teamId, name: previousBid.teamName };
+                } else {
+                    player.currentBid = player.basePrice || 20;
+                    player.current_bid = player.basePrice || 20;
+                    player.currentLeadTeamId = null;
+                }
+            } else {
+                player.currentBid = player.basePrice || 20;
+                player.current_bid = player.basePrice || 20;
+                player.currentLeadTeamId = null;
+            }
+
             await db.updatePlayer(playerId, player);
+
+            const updatedBids = await db.getBids(tournamentId, playerId);
 
             io.to(tournamentId).emit('bid_undone', {
                 playerId: player._id,
-                currentBid: player.basePrice,
-                leadTeam: null
+                currentBid: player.currentBid,
+                leadTeam: player.currentLeadTeamId,
+                bids: updatedBids,
+                message: `Erased last bid. Bidding reverted to ₹${player.currentBid}.`
             });
         } catch (err) {
             console.error('undo_last_bid error:', err);

@@ -120,4 +120,58 @@ const deletePlayer = async (req, res) => {
     }
 };
 
-module.exports = { createPlayer, getPlayersByTournament, importCricHeroesPlayer, updatePlayer, deletePlayer };
+const releasePlayerToPending = async (req, res) => {
+    try {
+        const id = req.params.id;
+        const { tournamentId, teamId, targetStatus = 'unsold' } = req.body;
+        const result = await db.releasePlayerToPending(tournamentId, id, teamId, targetStatus);
+
+        const io = req.app.get('io');
+        if (io && tournamentId) {
+            io.to(tournamentId).emit('player_released_to_pending', {
+                player: result.player,
+                team: result.team,
+                teamId: result.team?._id,
+                refundedAmount: result.refundedAmount,
+                message: `${result.player.name} was removed from ${result.team?.name || 'team'} and moved to ${result.player.status === 'unsold' ? 'Unsold' : 'Pending'} pool.`
+            });
+            if (result.team) io.to(tournamentId).emit('team_updated', { team: result.team });
+            io.to(tournamentId).emit('player_updated', result.player);
+        }
+
+        res.json({ success: true, ...result });
+    } catch (error) {
+        console.error('Error releasing player to pending:', error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
+const manualAssignPlayer = async (req, res) => {
+    try {
+        const id = req.params.id;
+        const { tournamentId, teamId, soldPrice } = req.body;
+        if (!tournamentId || !teamId || soldPrice === undefined) {
+            return res.status(400).json({ message: 'tournamentId, teamId, and soldPrice are required' });
+        }
+
+        const result = await db.manualAssignPlayer(tournamentId, id, teamId, soldPrice);
+
+        const io = req.app.get('io');
+        if (io && tournamentId) {
+            io.to(tournamentId).emit('player_sold', {
+                player: result.player,
+                team: result.team,
+                soldPrice: result.soldPrice
+            });
+            io.to(tournamentId).emit('team_updated', { team: result.team });
+            io.to(tournamentId).emit('player_updated', result.player);
+        }
+
+        res.json({ success: true, ...result });
+    } catch (error) {
+        console.error('Error in manualAssignPlayer:', error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
+module.exports = { createPlayer, getPlayersByTournament, importCricHeroesPlayer, updatePlayer, deletePlayer, releasePlayerToPending, manualAssignPlayer };

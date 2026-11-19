@@ -38,7 +38,7 @@ import {
 import PublicHeader from '../components/PublicHeader';
 import PublicFooter from '../components/PublicFooter';
 
-const APK_URL = "https://github.com/Jainish-2901/dabcricauction/releases/download/v1.1.0/dab-cric-auction-v1.1.0.apk";
+const APK_URL = "https://github.com/Jainish-2901/dabcricauction/releases/download/v1.2.0/dab-cric-auction-v1.2.0.apk";
 
 const LandingPage = () => {
     const navigate = useNavigate();
@@ -190,14 +190,14 @@ const LandingPage = () => {
                             color: 'bg-blue-50 text-blue-600 border-blue-100',
                             title: 'Live Auctioneer Console',
                             subtitle: 'Official Gavel Room',
-                            desc: 'Full hammer controls, customized dynamic bid increment buttons (+500, +1K, +5K), live countdown timer, audio sound effects, and instant Sold/Unsold gavel buttons.'
+                            desc: 'Full hammer controls, customized dynamic bid increment slabs, live countdown timer, audio sound effects, step-by-step Erase Last Bid (Undo Recent Bid), and instant Sold/Unsold gavel buttons.'
                         },
                         {
                             icon: Users,
                             color: 'bg-emerald-50 text-emerald-600 border-emerald-100',
                             title: 'Team Owner Bidding Keypad',
                             subtitle: 'Interactive Mobile & Web Keypad',
-                            desc: 'Dedicated owner view with 1-tap live bidding button, real-time purse balance, remaining player slot requirements, squad roster preview, and instant outbid notifications.'
+                            desc: 'Dedicated owner view with 1-tap live bidding button, dynamic K/L/Cr purse balance, captain-first squad roster preview with retention fee calculations, and instant outbid notifications.'
                         },
                         {
                             icon: Radio,
@@ -216,16 +216,16 @@ const LandingPage = () => {
                         {
                             icon: Layers,
                             color: 'bg-indigo-50 text-indigo-600 border-indigo-100',
-                            title: 'Category Slots & Purse Management',
+                            title: 'Category Slots & Pool Management',
                             subtitle: 'Budget & Squad Governance',
-                            desc: 'Strict slot controls for Batsmen, Bowlers, All-rounders, and Keepers. Prevents teams from bidding when purse is insufficient or team player quota is filled.'
+                            desc: 'Dual currency scales (L→Cr & K→L), dedicated Pending Players pool, 1-click squad release to Unsold pool with purse refund, direct manual player allocation, and strict quota controls.'
                         },
                         {
                             icon: RotateCcw,
                             color: 'bg-rose-50 text-rose-600 border-rose-100',
                             title: 'Audit-Safe Rollback & Undo',
                             subtitle: 'Zero Data Loss Guarantee',
-                            desc: 'Made a mistake during lightning-fast bidding? Instantly undo erroneous bids or roll back sold players with atomic database accuracy and real-time bid log tracking.'
+                            desc: 'Accidental high bid? Step-by-step Erase Last Bid deletes only the recent bid back to the previous leader. Roll back sold sales or return players to the Unsold pool with zero data loss.'
                         }
                     ].map((service, idx) => (
                         <div
@@ -417,10 +417,10 @@ const LandingPage = () => {
                             <div className="pt-4 mt-4 border-t border-slate-800">
                                 <a
                                     href={APK_URL}
-                                    download="dab-cric-auction-v1.1.0.apk"
+                                    download="dab-cric-auction-v1.2.0.apk"
                                     className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all shadow-md active:scale-98"
                                 >
-                                    <Download className="w-3.5 h-3.5" /> Download Android APK (v1.1.0)
+                                    <Download className="w-3.5 h-3.5" /> Download Android APK (v1.2.0)
                                 </a>
                             </div>
                         </div>
@@ -452,7 +452,7 @@ const LandingPage = () => {
                             {/* Android Only Pill */}
                             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-black uppercase tracking-wider mb-4 border border-emerald-400/40 shadow-xs">
                                 <Smartphone className="w-3.5 h-3.5 text-emerald-400" />
-                                <span>Android Phones Only (v1.1.0 Released)</span>
+                                <span>Android Phones Only (v1.2.0 Released)</span>
                             </div>
 
                             <h2 className="text-2xl sm:text-4xl font-black tracking-tight mb-3 leading-tight text-white">
@@ -475,11 +475,11 @@ const LandingPage = () => {
                             <div className="flex flex-col sm:flex-row items-center gap-3 justify-center lg:justify-start">
                                 <a
                                     href={APK_URL}
-                                    download="dab-cric-auction-v1.1.0.apk"
+                                    download="dab-cric-auction-v1.2.0.apk"
                                     className="w-full sm:w-auto px-6 py-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 transition-all active:scale-95"
                                 >
                                     <Download className="w-4 h-4" />
-                                    <span>Download Android APK (v1.1.0)</span>
+                                    <span>Download Android APK (v1.2.0)</span>
                                 </a>
                                 <Link
                                     to="/download"
@@ -500,7 +500,7 @@ const LandingPage = () => {
                             </div>
                             <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 text-center">
                                 <span className="text-[10px] uppercase font-bold text-slate-300 block tracking-wider">Version</span>
-                                <span className="text-base font-black text-white mt-0.5 block">v1.1.0</span>
+                                <span className="text-base font-black text-white mt-0.5 block">v1.2.0</span>
                                 <span className="text-[10px] text-blue-400 font-black">EAS Build</span>
                             </div>
                             <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 text-center">

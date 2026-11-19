@@ -30,7 +30,8 @@ export interface Player {
     image?: string;
     soldPrice?: number;
     sold_price?: number;
-    soldToTeamId?: string;
+    soldToTeamId?: any;
+    soldToTeamName?: string;
     battingStyle?: string;
     bowlingStyle?: string;
     status?: string;
@@ -42,6 +43,7 @@ export interface Player {
         runs: number;
         wickets: number;
     };
+    [key: string]: any;
 }
 
 export interface TeamData {
@@ -51,6 +53,15 @@ export interface TeamData {
     budget: number;
     spent: number;
     logo?: string;
+    isOwnerCaptain?: boolean;
+    captainName?: string;
+    captainPhoto?: string;
+    captainPrice?: number;
+    category?: string;
+    battingStyle?: string;
+    bowlingStyle?: string;
+    players?: string[];
+    [key: string]: any;
 }
 
 export interface LiveBiddingRoomProps {
@@ -74,7 +85,7 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
     const [leadTeam, setLeadTeam] = useState<any>(null);
     const [biddingState, setBiddingState] = useState<'active' | 'paused' | 'break' | 'stopped'>('active');
     const [tournament, setTournament] = useState<any>(null);
-    const { largeUnit, smallUnit, formatAmount, formatBid, isKtoL } = getBudgetUnits(tournament);
+    const { largeUnit, smallUnit, formatAmount, formatPrice, formatBid, isKtoL } = getBudgetUnits(tournament);
     const [slots, setSlots] = useState<any[]>([]);
     const [countdownTimer, setCountdownTimer] = useState<{ timeLeft: number } | null>(null);
     const [squad, setSquad] = useState<Player[]>([]);
@@ -271,10 +282,21 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
             toast.info('Sale Rolled Back', `Sale reverted! Bidding reopened on ${data.player?.name}.`);
         });
 
-        socket.on('bid_undone', (data: { currentBid: number; leadTeam: any }) => {
+        socket.on('bid_undone', (data: { currentBid: number; leadTeam: any; bids?: any[]; message?: string }) => {
             setCurrentBid(data.currentBid);
             setLeadTeam(data.leadTeam);
-            showNotice('Previous bid undone by Auctioneer.');
+            setCountdownTimer(null);
+            if (Array.isArray(data.bids)) {
+                setBidLogs(data.bids.map((b: any) => ({
+                    team: { name: b.teamName, _id: b.teamId, logo: b.teamLogo, shortName: b.teamShortName },
+                    amount: b.bidAmount,
+                    time: new Date(b.createdAt),
+                    playerId: b.playerId
+                })));
+            } else {
+                setBidLogs(prev => prev.slice(1));
+            }
+            showNotice(data.message || 'Previous bid erased by Auctioneer.');
         });
 
         socket.on('unsold_reopened_to_slot', (data: any) => {
@@ -294,6 +316,11 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
             showNotice('🏆 AUCTION OFFICIALLY CONCLUDED!');
         });
 
+        socket.on('player_released_to_pending', (data: any) => {
+            fetchTournament();
+            if (data?.message) toast.info('Notice', data.message);
+        });
+
         return () => {
             socket.off('new_player');
             socket.off('bid_update');
@@ -309,6 +336,7 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
             socket.off('bid_undone');
             socket.off('unsold_reopened_to_slot');
             socket.off('auction_ended');
+            socket.off('player_released_to_pending');
             socket.off('connect', handleConnect);
             socket.disconnect();
         };
@@ -346,11 +374,45 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
             setAllPlayers(playerList);
 
             const myTeamId = team?._id || (team as any)?.id || teamData?._id;
-            const mySquad = playerList.filter((p: any) => {
+            const acquired = playerList.filter((p: any) => {
                 const soldId = typeof p.soldToTeamId === 'object' && p.soldToTeamId ? (p.soldToTeamId._id || p.soldToTeamId.id) : p.soldToTeamId;
-                return soldId && (soldId === myTeamId || soldId === team?._id || soldId === teamData?._id);
+                return soldId && (soldId === myTeamId || soldId === team?._id || soldId === teamData?._id) && p.status === 'sold';
             });
-            setSquad(mySquad);
+
+            const currentTeamObj = teamData || team;
+            let captainPlayer = acquired.find((p: any) => p.isCaptain || String(p._id || '').startsWith('pl_cap_') || String(p._id || '').startsWith('owner_cap_'));
+
+            if (!captainPlayer && (currentTeamObj?.isOwnerCaptain || (currentTeamObj as any)?.captainName)) {
+                captainPlayer = {
+                    _id: `owner_cap_${myTeamId}`,
+                    name: currentTeamObj.captainName || `${currentTeamObj.name} Captain`,
+                    image: currentTeamObj.captainPhoto || '',
+                    category: 'Captain (All-Rounder)',
+                    battingStyle: 'Right-Hand Bat',
+                    bowlingStyle: 'Right-Arm Medium',
+                    basePrice: Number(currentTeamObj.captainPrice) || 0,
+                    soldPrice: Number(currentTeamObj.captainPrice) || 0,
+                    sold_price: Number(currentTeamObj.captainPrice) || 0,
+                    status: 'sold',
+                    isCaptain: true,
+                    soldToTeamId: myTeamId,
+                    soldToTeamName: currentTeamObj.name
+                };
+            }
+
+            let fullSquad = acquired;
+            if (captainPlayer) {
+                const capPrice = Number(currentTeamObj?.captainPrice) || Number(captainPlayer.soldPrice) || Number(captainPlayer.basePrice) || 0;
+                const updatedCap = {
+                    ...captainPlayer,
+                    basePrice: capPrice,
+                    soldPrice: capPrice,
+                    sold_price: capPrice,
+                    isCaptain: true
+                };
+                fullSquad = [updatedCap, ...acquired.filter((p: any) => p._id !== captainPlayer._id)];
+            }
+            setSquad(fullSquad);
 
             // Sync current bidding player
             let active = null;
@@ -817,6 +879,8 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
                             <View style={styles.competitorList}>
                                 {otherTeams.map(t => {
                                     const tPlayers = allPlayers.filter(p => p.soldToTeamId === t._id || p.soldToTeamId === (t as any).id);
+                                    const hasCap = t.isOwnerCaptain && !tPlayers.some(p => p.isCaptain || String(p._id || '').startsWith('pl_cap_') || String(p._id || '').startsWith('owner_cap_'));
+                                    const squadCount = tPlayers.length + (hasCap ? 1 : 0);
                                     return (
                                         <TouchableOpacity
                                             key={t._id}
@@ -841,7 +905,7 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
                                                 <View>
                                                     <Text style={styles.competitorName}>{t.name}</Text>
                                                     <Text style={styles.competitorSquadCount}>
-                                                        {tPlayers.length} {tPlayers.length === 1 ? 'player' : 'players'} • Tap squad
+                                                        {squadCount} {squadCount === 1 ? 'player' : 'players'} • Tap squad
                                                     </Text>
                                                 </View>
                                             </View>
@@ -913,8 +977,8 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
                                         </View>
                                         <Text style={styles.excelPlayerCategory}>{player.category}</Text>
                                     </View>
-                                    <Text style={styles.excelBasePriceText}>₹{player.basePrice || 0} {smallUnit}</Text>
-                                    <Text style={styles.excelSoldPriceText}>₹{player.soldPrice || player.sold_price || player.currentBid || player.basePrice || 0} {smallUnit}</Text>
+                                    <Text style={styles.excelBasePriceText}>{formatPrice(player.basePrice || 0)}</Text>
+                                    <Text style={styles.excelSoldPriceText}>{formatPrice(player.soldPrice || player.sold_price || player.currentBid || player.basePrice || 0)}</Text>
                                 </View>
                             ))
                         )}
@@ -932,8 +996,8 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
                                     <View style={styles.excelFooterRow}>
                                         <Text style={styles.excelFooterLabel}>TOTAL SQUAD VALUE ({squad.length} PLAYERS):</Text>
                                         <View style={{ flexDirection: 'row', gap: 10 }}>
-                                            <Text style={styles.excelFooterSub}>Base: ₹{totalBase} {smallUnit}</Text>
-                                            <Text style={styles.excelFooterTotalSold}>Sold: ₹{totalSold} {smallUnit}</Text>
+                                            <Text style={styles.excelFooterSub}>Base: {formatPrice(totalBase)}</Text>
+                                            <Text style={styles.excelFooterTotalSold}>Sold: {formatPrice(totalSold)}</Text>
                                         </View>
                                     </View>
 
@@ -1133,6 +1197,8 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
                         <View style={styles.competitorList}>
                             {otherTeams.map(t => {
                                 const tPlayers = allPlayers.filter(p => p.soldToTeamId === t._id || p.soldToTeamId === (t as any).id);
+                                const hasCap = (t as any).isOwnerCaptain || (t as any).captainName;
+                                const squadCount = tPlayers.length + (hasCap ? 1 : 0);
                                 return (
                                     <TouchableOpacity
                                         key={t._id}
@@ -1149,7 +1215,7 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
                                             <View>
                                                 <Text style={styles.competitorName}>{t.name}</Text>
                                                 <Text style={styles.competitorSquadCount}>
-                                                    {tPlayers.length} acquired • Purse: ₹{t.budget - (t.spent || 0)} {largeUnit}
+                                                    {squadCount} acquired • Purse: ₹{t.budget - (t.spent || 0)} {largeUnit}
                                                 </Text>
                                             </View>
                                         </View>
@@ -1258,7 +1324,44 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
                                 </View>
 
                                 {(() => {
-                                    const teamPlayers = allPlayers.filter(p => p.soldToTeamId === viewingTeam._id || p.soldToTeamId === (viewingTeam as any).id);
+                                    const rawBought = allPlayers.filter(p => {
+                                        const soldId = typeof p.soldToTeamId === 'object' && p.soldToTeamId ? (p.soldToTeamId._id || p.soldToTeamId.id) : p.soldToTeamId;
+                                        return soldId && (soldId === viewingTeam._id || soldId === (viewingTeam as any).id) && p.status === 'sold';
+                                    });
+
+                                    let captainPlayer = rawBought.find((p: any) => p.isCaptain || String(p._id || '').startsWith('pl_cap_') || String(p._id || '').startsWith('owner_cap_'));
+
+                                    if (!captainPlayer && (viewingTeam.isOwnerCaptain || (viewingTeam as any).captainName)) {
+                                        captainPlayer = {
+                                            _id: `owner_cap_${viewingTeam._id}`,
+                                            name: viewingTeam.captainName || `${viewingTeam.name} Captain`,
+                                            image: viewingTeam.captainPhoto || '',
+                                            category: 'Captain (All-Rounder)',
+                                            battingStyle: 'Right-Hand Bat',
+                                            bowlingStyle: 'Right-Arm Medium',
+                                            basePrice: Number(viewingTeam.captainPrice) || 0,
+                                            soldPrice: Number(viewingTeam.captainPrice) || 0,
+                                            sold_price: Number(viewingTeam.captainPrice) || 0,
+                                            status: 'sold',
+                                            isCaptain: true,
+                                            soldToTeamId: viewingTeam._id,
+                                            soldToTeamName: viewingTeam.name
+                                        };
+                                    }
+
+                                    let teamPlayers = rawBought;
+                                    if (captainPlayer) {
+                                        const capPrice = Number(viewingTeam.captainPrice) || Number(captainPlayer.soldPrice) || Number(captainPlayer.basePrice) || 0;
+                                        const updatedCap = {
+                                            ...captainPlayer,
+                                            basePrice: capPrice,
+                                            soldPrice: capPrice,
+                                            sold_price: capPrice,
+                                            isCaptain: true
+                                        };
+                                        teamPlayers = [updatedCap, ...rawBought.filter((p: any) => p._id !== captainPlayer._id)];
+                                    }
+
                                     return (
                                         <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
                                             <View style={styles.modalStatsBar}>
@@ -1266,7 +1369,7 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
                                                     Acquired: <Text style={styles.modalStatsBold}>{teamPlayers.length}</Text> / {tournament?.squadSizeLimit || 25}
                                                 </Text>
                                                 <Text style={styles.modalStatsText}>
-                                                    Total Spent: <Text style={styles.modalStatsBold}>₹{teamPlayers.reduce((acc, p) => acc + (Number(p.soldPrice || p.sold_price || p.currentBid || p.basePrice) || 0), 0)} {smallUnit}</Text>
+                                                    Total Spent: <Text style={styles.modalStatsBold}>{formatPrice(teamPlayers.reduce((acc, p) => acc + (Number(p.soldPrice || p.sold_price || p.currentBid || p.basePrice) || 0), 0))}</Text>
                                                 </Text>
                                             </View>
 
@@ -1280,19 +1383,26 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
                                                 </View>
                                             ) : (
                                                 teamPlayers.map((p, idx) => (
-                                                    <View key={p._id || idx} style={styles.modalPlayerRow}>
+                                                    <View key={p._id || idx} style={[styles.modalPlayerRow, p.isCaptain && { backgroundColor: '#fffbeb', borderColor: '#fde68a' }]}>
                                                         <View style={styles.modalPlayerIndex}>
                                                             <Text style={styles.modalPlayerIndexText}>{idx + 1}</Text>
                                                         </View>
                                                         <View style={styles.modalPlayerInfo}>
-                                                            <Text style={styles.modalPlayerName}>{p.name}</Text>
+                                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                                                <Text style={styles.modalPlayerName}>{p.name}</Text>
+                                                                {p.isCaptain && (
+                                                                    <View style={{ backgroundColor: '#fef3c7', paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 }}>
+                                                                        <Text style={{ fontSize: 8, fontWeight: '900', color: '#92400e' }}>👑 C</Text>
+                                                                    </View>
+                                                                )}
+                                                            </View>
                                                             <Text style={styles.modalPlayerCategory}>
                                                                 {p.category} {p.battingStyle ? `• ${p.battingStyle}` : ''}
                                                             </Text>
                                                         </View>
                                                         <View style={styles.modalPlayerPrice}>
-                                                            <Text style={styles.modalPlayerPriceText}>₹{p.soldPrice || p.sold_price || p.currentBid || p.basePrice} {smallUnit}</Text>
-                                                            <Text style={styles.modalPlayerBasePrice}>Base: ₹{p.basePrice}{smallUnit}</Text>
+                                                            <Text style={styles.modalPlayerPriceText}>{formatPrice(p.soldPrice || p.sold_price || p.currentBid || p.basePrice)}</Text>
+                                                            <Text style={styles.modalPlayerBasePrice}>{p.isCaptain ? 'Retention Fee' : `Base: ${formatPrice(p.basePrice)}`}</Text>
                                                         </View>
                                                     </View>
                                                 ))

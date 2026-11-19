@@ -105,6 +105,43 @@ export const formatSlabIncrement = (rule: BidIncrementRule, budgetScale: 'K_TO_L
     return `+₹${inc} ${iUnit}`;
 };
 
+export const formatCurrencyAmount = (amount: any, budgetScale: 'K_TO_L' | 'L_TO_CR' = 'L_TO_CR'): string => {
+    const num = Number(amount) || 0;
+    const isKtoL = budgetScale === 'K_TO_L';
+
+    if (isKtoL) {
+        // Base value is in K (Thousands)
+        // >= 10,000 K is >= 1 Cr (1 Cr = 100 L = 10,000 K)
+        if (num >= 10000) {
+            const cr = num / 10000;
+            return cr % 1 === 0 ? `${cr} Cr` : `${Number(cr.toFixed(2))} Cr`;
+        }
+        // >= 100 K is >= 1 L (1 L = 100 K)
+        if (num >= 100) {
+            const l = num / 100;
+            return l % 1 === 0 ? `${l} L` : `${Number(l.toFixed(2))} L`;
+        }
+        return `${Number(num.toFixed(2))} K`;
+    } else {
+        // Base value is in L (Lakhs)
+        // >= 100 L is >= 1 Cr (1 Cr = 100 L)
+        if (num >= 100) {
+            const cr = num / 100;
+            return cr % 1 === 0 ? `${cr} Cr` : `${Number(cr.toFixed(2))} Cr`;
+        }
+        // < 1 L and > 0, e.g. 0.5 L = 50 K
+        if (num > 0 && num < 1) {
+            const k = Math.round(num * 100);
+            return `${k} K`;
+        }
+        return `${Number(num.toFixed(2))} L`;
+    }
+};
+
+export const formatCurrencyPrice = (amount: any, budgetScale: 'K_TO_L' | 'L_TO_CR' = 'L_TO_CR'): string => {
+    return `₹${formatCurrencyAmount(amount, budgetScale)}`;
+};
+
 export interface BudgetUnits {
     isKtoL: boolean;
     scale: 'K_TO_L' | 'L_TO_CR';
@@ -115,6 +152,7 @@ export interface BudgetUnits {
     formatLarge: (val: any) => string;
     formatSmall: (val: any) => string;
     formatAmount: (amount: any) => string;
+    formatPrice: (amount: any) => string;
     formatBid: (amount: any) => string;
 }
 
@@ -122,19 +160,14 @@ export const getBudgetUnits = (tournament: any): BudgetUnits => {
     const isKtoL = tournament?.budgetScale === 'K_TO_L';
     const largeUnit = isKtoL ? 'L' : 'Cr';
     const smallUnit = isKtoL ? 'K' : 'L';
+    const scale: 'K_TO_L' | 'L_TO_CR' = isKtoL ? 'K_TO_L' : 'L_TO_CR';
 
-    const formatAmount = (amount: any) => {
-        const num = Number(amount) || 0;
-        if (num >= 100) {
-            const large = num / 100;
-            return large % 1 === 0 ? `${large} ${largeUnit}` : `${large.toFixed(2)} ${largeUnit}`;
-        }
-        return `${num} ${smallUnit}`;
-    };
+    const formatAmount = (amount: any) => formatCurrencyAmount(amount, scale);
+    const formatPrice = (amount: any) => `₹${formatAmount(amount)}`;
 
     return {
         isKtoL,
-        scale: isKtoL ? 'K_TO_L' : 'L_TO_CR',
+        scale,
         largeUnit,
         smallUnit,
         largeName: isKtoL ? 'Lakhs' : 'Crores',
@@ -142,6 +175,7 @@ export const getBudgetUnits = (tournament: any): BudgetUnits => {
         formatLarge: (val: any) => `₹${Number(val || 0).toFixed(2)} ${largeUnit}`,
         formatSmall: (val: any) => `₹${val || 0}${smallUnit}`,
         formatAmount,
-        formatBid: (amount: any) => `₹${formatAmount(amount)}`
+        formatPrice,
+        formatBid: (amount: any) => formatPrice(amount)
     };
 };

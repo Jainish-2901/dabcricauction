@@ -12,7 +12,7 @@ import SafeImage from '../components/SafeImage';
 const PublicAuctionView = () => {
     const { tournamentId } = useParams();
     const [tournament, setTournament] = useState(null);
-    const { largeUnit, smallUnit, formatAmount, formatBid } = getBudgetUnits(tournament);
+    const { largeUnit, smallUnit, formatAmount, formatPrice, formatBid } = getBudgetUnits(tournament);
     const [teams, setTeams] = useState([]);
     const [allPlayers, setAllPlayers] = useState([]);
     const [slots, setSlots] = useState([]);
@@ -113,7 +113,17 @@ const PublicAuctionView = () => {
         socket.on('bid_undone', (data) => {
             setCurrentBid(data.currentBid);
             setCurrentLeadTeam(data.leadTeam);
-            setBidHistory(prev => prev.slice(1));
+            setCountdownTimer(null);
+            if (Array.isArray(data.bids)) {
+                setBidHistory(data.bids.map(b => ({
+                    team: { name: b.teamName, _id: b.teamId, logo: b.teamLogo, shortName: b.teamShortName },
+                    amount: b.bidAmount,
+                    time: new Date(b.createdAt),
+                    playerId: b.playerId
+                })));
+            } else {
+                setBidHistory(prev => prev.slice(1));
+            }
         });
 
         socket.on('sale_rolled_back', (data) => {
@@ -196,6 +206,14 @@ const PublicAuctionView = () => {
             }
         });
 
+        socket.on('player_released_to_pending', (data) => {
+            fetchTournamentData();
+            if (data?.player) {
+                setAllPlayers(prev => prev.map(p => (p._id === data.player._id || p.id === data.player._id) ? { ...p, ...data.player } : p));
+                setSoldLog(prev => prev.filter(item => item.player?._id !== data.player._id && item.player?.id !== data.player._id));
+            }
+        });
+
         return () => {
             socket.off('new_player');
             socket.off('bid_update');
@@ -211,6 +229,7 @@ const PublicAuctionView = () => {
             socket.off('sale_rolled_back');
             socket.off('team_updated');
             socket.off('unsold_reopened_to_slot');
+            socket.off('player_released_to_pending');
             socket.off('connect');
         };
     }, [tournamentId]);
@@ -661,6 +680,8 @@ const PublicAuctionView = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                         {teams.map(t => {
                             const teamSquad = allPlayers.filter(p => p.soldToTeamId === t._id || p.soldToTeamId === t.id);
+                            const hasCap = t.isOwnerCaptain && !teamSquad.some(p => p.isCaptain || String(p._id || '').startsWith('pl_cap_') || String(p._id || '').startsWith('owner_cap_'));
+                            const squadCount = teamSquad.length + (hasCap ? 1 : 0);
                             const remaining = ((Number(t.budget) || 0) - (Number(t.spent) || 0)).toFixed(2);
 
                             return (
@@ -701,7 +722,7 @@ const PublicAuctionView = () => {
 
                                         <div className="flex items-center justify-between text-xs text-slate-500 font-semibold mb-4 px-1">
                                             <span>Squad Size:</span>
-                                            <strong className="text-slate-900 font-black">{teamSquad.length} / {tournament.squadSizeLimit || 25}</strong>
+                                            <strong className="text-slate-900 font-black">{squadCount} / {tournament.squadSizeLimit || 25}</strong>
                                         </div>
                                     </div>
 
@@ -710,7 +731,7 @@ const PublicAuctionView = () => {
                                         onClick={() => setViewingTeam(t)}
                                         className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
                                     >
-                                        <Users className="w-3.5 h-3.5" /> View Acquired Squad ({teamSquad.length})
+                                        <Users className="w-3.5 h-3.5" /> View Acquired Squad ({squadCount})
                                     </button>
                                 </div>
                             );
@@ -1161,7 +1182,37 @@ const PublicAuctionView = () => {
                         {/* Modal Content - Player List */}
                         <div className="p-5 md:p-6 overflow-y-auto flex-1 space-y-4">
                             {(() => {
-                                const teamSquad = allPlayers.filter(p => p.soldToTeamId === viewingTeam._id || p.soldToTeamId === viewingTeam.id);
+                                const rawBought = allPlayers.filter(p => (p.soldToTeamId === viewingTeam._id || p.soldToTeamId === viewingTeam.id || (viewingTeam.players && viewingTeam.players.includes(p._id))) && p.status === 'sold');
+                                let captainPlayer = rawBought.find(p => p.isCaptain || String(p._id || '').startsWith('pl_cap_') || String(p._id || '').startsWith('owner_cap_'));
+
+                                if (!captainPlayer && viewingTeam.isOwnerCaptain) {
+                                    captainPlayer = {
+                                        _id: `owner_cap_${viewingTeam._id}`,
+                                        name: viewingTeam.captainName || `${viewingTeam.name} Captain`,
+                                        image: viewingTeam.captainPhoto || '',
+                                        category: 'Captain (All-Rounder)',
+                                        battingStyle: 'Right-Hand Bat',
+                                        basePrice: Number(viewingTeam.captainPrice) || 0,
+                                        soldPrice: Number(viewingTeam.captainPrice) || 0,
+                                        sold_price: Number(viewingTeam.captainPrice) || 0,
+                                        status: 'sold',
+                                        isCaptain: true
+                                    };
+                                }
+
+                                let teamSquad = rawBought;
+                                if (captainPlayer) {
+                                    const capPrice = Number(viewingTeam.captainPrice) || Number(captainPlayer.soldPrice) || Number(captainPlayer.basePrice) || 0;
+                                    const updatedCap = {
+                                        ...captainPlayer,
+                                        basePrice: capPrice,
+                                        soldPrice: capPrice,
+                                        sold_price: capPrice,
+                                        isCaptain: true
+                                    };
+                                    teamSquad = [updatedCap, ...rawBought.filter(p => p._id !== captainPlayer._id)];
+                                }
+
                                 return (
                                     <>
                                         <div className="flex flex-wrap justify-between items-center bg-slate-50 p-3 rounded-2xl border border-slate-200 gap-2">
@@ -1170,56 +1221,34 @@ const PublicAuctionView = () => {
                                                 Acquired Players: <strong className="text-slate-900 font-black">{teamSquad.length}</strong> / {tournament.squadSizeLimit || 25}
                                             </span>
                                             <span className="text-xs font-bold text-slate-600">
-                                                Total Spent: <strong className="text-emerald-700 font-black">₹{teamSquad.reduce((acc, p) => acc + (Number(p.soldPrice || p.sold_price || p.currentBid || p.basePrice) || 0), 0)} {smallUnit}</strong>
+                                                Total Spent: <strong className="text-emerald-700 font-black">{formatPrice(teamSquad.reduce((acc, p) => acc + (Number(p.soldPrice || p.sold_price || p.currentBid || p.basePrice) || 0), 0))}</strong>
                                             </span>
                                         </div>
 
-                                        {teamSquad.length > 0 || viewingTeam.isOwnerCaptain ? (
+                                        {teamSquad.length > 0 ? (
                                             <div className="divide-y divide-slate-100 border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-2xs">
-                                                {viewingTeam.isOwnerCaptain && !teamSquad.some(p => p.isCaptain) && (
-                                                    <div className="p-3.5 bg-amber-50/80 border-b border-amber-200/90 flex items-center justify-between gap-3">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="w-10 h-10 rounded-xl bg-amber-100 border border-amber-300 overflow-hidden flex items-center justify-center shrink-0">
-                                                                <SafeImage
-                                                                    src={viewingTeam.captainPhoto}
-                                                                    alt="Captain"
-                                                                    previewable={true}
-                                                                    previewTitle={viewingTeam.captainName || 'Team Captain'}
-                                                                    className="w-full h-full object-cover"
-                                                                    fallback={<Crown className="w-5 h-5 text-amber-600" />}
-                                                                />
-                                                            </div>
-                                                            <div>
-                                                                <div className="flex items-center gap-1.5">
-                                                                    <h4 className="text-sm font-black text-slate-900 leading-snug">{viewingTeam.captainName || 'Team Captain'}</h4>
-                                                                    <span className="px-1.5 py-0.5 bg-amber-200 text-amber-900 text-[9px] font-black rounded uppercase flex items-center gap-0.5">
-                                                                        <Crown className="w-2.5 h-2.5" /> Captain
-                                                                    </span>
-                                                                </div>
-                                                                <div className="text-[11px] font-semibold text-amber-800">Direct Retained Squad Leader</div>
-                                                            </div>
-                                                        </div>
-                                                        <div className="text-right shrink-0">
-                                                            <div className="text-sm font-black text-amber-900 tabular-nums">₹{viewingTeam.captainPrice || 0} {smallUnit}</div>
-                                                            <div className="text-[10px] text-amber-700 font-bold">Retained</div>
-                                                        </div>
-                                                    </div>
-                                                )}
                                                 {teamSquad.map((p, idx) => (
-                                                    <div key={p._id || idx} className="p-3.5 hover:bg-slate-50/80 transition-colors flex items-center justify-between gap-3">
+                                                    <div key={p._id || idx} className={`p-3.5 flex items-center justify-between gap-3 transition-colors ${p.isCaptain ? 'bg-amber-50/70 border-b border-amber-200/90' : 'hover:bg-slate-50/80'}`}>
                                                         <div className="flex items-center gap-3">
-                                                            <div className="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center shrink-0">
+                                                            <div className={`w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center shrink-0 border ${p.isCaptain ? 'bg-amber-100 border-amber-300' : 'bg-slate-100 border-slate-200'}`}>
                                                                 <SafeImage
                                                                     src={p.image}
                                                                     alt={p.name}
                                                                     previewable={true}
                                                                     previewTitle={p.name}
                                                                     className="w-full h-full object-cover"
-                                                                    fallback={<User className="w-5 h-5 text-slate-400" />}
+                                                                    fallback={p.isCaptain ? <Crown className="w-5 h-5 text-amber-600" /> : <User className="w-5 h-5 text-slate-400" />}
                                                                 />
                                                             </div>
                                                             <div>
-                                                                <h4 className="text-sm font-bold text-slate-900 leading-snug">{p.name}</h4>
+                                                                <div className="flex items-center gap-1.5">
+                                                                    <h4 className="text-sm font-black text-slate-900 leading-snug">{p.name}</h4>
+                                                                    {p.isCaptain && (
+                                                                        <span className="px-1.5 py-0.5 bg-amber-200 text-amber-900 text-[9px] font-black rounded uppercase flex items-center gap-0.5">
+                                                                            <Crown className="w-2.5 h-2.5" /> Captain
+                                                                        </span>
+                                                                    )}
+                                                                </div>
                                                                 <div className="flex items-center gap-2 mt-0.5">
                                                                     <span className="text-[11px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">
                                                                         {p.category}
@@ -1235,10 +1264,10 @@ const PublicAuctionView = () => {
 
                                                         <div className="text-right shrink-0">
                                                             <div className="text-sm font-black text-slate-900 tabular-nums">
-                                                                ₹{p.soldPrice || p.sold_price || p.currentBid || p.basePrice || 0} {smallUnit}
+                                                                {formatPrice(p.soldPrice || p.sold_price || p.currentBid || p.basePrice || 0)}
                                                             </div>
                                                             <div className="text-[10px] text-slate-400">
-                                                                Base: ₹{p.basePrice || 0} {smallUnit}
+                                                                {p.isCaptain ? 'Retention Fee' : `Base: ${formatPrice(p.basePrice || 0)}`}
                                                             </div>
                                                         </div>
                                                     </div>

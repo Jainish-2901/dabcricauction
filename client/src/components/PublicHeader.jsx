@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Smartphone, Download, Menu, X, ArrowRight, ShieldCheck, FileText } from 'lucide-react';
 
-const APK_URL = "https://github.com/Jainish-2901/dabcricauction/releases/download/v1.1.0/dab-cric-auction-v1.1.0.apk";
+const APK_URL = "https://github.com/Jainish-2901/dabcricauction/releases/download/v1.2.0/dab-cric-auction-v1.2.0.apk";
 
 export default function PublicHeader() {
     const [mobileOpen, setMobileOpen] = useState(false);
@@ -73,7 +73,7 @@ export default function PublicHeader() {
                                 ? 'bg-white/20 text-white'
                                 : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
                         }`}>
-                            v1.1.0
+                            v1.2.0
                         </span>
                     </Link>
 
@@ -104,7 +104,7 @@ export default function PublicHeader() {
                 <div className="flex items-center gap-2">
                     <a
                         href={APK_URL}
-                        download="dab-cric-auction-v1.1.0.apk"
+                        download="dab-cric-auction-v1.2.0.apk"
                         className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-black shadow-xs transition-all active:scale-95"
                         title="Download Android APK"
                     >
@@ -211,7 +211,7 @@ export default function PublicHeader() {
                     <div className="pt-2 border-t border-slate-100 flex items-center gap-2">
                         <a
                             href={APK_URL}
-                            download="dab-cric-auction-v1.1.0.apk"
+                            download="dab-cric-auction-v1.2.0.apk"
                             className="flex-1 text-center py-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-xl font-bold flex items-center justify-center gap-1.5 shadow-xs"
                         >
                             <Download className="w-3.5 h-3.5" /> Download APK
