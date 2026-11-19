@@ -142,6 +142,23 @@ export const formatCurrencyPrice = (amount, budgetScale = 'L_TO_CR') => {
     return `₹${formatCurrencyAmount(amount, budgetScale)}`;
 };
 
+export const formatCurrencyPriceParts = (amount, budgetScale = 'L_TO_CR') => {
+    const formatted = formatCurrencyAmount(amount, budgetScale);
+    const spaceIdx = formatted.lastIndexOf(' ');
+    if (spaceIdx !== -1) {
+        return {
+            amount: formatted.substring(0, spaceIdx),
+            unit: formatted.substring(spaceIdx + 1),
+            priceString: `₹${formatted}`
+        };
+    }
+    return {
+        amount: formatted,
+        unit: '',
+        priceString: `₹${formatted}`
+    };
+};
+
 export const getBudgetUnits = (tournament) => {
     const isKtoL = tournament?.budgetScale === 'K_TO_L';
     const largeUnit = isKtoL ? 'L' : 'Cr';
@@ -150,6 +167,7 @@ export const getBudgetUnits = (tournament) => {
 
     const formatAmount = (amount) => formatCurrencyAmount(amount, scale);
     const formatPrice = (amount) => `₹${formatAmount(amount)}`;
+    const formatPriceParts = (amount) => formatCurrencyPriceParts(amount, scale);
 
     return {
         isKtoL,
@@ -162,6 +180,7 @@ export const getBudgetUnits = (tournament) => {
         formatSmall: (val) => `₹${val || 0}${smallUnit}`,
         formatAmount,
         formatPrice,
+        formatPriceParts,
         formatBid: (amount) => formatPrice(amount)
     };
 };

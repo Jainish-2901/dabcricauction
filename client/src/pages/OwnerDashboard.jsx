@@ -16,7 +16,7 @@ const OwnerDashboard = () => {
     const [allPlayers, setAllPlayers] = useState([]);
     const [otherTeams, setOtherTeams] = useState([]);
     const [tournament, setTournament] = useState(null);
-    const { largeUnit, smallUnit, formatAmount, formatPrice, formatBid } = getBudgetUnits(tournament);
+    const { largeUnit, smallUnit, formatAmount, formatPrice, formatPriceParts, formatBid } = getBudgetUnits(tournament);
     const [slots, setSlots] = useState([]);
     const [viewingTeam, setViewingTeam] = useState(null);
     const [announcementModal, setAnnouncementModal] = useState(null);
@@ -664,7 +664,7 @@ const OwnerDashboard = () => {
                                         </span>
                                     )}
                                     <span className="px-3 py-1 bg-slate-100 rounded-lg text-xs font-bold border border-slate-200 text-slate-700">{currentPlayer.category}</span>
-                                    <span className="px-3 py-1 bg-blue-50 rounded-lg text-xs font-bold border border-blue-200 text-blue-700">Base: ₹{currentPlayer.basePrice} {smallUnit}</span>
+                                    <span className="px-3 py-1 bg-blue-50 rounded-lg text-xs font-bold border border-blue-200 text-blue-700">Base: {formatPrice(currentPlayer.basePrice)}</span>
                                     {currentPlayer.battingStyle && (
                                         <span className="px-3 py-1 bg-slate-50 rounded-lg text-xs font-semibold border border-slate-200 text-slate-700">
                                             🏏 {currentPlayer.battingStyle}
@@ -706,7 +706,14 @@ const OwnerDashboard = () => {
                                     <div className="text-center mb-5">
                                         <div className="text-xs text-slate-500 uppercase tracking-widest font-black mb-1">Current Highest Bid</div>
                                         <div className={`text-5xl md:text-6xl font-black tabular-nums tracking-tight ${isLeading ? 'text-emerald-700' : 'text-slate-900'}`}>
-                                            ₹{currentBid} <span className="text-2xl font-bold text-slate-500">{smallUnit}</span>
+                                            {(() => {
+                                                const { amount, unit } = formatPriceParts(currentBid);
+                                                return (
+                                                    <>
+                                                        ₹{amount} <span className="text-2xl font-bold text-slate-500">{unit}</span>
+                                                    </>
+                                                );
+                                            })()}
                                         </div>
                                         {currentLeadTeam && (
                                             <div className={`mt-2 text-xs font-black ${isLeading ? 'text-emerald-700' : 'text-slate-600'}`}>
@@ -1170,13 +1177,13 @@ const OwnerDashboard = () => {
                                                                                         </span>
                                                                                     </td>
                                                                                     <td className="p-3 text-right font-bold text-slate-700 tabular-nums">
-                                                                                        ₹{p.basePrice || slot.basePrice || 0} {smallUnit}
+                                                                                        {formatPrice(p.basePrice || slot.basePrice || 0)}
                                                                                     </td>
                                                                                     <td className="p-3 text-right">
                                                                                         {p.status === 'sold' ? (
                                                                                             <div className="inline-flex flex-col items-end">
                                                                                                 <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded font-black text-[11px] tabular-nums">
-                                                                                                    SOLD: ₹{p.soldPrice || p.sold_price || p.finalPrice || p.currentBid || 0} {smallUnit}
+                                                                                                    SOLD: {formatPrice(p.soldPrice || p.sold_price || p.finalPrice || p.currentBid || 0)}
                                                                                                 </span>
                                                                                                 {buyerTeam && (
                                                                                                     <span className="text-[10px] text-slate-500 font-bold mt-0.5">
@@ -1260,7 +1267,7 @@ const OwnerDashboard = () => {
                                                                                 <span>{p.name}</span>
                                                                             </td>
                                                                             <td className="p-3 font-bold text-slate-700">{p.category}</td>
-                                                                            <td className="p-3 text-right font-bold text-slate-700 tabular-nums">₹{p.basePrice || 0} {smallUnit}</td>
+                                                                            <td className="p-3 text-right font-bold text-slate-700 tabular-nums">{formatPrice(p.basePrice || 0)}</td>
                                                                             <td className="p-3 text-right">
                                                                                 <span className={`px-2 py-0.5 rounded font-black text-[10px] uppercase ${
                                                                                     p.status === 'sold' ? 'bg-emerald-100 text-emerald-800' : p.status === 'unsold' ? 'bg-slate-100 text-slate-600' : 'bg-amber-50 text-amber-800'
@@ -1314,7 +1321,7 @@ const OwnerDashboard = () => {
                                                 <td className="p-3.5 text-slate-500 text-[11px]">
                                                     {p.battingStyle || '-'}{p.bowlingStyle ? ` • ${p.bowlingStyle}` : ''}
                                                 </td>
-                                                <td className="p-3.5 text-right font-bold text-slate-900">₹{p.basePrice} {smallUnit}</td>
+                                                <td className="p-3.5 text-right font-bold text-slate-900">{formatPrice(p.basePrice)}</td>
                                             </tr>
                                         )) : (
                                             <tr>
@@ -1376,7 +1383,7 @@ const OwnerDashboard = () => {
                                                 </div>
                                             </div>
                                             <span className="font-black text-emerald-700 text-xs px-2 py-0.5 bg-emerald-50 rounded-lg border border-emerald-200">
-                                                ₹{b.amount} {smallUnit}
+                                                {formatPrice(b.amount)}
                                             </span>
                                         </div>
                                     );
@@ -1629,7 +1636,7 @@ const OwnerDashboard = () => {
 
                                     <h3 className="text-2xl font-black text-slate-900">{announcementModal.player?.name}</h3>
                                     <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mt-0.5">
-                                        {announcementModal.player?.category} • Base ₹{announcementModal.player?.basePrice} {smallUnit}
+                                        {announcementModal.player?.category} • Base {formatPrice(announcementModal.player?.basePrice)}
                                     </p>
 
                                     {/* Winning Team & Price Card */}
@@ -1683,7 +1690,7 @@ const OwnerDashboard = () => {
 
                                     <h3 className="text-2xl font-black text-slate-900">{announcementModal.player?.name}</h3>
                                     <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mt-0.5">
-                                        {announcementModal.player?.category} • Base ₹{announcementModal.player?.basePrice} {smallUnit}
+                                        {announcementModal.player?.category} • Base {formatPrice(announcementModal.player?.basePrice)}
                                     </p>
 
                                     <div className="mt-5 p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-bold">

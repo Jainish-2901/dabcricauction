@@ -16,7 +16,7 @@ const AdminAuctionConsole = () => {
     const navigate = useNavigate();
 
     const [tournament, setTournament] = useState(null);
-    const { largeUnit, smallUnit, formatAmount, formatPrice, formatBid } = getBudgetUnits(tournament);
+    const { largeUnit, smallUnit, formatAmount, formatPrice, formatPriceParts, formatBid } = getBudgetUnits(tournament);
     const [allTournaments, setAllTournaments] = useState([]);
     const [players, setPlayers] = useState([]);
     const [teams, setTeams] = useState([]);
@@ -94,7 +94,7 @@ const AdminAuctionConsole = () => {
                 });
             }
             setCountdownTimer(null);
-            showNotice('success', `🔨 ${data?.player?.name || 'Player'} SOLD to ${data?.team?.name || 'Winner'} for ₹${data?.player?.soldPrice || data?.player?.sold_price || data?.player?.currentBid || 0} ${smallUnit}!`);
+            showNotice('success', `🔨 ${data?.player?.name || 'Player'} SOLD to ${data?.team?.name || 'Winner'} for ${formatPrice(data?.player?.soldPrice || data?.player?.sold_price || data?.player?.currentBid || 0)}!`);
             nextPlayer();
         });
 
@@ -179,7 +179,7 @@ const AdminAuctionConsole = () => {
         socket.on('timer_cancelled', (data) => {
             setCountdownTimer(null);
             if (data?.reason === 'new_bid') {
-                showNotice('info', `⚡ New bid placed (₹${data.amount}${smallUnit})! 10s timer cancelled.`);
+                showNotice('info', `⚡ New bid placed (${formatPrice(data.amount)})! 10s timer cancelled.`);
             } else {
                 showNotice('info', 'Countdown timer cancelled by Admin.');
             }
@@ -640,7 +640,7 @@ const AdminAuctionConsole = () => {
     const handleAdminSell = async (teamId) => {
         if (!currentPlayer) return;
         if (!adminPrice || Number(adminPrice) < currentPlayer.basePrice) {
-            showNotice('error', `Price must be at least the base price (₹${currentPlayer.basePrice} ${smallUnit})`);
+            showNotice('error', `Price must be at least the base price (${formatPrice(currentPlayer.basePrice)})`);
             return;
         }
 
@@ -695,7 +695,7 @@ const AdminAuctionConsole = () => {
             soldPrice: priceNum
         }, (res) => {
             if (res?.success) {
-                showNotice('success', `Directly sold ${directSellTargetPlayer.name} to ${team?.name} for ₹${priceNum}${smallUnit}!`);
+                showNotice('success', `Directly sold ${directSellTargetPlayer.name} to ${team?.name} for ${formatPrice(priceNum)}!`);
                 setShowDirectSellModal(false);
                 setDirectSellTargetPlayer(null);
             } else if (res?.error) {
@@ -1150,7 +1150,7 @@ const AdminAuctionConsole = () => {
                                         {currentPlayer.category}
                                     </span>
                                     <span className="px-3 py-1 bg-blue-50 rounded-xl text-xs font-bold text-blue-700 border border-blue-200">
-                                        Base: ₹{currentPlayer.basePrice} {smallUnit}
+                                        Base: {formatPrice(currentPlayer.basePrice)}
                                     </span>
                                     <span className="px-3 py-1 bg-slate-50 rounded-xl text-xs font-semibold text-slate-600 border border-slate-200">
                                         🏏 {currentPlayer.battingStyle || 'Right-Hand Bat'}
@@ -1188,7 +1188,14 @@ const AdminAuctionConsole = () => {
                                 <div className="text-center p-6 bg-slate-50 rounded-2xl w-full max-w-md border border-slate-200 shadow-inner relative">
                                     <div className="text-xs text-slate-500 uppercase tracking-widest font-black mb-1">Current Bid</div>
                                     <div className={`text-6xl font-black tabular-nums tracking-tight ${currentBid > currentPlayer.basePrice ? 'text-emerald-600' : 'text-slate-800'}`}>
-                                        ₹{currentBid} <span className="text-2xl font-bold text-slate-500">{smallUnit}</span>
+                                        {(() => {
+                                            const { amount, unit } = formatPriceParts(currentBid);
+                                            return (
+                                                <>
+                                                    ₹{amount} <span className="text-2xl font-bold text-slate-500">{unit}</span>
+                                                </>
+                                            );
+                                        })()}
                                     </div>
                                     {winningTeam ? (
                                         <div className="mt-3 text-sm font-black text-emerald-700 flex items-center justify-center gap-1.5">
@@ -1208,7 +1215,7 @@ const AdminAuctionConsole = () => {
                                             </div>
                                             <div className="text-5xl font-black text-amber-600 my-1 tabular-nums">{countdownTimer.timeLeft}s</div>
                                             <p className="text-[11px] text-amber-900 font-extrabold">
-                                                {winningTeam ? `Auto-selling to ${winningTeam.name} at ₹${currentBid}${smallUnit} if no higher bid!` : 'Will be marked unsold if no bids!'}
+                                                {winningTeam ? `Auto-selling to ${winningTeam.name} at ${formatPrice(currentBid)} if no higher bid!` : 'Will be marked unsold if no bids!'}
                                             </p>
                                             <button
                                                 onClick={handleCancelTimer}
@@ -1423,7 +1430,7 @@ const AdminAuctionConsole = () => {
                                         <div className="text-right shrink-0">
                                             {tournament.auctionType === 'admin_driven' && adminPrice ? (
                                                 <span className="text-[10px] font-bold px-2.5 py-1 bg-blue-600 text-white rounded-lg shadow-2xs">
-                                                    Sell ₹{adminPrice}{smallUnit}
+                                                    Sell {formatPrice(adminPrice)}
                                                 </span>
                                             ) : (
                                                 <div className="flex items-center gap-1.5">
@@ -1556,11 +1563,11 @@ const AdminAuctionConsole = () => {
                                                         <div className="text-[11px] truncate">
                                                             {p.status === 'sold' ? (
                                                                 <span className="text-emerald-700 font-bold">
-                                                                    {p.category} • Sold ₹{p.soldPrice || p.sold_price || p.currentBid || p.basePrice}{smallUnit}
+                                                                    {p.category} • Sold {formatPrice(p.soldPrice || p.sold_price || p.currentBid || p.basePrice)}
                                                                 </span>
                                                             ) : (
                                                                 <span className="text-slate-500">
-                                                                    {p.category} • Base ₹{p.basePrice}{smallUnit}
+                                                                    {p.category} • Base {formatPrice(p.basePrice)}
                                                                 </span>
                                                             )}
                                                         </div>
@@ -1606,7 +1613,7 @@ const AdminAuctionConsole = () => {
                                                             ? 'bg-amber-50 text-amber-700 border border-amber-200'
                                                             : 'bg-slate-100 text-slate-600'
                                                     }`}>
-                                                        {isCurrent ? 'LIVE' : isPassed ? 'PASSED' : p.status === 'sold' ? `SOLD (₹${p.soldPrice || p.sold_price || p.currentBid || p.basePrice}${smallUnit})` : p.status}
+                                                        {isCurrent ? 'LIVE' : isPassed ? 'PASSED' : p.status === 'sold' ? `SOLD (${formatPrice(p.soldPrice || p.sold_price || p.currentBid || p.basePrice)})` : p.status}
                                                     </span>
                                                 </div>
                                             </div>
@@ -1745,7 +1752,7 @@ const AdminAuctionConsole = () => {
                                                                         <div className="min-w-0">
                                                                             <div className="text-xs font-bold text-slate-900 truncate">{p.name}</div>
                                                                             <div className="text-[10px] text-slate-500 truncate">
-                                                                                {p.category} • ₹{p.basePrice || slot.basePrice || 0}{smallUnit}
+                                                                                {p.category} • {formatPrice(p.basePrice || slot.basePrice || 0)}
                                                                             </div>
                                                                         </div>
                                                                     </div>
@@ -1757,7 +1764,7 @@ const AdminAuctionConsole = () => {
                                                                             </span>
                                                                         ) : p.status === 'sold' ? (
                                                                             <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-lg text-[10px] font-black">
-                                                                                Sold ₹{p.soldPrice || p.sold_price || p.currentBid || p.basePrice}{smallUnit}
+                                                                                Sold {formatPrice(p.soldPrice || p.sold_price || p.currentBid || p.basePrice)}
                                                                             </span>
                                                                         ) : (
                                                                             <button
@@ -1826,7 +1833,7 @@ const AdminAuctionConsole = () => {
                                                 <div>
                                                     <div className="text-xs font-bold text-slate-900">{p.name}</div>
                                                     <div className="text-[10px] text-slate-500">
-                                                        {p.category} • Base ₹{p.basePrice}{smallUnit}
+                                                        {p.category} • Base {formatPrice(p.basePrice)}
                                                     </div>
                                                 </div>
                                             </div>
@@ -1889,7 +1896,7 @@ const AdminAuctionConsole = () => {
                                                 </div>
                                             </div>
                                             <span className="font-black text-emerald-700 text-xs px-2 py-0.5 bg-emerald-50 rounded-lg border border-emerald-200">
-                                                ₹{b.amount} {smallUnit}
+                                                {formatPrice(b.amount)}
                                             </span>
                                         </div>
                                     ))
@@ -2423,7 +2430,7 @@ const AdminAuctionConsole = () => {
 
                                     <h3 className="text-2xl font-black text-slate-900">{announcementModal.player?.name}</h3>
                                     <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mt-0.5">
-                                        {announcementModal.player?.category} • Base ₹{announcementModal.player?.basePrice} {smallUnit}
+                                        {announcementModal.player?.category} • Base {formatPrice(announcementModal.player?.basePrice)}
                                     </p>
 
                                     {/* Winning Team & Price Card */}
@@ -2477,7 +2484,7 @@ const AdminAuctionConsole = () => {
 
                                     <h3 className="text-2xl font-black text-slate-900">{announcementModal.player?.name}</h3>
                                     <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mt-0.5">
-                                        {announcementModal.player?.category} • Base ₹{announcementModal.player?.basePrice} {smallUnit}
+                                        {announcementModal.player?.category} • Base {formatPrice(announcementModal.player?.basePrice)}
                                     </p>
 
                                     <div className="mt-5 p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-bold">

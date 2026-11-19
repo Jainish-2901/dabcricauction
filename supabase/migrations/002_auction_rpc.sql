@@ -31,9 +31,9 @@ BEGIN
         RAISE EXCEPTION 'Bid amount must be strictly higher than current bid';
     END IF;
 
-    -- Check team purse budget
+    -- Check team purse budget (1 Large Unit = 100 Small Units)
     SELECT * INTO v_team FROM teams WHERE id = p_team_id;
-    IF (v_team.budget - v_team.spent) < p_bid_amount THEN
+    IF (v_team.budget - v_team.spent) < (p_bid_amount / 100.0) THEN
         RAISE EXCEPTION 'Insufficient purse budget remaining';
     END IF;
 
@@ -83,13 +83,13 @@ BEGIN
     END IF;
 
     SELECT * INTO v_team FROM teams WHERE id = p_team_id FOR UPDATE;
-    IF (v_team.budget - v_team.spent) < p_sold_price THEN
+    IF (v_team.budget - v_team.spent) < (p_sold_price / 100.0) THEN
         RAISE EXCEPTION 'Team does not have enough budget to finalize this sale';
     END IF;
 
-    -- Update team spent purse
+    -- Update team spent purse (1 Large Unit = 100 Small Units)
     UPDATE teams 
-    SET spent = spent + p_sold_price,
+    SET spent = spent + (p_sold_price / 100.0),
         updated_at = NOW()
     WHERE id = p_team_id;
 
@@ -140,9 +140,9 @@ BEGIN
     v_sold_team_id := v_player.sold_to_team_id;
     v_sold_price := v_player.sold_price;
 
-    -- 1. Refund Team Spent Purse
+    -- 1. Refund Team Spent Purse (1 Large Unit = 100 Small Units)
     UPDATE teams 
-    SET spent = spent - v_sold_price,
+    SET spent = spent - (v_sold_price / 100.0),
         updated_at = NOW()
     WHERE id = v_sold_team_id;
 

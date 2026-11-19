@@ -382,12 +382,7 @@ io.on('connection', (socket) => {
                 ? explicitPrice
                 : (Number(player.currentBid) > 0 ? Number(player.currentBid) : (Number(player.basePrice) || 0));
 
-            const bidInLargeUnits = Number((winningBid / 100).toFixed(2));
-            team.spent = Number(((team.spent || 0) + bidInLargeUnits).toFixed(2));
-            if (!team.players) team.players = [];
-            if (!team.players.includes(player._id)) team.players.push(player._id);
-            await db.updateTeam(team._id, team);
-
+            // 1. Mark player as sold first so calculations can find soldPrice immediately
             player.status = 'sold';
             player.soldToTeamId = team._id;
             player.soldToTeamName = team.name;
@@ -410,12 +405,18 @@ io.on('connection', (socket) => {
             }
             await db.updatePlayer(playerId, player);
 
+            // 2. Add player to team squad and recalculate spent purse
+            if (!team.players) team.players = [];
+            if (!team.players.includes(player._id)) team.players.push(player._id);
+            await db.recalculateTeamSpent(team._id);
+            const updatedTeam = await db.getTeamById(team._id);
+
             io.to(tournamentId).emit('player_sold', {
                 player,
-                team
+                team: updatedTeam || team
             });
             io.to(tournamentId).emit('team_updated', {
-                team
+                team: updatedTeam || team
             });
         } catch (e) {
             console.error('sell_player error:', e);

@@ -79,7 +79,7 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
     const [leadTeam, setLeadTeam] = useState<any>(null);
     const [biddingState, setBiddingState] = useState<'active' | 'paused' | 'break' | 'stopped'>('active');
     const [tournament, setTournament] = useState<any>(null);
-    const { largeUnit, smallUnit, formatAmount, formatPrice, formatBid, isKtoL } = getBudgetUnits(tournament);
+    const { largeUnit, smallUnit, formatAmount, formatPrice, formatPriceParts, formatBid, isKtoL } = getBudgetUnits(tournament);
     const [countdownTimer, setCountdownTimer] = useState<{ timeLeft: number } | null>(null);
     const [lastSoldPlayer, setLastSoldPlayer] = useState<any>(null);
     const [notice, setNotice] = useState<string | null>(null);
@@ -199,7 +199,7 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
         socket.on('timer_cancelled', (data?: any) => {
             setCountdownTimer(null);
             if (data?.reason === 'new_bid') {
-                showNotice(`Final call cancelled by new bid: ₹${data.amount}${smallUnit}!`);
+                showNotice(`Final call cancelled by new bid: ${formatPrice(data.amount)}!`);
             } else {
                 showNotice('10s Timer cancelled.');
             }
@@ -1170,16 +1170,16 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                                             <Text style={styles.poolPlayerName} numberOfLines={1}>{p.name}</Text>
                                             {p.status === 'sold' ? (
                                                 <Text style={[styles.poolPlayerMeta, { color: '#15803d', fontWeight: '800' }]} numberOfLines={1}>
-                                                    {p.category} • Sold ₹{p.soldPrice || p.sold_price || p.currentBid || p.basePrice}{smallUnit} (Base ₹{p.basePrice}{smallUnit})
+                                                    {p.category} • Sold {formatPrice(p.soldPrice || p.sold_price || p.currentBid || p.basePrice)} (Base {formatPrice(p.basePrice)})
                                                 </Text>
                                             ) : (
                                                 <Text style={styles.poolPlayerMeta} numberOfLines={1}>
-                                                    {p.category} • Base ₹{p.basePrice}{smallUnit}
+                                                    {p.category} • Base {formatPrice(p.basePrice)}
                                                 </Text>
                                             )}
                                             {p.status === 'sold' && (
                                                 <Text style={styles.poolPlayerSoldInfo} numberOfLines={1}>
-                                                    Sold to {soldTeam?.name || 'Team'} • ₹{p.soldPrice || p.sold_price || p.currentBid || p.basePrice}{smallUnit}
+                                                    Sold to {soldTeam?.name || 'Team'} • {formatPrice(p.soldPrice || p.sold_price || p.currentBid || p.basePrice)}
                                                 </Text>
                                             )}
                                         </View>
@@ -1199,7 +1199,7 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                                                     p.status === 'unsold' ? { color: '#dc2626' } :
                                                     isPassed ? { color: '#b45309' } : { color: '#475569' }
                                                 ]}>
-                                                    {isCurrent ? 'LIVE' : p.status === 'sold' ? `SOLD (₹${p.soldPrice || p.sold_price || p.currentBid || p.basePrice}${smallUnit})` : isPassed ? 'PASSED' : (p.status || 'pending').toUpperCase()}
+                                                    {isCurrent ? 'LIVE' : p.status === 'sold' ? `SOLD (${formatPrice(p.soldPrice || p.sold_price || p.currentBid || p.basePrice)})` : isPassed ? 'PASSED' : (p.status || 'pending').toUpperCase()}
                                                 </Text>
                                             </View>
 
@@ -1348,7 +1348,7 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                                                         <View style={{ flex: 1, marginRight: 6 }}>
                                                             <Text style={{ fontSize: 13, fontWeight: '800', color: '#0f172a' }} numberOfLines={1}>{p.name}</Text>
                                                             <Text style={{ fontSize: 10, color: '#64748b' }}>
-                                                                {p.category} • ₹{p.basePrice || slot.basePrice || 0}{smallUnit}
+                                                                {p.category} • {formatPrice(p.basePrice || slot.basePrice || 0)}
                                                             </Text>
                                                         </View>
                                                         <View style={{ alignItems: 'flex-end', gap: 2 }}>
@@ -1358,7 +1358,7 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                                                                 </View>
                                                             ) : p.status === 'sold' ? (
                                                                 <Text style={{ fontSize: 10, fontWeight: '800', color: '#16a34a' }}>
-                                                                    SOLD ₹{p.soldPrice || p.sold_price || p.currentBid || p.basePrice}{smallUnit}
+                                                                    SOLD {formatPrice(p.soldPrice || p.sold_price || p.currentBid || p.basePrice)}
                                                                 </Text>
                                                             ) : (
                                                                 <TouchableOpacity
@@ -1525,7 +1525,7 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                                     <Text style={styles.categoryText}>{currentPlayer.category}</Text>
                                 </View>
                                 <View style={styles.baseBadge}>
-                                    <Text style={styles.baseText}>Base: ₹{currentPlayer.basePrice}{smallUnit}</Text>
+                                    <Text style={styles.baseText}>Base: {formatPrice(currentPlayer.basePrice)}</Text>
                                 </View>
                             </View>
 
@@ -1585,7 +1585,12 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                         {/* Bid Status */}
                         <View style={styles.bidBox}>
                             <Text style={styles.bidBoxLabel}>ACTIVE BID AMOUNT</Text>
-                            <Text style={styles.bidBoxAmount}>₹ {currentBid} <Text style={styles.bidBoxUnit}>{smallUnit}</Text></Text>
+                            {(() => {
+                                const { amount, unit } = formatPriceParts(currentBid);
+                                return (
+                                    <Text style={styles.bidBoxAmount}>₹ {amount} <Text style={styles.bidBoxUnit}>{unit}</Text></Text>
+                                );
+                            })()}
                             {leadTeam ? (
                                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 4 }}>
                                     <SafeImage
@@ -1630,7 +1635,7 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                                 >
                                     <Gavel size={16} color="#ffffff" />
                                     <Text style={styles.sellBtnText}>
-                                        🔨 Hammer Sold to {leadTeam.name} (₹{currentBid} {smallUnit})
+                                        🔨 Hammer Sold to {leadTeam.name} ({formatPrice(currentBid)})
                                     </Text>
                                 </TouchableOpacity>
                             ) : (
@@ -1750,7 +1755,7 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                                         </View>
                                     </View>
                                     <Text style={{ fontSize: 11, fontWeight: '900', color: '#16a34a' }}>
-                                        ₹{b.amount} {smallUnit}
+                                        {formatPrice(b.amount)}
                                     </Text>
                                 </View>
                             ))}
@@ -1862,7 +1867,7 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                             <View key={p._id || idx} style={styles.unsoldRow}>
                                 <View style={{ flex: 1 }}>
                                     <Text style={styles.unsoldPlayerName}>{p.name}</Text>
-                                    <Text style={styles.unsoldPlayerSub}>{p.category} • Base ₹{p.basePrice}{smallUnit}</Text>
+                                    <Text style={styles.unsoldPlayerSub}>{p.category} • Base {formatPrice(p.basePrice)}</Text>
                                 </View>
                                 <TouchableOpacity
                                     style={styles.reAuctionBtn}
@@ -2332,7 +2337,7 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                                     {announcementModal.player?.name}
                                 </Text>
                                 <Text style={{ fontSize: 12, fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: 16 }}>
-                                    {announcementModal.player?.category} • Base ₹{announcementModal.player?.basePrice} {smallUnit}
+                                    {announcementModal.player?.category} • Base {formatPrice(announcementModal.player?.basePrice)}
                                 </Text>
 
                                 {announcementModal.type === 'sold' ? (

@@ -142,6 +142,29 @@ export const formatCurrencyPrice = (amount: any, budgetScale: 'K_TO_L' | 'L_TO_C
     return `₹${formatCurrencyAmount(amount, budgetScale)}`;
 };
 
+export interface PriceParts {
+    amount: string;
+    unit: string;
+    priceString: string;
+}
+
+export const formatCurrencyPriceParts = (amount: any, budgetScale: 'K_TO_L' | 'L_TO_CR' = 'L_TO_CR'): PriceParts => {
+    const formatted = formatCurrencyAmount(amount, budgetScale);
+    const spaceIdx = formatted.lastIndexOf(' ');
+    if (spaceIdx !== -1) {
+        return {
+            amount: formatted.substring(0, spaceIdx),
+            unit: formatted.substring(spaceIdx + 1),
+            priceString: `₹${formatted}`
+        };
+    }
+    return {
+        amount: formatted,
+        unit: '',
+        priceString: `₹${formatted}`
+    };
+};
+
 export interface BudgetUnits {
     isKtoL: boolean;
     scale: 'K_TO_L' | 'L_TO_CR';
@@ -153,6 +176,7 @@ export interface BudgetUnits {
     formatSmall: (val: any) => string;
     formatAmount: (amount: any) => string;
     formatPrice: (amount: any) => string;
+    formatPriceParts: (amount: any) => PriceParts;
     formatBid: (amount: any) => string;
 }
 
@@ -164,6 +188,7 @@ export const getBudgetUnits = (tournament: any): BudgetUnits => {
 
     const formatAmount = (amount: any) => formatCurrencyAmount(amount, scale);
     const formatPrice = (amount: any) => `₹${formatAmount(amount)}`;
+    const formatPriceParts = (amount: any) => formatCurrencyPriceParts(amount, scale);
 
     return {
         isKtoL,
@@ -176,6 +201,7 @@ export const getBudgetUnits = (tournament: any): BudgetUnits => {
         formatSmall: (val: any) => `₹${val || 0}${smallUnit}`,
         formatAmount,
         formatPrice,
+        formatPriceParts,
         formatBid: (amount: any) => formatPrice(amount)
     };
 };

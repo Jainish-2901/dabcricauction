@@ -85,7 +85,7 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
     const [leadTeam, setLeadTeam] = useState<any>(null);
     const [biddingState, setBiddingState] = useState<'active' | 'paused' | 'break' | 'stopped'>('active');
     const [tournament, setTournament] = useState<any>(null);
-    const { largeUnit, smallUnit, formatAmount, formatPrice, formatBid, isKtoL } = getBudgetUnits(tournament);
+    const { largeUnit, smallUnit, formatAmount, formatPrice, formatPriceParts, formatBid, isKtoL } = getBudgetUnits(tournament);
     const [slots, setSlots] = useState<any[]>([]);
     const [countdownTimer, setCountdownTimer] = useState<{ timeLeft: number } | null>(null);
     const [squad, setSquad] = useState<Player[]>([]);
@@ -199,7 +199,7 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
         socket.on('timer_cancelled', (data?: any) => {
             setCountdownTimer(null);
             if (data?.reason === 'new_bid') {
-                showNotice(`Timer cancelled by new bid: ₹${data.amount}${smallUnit}!`);
+                showNotice(`Timer cancelled by new bid: ${formatPrice(data.amount)}!`);
             } else {
                 showNotice('Timer cancelled.');
             }
@@ -707,7 +707,7 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
                                         <Text style={styles.categoryBadgeText}>{currentPlayer.category}</Text>
                                     </View>
                                     <View style={styles.basePriceBadge}>
-                                        <Text style={styles.basePriceText}>Base: ₹{currentPlayer.basePrice} {smallUnit}</Text>
+                                        <Text style={styles.basePriceText}>Base: {formatPrice(currentPlayer.basePrice)}</Text>
                                     </View>
                                 </View>
 
@@ -728,9 +728,14 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
                             {/* Current Highest Bid Section */}
                             <View style={[styles.bidDisplay, isLeading ? styles.bidDisplayLeading : styles.bidDisplayStandard]}>
                                 <Text style={styles.bidDisplayLabel}>CURRENT HIGHEST BID</Text>
-                                <Text style={[styles.bidAmount, isLeading ? styles.bidAmountLeading : styles.bidAmountStandard]}>
-                                    ₹ {currentBid} <Text style={styles.bidUnit}>{smallUnit}</Text>
-                                </Text>
+                                {(() => {
+                                    const { amount, unit } = formatPriceParts(currentBid);
+                                    return (
+                                        <Text style={[styles.bidAmount, isLeading ? styles.bidAmountLeading : styles.bidAmountStandard]}>
+                                            ₹ {amount} <Text style={styles.bidUnit}>{unit}</Text>
+                                        </Text>
+                                    );
+                                })()}
                                 {leadTeam ? (
                                     <View style={styles.leaderRow}>
                                         <View style={[styles.leaderDot, isLeading && styles.leaderDotActive]} />
@@ -769,7 +774,7 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
                                             {isLeading ? 'YOU HOLD WINNING BID' : !leadTeam ? 'OPEN AT BASE PRICE' : 'SMASH HAMMER TO BID'}
                                         </Text>
                                         <Text style={[styles.hammerMainText, isLeading && styles.hammerMainTextLeading]}>
-                                            {isLeading ? `Leading at ₹${currentBid} ${smallUnit}` : !leadTeam ? `HAMMER OPENING: ₹${nextBidAmount} ${smallUnit}` : `HAMMER BID: ₹${nextBidAmount} ${smallUnit}`}
+                                            {isLeading ? `Leading at ${formatPrice(currentBid)}` : !leadTeam ? `HAMMER OPENING: ${formatPrice(nextBidAmount)}` : `HAMMER BID: ${formatPrice(nextBidAmount)}`}
                                         </Text>
                                     </View>
                                     {!isLeading && (
@@ -856,7 +861,7 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
                                                 </View>
                                             </View>
                                             <Text style={{ fontSize: 11, fontWeight: '900', color: '#16a34a' }}>
-                                                ₹{b.amount} {smallUnit}
+                                                {formatPrice(b.amount)}
                                             </Text>
                                         </View>
                                     );
@@ -1162,10 +1167,10 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
                                                             </Text>
                                                         </View>
                                                         <View style={{ alignItems: 'flex-end' }}>
-                                                            <Text style={{ fontSize: 11, fontWeight: '700', color: '#475569' }}>₹{player.basePrice || slot.basePrice || 0} {smallUnit}</Text>
+                                                            <Text style={{ fontSize: 11, fontWeight: '700', color: '#475569' }}>{formatPrice(player.basePrice || slot.basePrice || 0)}</Text>
                                                             {player.status === 'sold' ? (
                                                                 <Text style={{ fontSize: 10, fontWeight: '800', color: '#16a34a' }}>
-                                                                    SOLD: ₹{player.soldPrice || player.sold_price || player.currentBid || 0}{smallUnit} {buyer?.shortName ? `(${buyer.shortName})` : ''}
+                                                                    SOLD: {formatPrice(player.soldPrice || player.sold_price || player.currentBid || 0)} {buyer?.shortName ? `(${buyer.shortName})` : ''}
                                                                 </Text>
                                                             ) : isCur ? (
                                                                 <Text style={{ fontSize: 10, fontWeight: '900', color: '#7e22ce' }}>LIVE NOW</Text>
@@ -1272,7 +1277,7 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
                                         </Text>
                                     </View>
                                     <View style={{ alignItems: 'flex-end' }}>
-                                        <Text style={[styles.squadPrice, { color: '#0f172a' }]}>Base: ₹{player.basePrice} {smallUnit}</Text>
+                                        <Text style={[styles.squadPrice, { color: '#0f172a' }]}>Base: {formatPrice(player.basePrice)}</Text>
                                         <Text style={{ fontSize: 10, color: '#d97706', fontWeight: 'bold' }}>Unsold</Text>
                                     </View>
                                 </View>
@@ -1471,7 +1476,7 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
                                     {announcementModal.player?.name}
                                 </Text>
                                 <Text style={{ fontSize: 12, fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: 16 }}>
-                                    {announcementModal.player?.category} • Base ₹{announcementModal.player?.basePrice} {smallUnit}
+                                    {announcementModal.player?.category} • Base {formatPrice(announcementModal.player?.basePrice)}
                                 </Text>
 
                                 {announcementModal.type === 'sold' ? (

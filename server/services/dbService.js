@@ -1196,7 +1196,39 @@ const db = {
 
     async getTournamentById(id) {
         const state = readData();
-        return state.tournaments.find(t => t._id === id);
+        let tourney = state.tournaments.find(t => t._id === id || t.id === id);
+        if (!tourney && supabase) {
+            try {
+                const { data } = await supabase.from('tournaments').select('*').eq('_id', id).maybeSingle();
+                if (data) {
+                    const scale = data.budget_scale || (data.description && data.description.includes('SCALE:K_TO_L') ? 'K_TO_L' : (data.description && data.description.includes('SCALE:L_TO_CR') ? 'L_TO_CR' : 'L_TO_CR'));
+                    const cleanDesc = data.description ? data.description.replace(/\[SCALE:[^\]]+\]\s*/g, '').trim() : '';
+                    tourney = {
+                        _id: data._id,
+                        name: data.name,
+                        status: data.status,
+                        auctionType: data.auction_type,
+                        biddingState: data.bidding_state,
+                        squadSizeLimit: data.squad_size_limit,
+                        startDate: data.start_date,
+                        time: data.time,
+                        description: cleanDesc,
+                        logo: data.logo,
+                        budgetScale: scale,
+                        activeSlotId: data.active_slot_id,
+                        slotDrawMode: data.slot_draw_mode || 'order',
+                        currentBiddingPlayerId: data.current_bidding_player_id,
+                        bidIncrementRules: data.bid_increment_rules || [],
+                        registrationOpen: data.registration_open !== false
+                    };
+                    state.tournaments.push(tourney);
+                    writeData(state);
+                }
+            } catch (err) {
+                console.warn('Fallback getTournamentById error:', err.message);
+            }
+        }
+        return tourney;
     },
 
     async createTournament(data) {
@@ -1283,7 +1315,87 @@ const db = {
 
     async getTeamById(id) {
         const state = readData();
-        return state.teams.find(t => t._id === id);
+        let team = state.teams.find(t => t._id === id || t.id === id);
+        if (!team && supabase) {
+            try {
+                const { data } = await supabase.from('teams').select('*').eq('_id', id).maybeSingle();
+                if (data) {
+                    team = {
+                        _id: data._id,
+                        tournamentId: data.tournament_id,
+                        name: data.name,
+                        shortName: data.short_name,
+                        logo: data.logo || '',
+                        budget: Number(data.budget) || 100,
+                        spent: Number(data.spent) || 0,
+                        isOwnerCaptain: Boolean(data.is_owner_captain),
+                        captainName: data.captain_name || '',
+                        captainPrice: Number(data.captain_price) || 0,
+                        captainPhoto: data.captain_photo || '',
+                        captainPlayerId: data.captain_player_id || null,
+                        players: data.players || []
+                    };
+                    state.teams.push(team);
+                    writeData(state);
+                }
+            } catch (err) {
+                console.warn('Fallback getTeamById error:', err.message);
+            }
+        }
+        return team;
+    },
+
+    async recalculateTeamSpent(teamId) {
+        const state = readData();
+        let team = state.teams.find(t => t._id === teamId || t.id === teamId);
+        if (!team && supabase) {
+            team = await this.getTeamById(teamId);
+        }
+        if (!team) return 0;
+
+        // Captain price in large units (1 Large Unit = 100 Small Units)
+        const captainPrice = team.isOwnerCaptain ? (Number(team.captainPrice) || 0) : 0;
+        const captainFeeInLarge = Number((captainPrice / 100).toFixed(2));
+
+        // Get all sold players belonging to this team
+        const teamPlayerIds = new Set((team.players || []).map(p => typeof p === 'object' ? (p._id || p.id) : p));
+        const soldPlayers = (state.players || []).filter(p => {
+            const pId = p._id || p.id;
+            const belongs = p.soldToTeamId === teamId || teamPlayerIds.has(pId);
+            const isNotCaptain = !p.isCaptain && !String(pId || '').startsWith('pl_cap_');
+            return belongs && isNotCaptain && p.status === 'sold';
+        });
+
+        const playersTotalInLarge = soldPlayers.reduce((acc, p) => {
+            const price = Number(p.soldPrice || p.sold_price || p.currentBid || 0);
+            return acc + (price / 100);
+        }, 0);
+
+        const totalSpent = Number((captainFeeInLarge + playersTotalInLarge).toFixed(2));
+        team.spent = totalSpent;
+
+        // Merge player IDs
+        const allPlayerIds = Array.from(new Set([...soldPlayers.map(p => p._id), ...Array.from(teamPlayerIds)]));
+        team.players = allPlayerIds;
+
+        const idx = state.teams.findIndex(t => t._id === team._id);
+        if (idx !== -1) {
+            state.teams[idx] = team;
+        }
+        writeData(state);
+
+        if (supabase) {
+            try {
+                await supabase.from('teams').update({
+                    spent: totalSpent,
+                    players: team.players,
+                    updated_at: new Date().toISOString()
+                }).eq('_id', team._id);
+            } catch (e) {
+                console.error('Supabase recalculateTeamSpent error:', e.message);
+            }
+        }
+        return totalSpent;
     },
 
     async createTeam(data) {
@@ -1360,8 +1472,8 @@ const db = {
                 }
             }
 
-            // Recalculate spent if captain fee changed
-            if (update.isOwnerCaptain !== undefined || update.captainPrice !== undefined) {
+            // Recalculate spent if captain fee changed AND caller did not explicitly provide spent
+            if ((update.isOwnerCaptain !== undefined || update.captainPrice !== undefined) && update.spent === undefined) {
                 const isOwnerCaptain = update.isOwnerCaptain !== undefined ? update.isOwnerCaptain : current.isOwnerCaptain;
                 const captainPrice = isOwnerCaptain ? (Number(update.captainPrice ?? current.captainPrice) || 0) : 0;
 
@@ -1424,7 +1536,42 @@ const db = {
 
     async getPlayerById(id) {
         const state = readData();
-        const player = state.players.find(p => p._id === id);
+        let player = state.players.find(p => p._id === id || p.id === id);
+        if (!player && supabase) {
+            try {
+                const { data } = await supabase.from('players').select('*').eq('_id', id).maybeSingle();
+                if (data) {
+                    const sPrice = Number(data.sold_price) > 0 ? Number(data.sold_price) : (data.status === 'sold' && Number(data.current_bid) > 0 ? Number(data.current_bid) : (Number(data.sold_price) || 0));
+                    player = {
+                        _id: data._id,
+                        tournamentId: data.tournament_id,
+                        slotId: data.slot_id,
+                        name: data.name,
+                        category: data.category,
+                        battingStyle: data.batting_style,
+                        bowlingStyle: data.bowling_style,
+                        basePrice: Number(data.base_price) || 0,
+                        currentBid: Number(data.current_bid) || 0,
+                        soldPrice: sPrice,
+                        sold_price: sPrice,
+                        status: data.status,
+                        currentLeadTeamId: data.current_lead_team_id,
+                        soldToTeamId: data.sold_to_team_id,
+                        image: data.image,
+                        cricHeroesProfileUrl: data.cric_heroes_profile_url,
+                        mobile: data.mobile,
+                        age: data.age,
+                        stats: data.stats || {},
+                        isReAuction: data.is_re_auction,
+                        isCaptain: Boolean(data.is_captain) || String(data._id || '').startsWith('pl_cap_')
+                    };
+                    state.players.push(player);
+                    writeData(state);
+                }
+            } catch (err) {
+                console.warn('Fallback getPlayerById error:', err.message);
+            }
+        }
         if (player && player.status === 'sold' && (!player.soldPrice || Number(player.soldPrice) === 0)) {
             player.soldPrice = Number(player.currentBid) > 0 ? Number(player.currentBid) : (Number(player.basePrice) || 0);
         }
@@ -2119,11 +2266,6 @@ const db = {
         const soldPrice = Number(player.soldPrice || player.sold_price || player.currentBid || player.basePrice) || 0;
         const refundInLarge = Number((soldPrice / 100).toFixed(2));
 
-        if (team) {
-            team.spent = Number(Math.max(0, (team.spent || 0) - refundInLarge).toFixed(2));
-            team.players = (team.players || []).filter(id => id !== playerId && id !== String(player._id));
-        }
-
         const newStatus = targetStatus || 'unsold';
         player.status = newStatus;
         player.soldToTeamId = null;
@@ -2137,7 +2279,15 @@ const db = {
             state.bids = state.bids.filter(b => b.playerId !== playerId);
         }
 
+        if (team) {
+            team.players = (team.players || []).filter(id => id !== playerId && id !== String(player._id));
+        }
+
         writeData(state);
+
+        if (team) {
+            await this.recalculateTeamSpent(team._id);
+        }
 
         // Supabase cloud sync
         if (supabase) {
@@ -2197,22 +2347,6 @@ const db = {
             throw new Error(`Insufficient budget! ${team.name} only has ₹${remainingPurse} remaining in purse, but player price requires ₹${priceInLarge}.`);
         }
 
-        // If player was already sold to another team, remove from that team first
-        if (player.soldToTeamId && player.soldToTeamId !== team._id) {
-            const oldTeam = (state.teams || []).find(t => t._id === player.soldToTeamId);
-            if (oldTeam) {
-                const oldPrice = Number(player.soldPrice || player.currentBid || 0);
-                const oldPriceInLarge = Number((oldPrice / 100).toFixed(2));
-                oldTeam.spent = Number(Math.max(0, (oldTeam.spent || 0) - oldPriceInLarge).toFixed(2));
-                oldTeam.players = (oldTeam.players || []).filter(id => id !== playerId && id !== String(player._id));
-            }
-        }
-
-        // Update target team
-        team.spent = Number(((team.spent || 0) + priceInLarge).toFixed(2));
-        if (!team.players) team.players = [];
-        if (!team.players.includes(player._id)) team.players.push(player._id);
-
         // Update player
         player.status = 'sold';
         player.soldToTeamId = team._id;
@@ -2222,6 +2356,19 @@ const db = {
         player.currentBid = parsedSoldPrice;
         player.current_bid = parsedSoldPrice;
         player.currentLeadTeamId = team._id;
+
+        // If player was already sold to another team, remove from that team first
+        let oldTeam = null;
+        if (player.soldToTeamId && player.soldToTeamId !== team._id) {
+            oldTeam = (state.teams || []).find(t => t._id === player.soldToTeamId);
+            if (oldTeam) {
+                oldTeam.players = (oldTeam.players || []).filter(id => id !== playerId && id !== String(player._id));
+            }
+        }
+
+        // Update target team
+        if (!team.players) team.players = [];
+        if (!team.players.includes(player._id)) team.players.push(player._id);
 
         // If player was in re-auction unsold slot, restore slotId to original category slot
         if (player.slotId && (String(player.slotId).includes('slot_unsold_') || player.isReAuction)) {
@@ -2237,6 +2384,9 @@ const db = {
         }
 
         writeData(state);
+
+        await this.recalculateTeamSpent(team._id);
+        if (oldTeam) await this.recalculateTeamSpent(oldTeam._id);
 
         // Supabase cloud sync
         if (supabase) {

@@ -52,7 +52,7 @@ export const SpectatorScreen: React.FC<SpectatorScreenProps> = ({
     const [leadTeam, setLeadTeam] = useState<any>(null);
     const [biddingState, setBiddingState] = useState<'active' | 'paused' | 'break' | 'stopped'>('active');
     const [tournament, setTournament] = useState<any>(null);
-    const { largeUnit, smallUnit, formatAmount, formatPrice, formatBid, isKtoL } = getBudgetUnits(tournament);
+    const { largeUnit, smallUnit, formatAmount, formatPrice, formatPriceParts, formatBid, isKtoL } = getBudgetUnits(tournament);
     const [teams, setTeams] = useState<any[]>([]);
     const [allPlayers, setAllPlayers] = useState<any[]>([]);
     const [slots, setSlots] = useState<any[]>([]);
@@ -496,7 +496,7 @@ export const SpectatorScreen: React.FC<SpectatorScreenProps> = ({
                                         <Text style={styles.catBadgeTxt}>{currentPlayer.category}</Text>
                                     </View>
                                     <View style={styles.baseBadge}>
-                                        <Text style={styles.baseBadgeTxt}>Base: ₹{currentPlayer.basePrice}{smallUnit}</Text>
+                                        <Text style={styles.baseBadgeTxt}>Base: {formatPrice(currentPlayer.basePrice)}</Text>
                                     </View>
                                 </View>
 
@@ -517,7 +517,12 @@ export const SpectatorScreen: React.FC<SpectatorScreenProps> = ({
                             {/* Bid Highlight */}
                             <View style={styles.bidHighlight}>
                                 <Text style={styles.bidHighlightLabel}>CURRENT HIGHEST BID</Text>
-                                <Text style={styles.bidHighlightAmount}>₹ {currentBid} <Text style={styles.bidHighlightUnit}>{smallUnit}</Text></Text>
+                                {(() => {
+                                    const { amount, unit } = formatPriceParts(currentBid);
+                                    return (
+                                        <Text style={styles.bidHighlightAmount}>₹ {amount} <Text style={styles.bidHighlightUnit}>{unit}</Text></Text>
+                                    );
+                                })()}
                                 {leadTeam ? (
                                     <Text style={styles.leaderTxt}>
                                         Leading: <Text style={styles.leaderName}>{leadTeam.name}</Text>
@@ -556,7 +561,7 @@ export const SpectatorScreen: React.FC<SpectatorScreenProps> = ({
                                         <Text style={styles.streamTeamName}>{b.team?.name || 'Competitor'}</Text>
                                         <Text style={styles.streamTime}>{b.time?.toLocaleTimeString()}</Text>
                                     </View>
-                                    <Text style={styles.streamAmount}>₹{b.amount} {smallUnit}</Text>
+                                    <Text style={styles.streamAmount}>{formatPrice(b.amount)}</Text>
                                 </View>
                             ))
                         )}
@@ -755,10 +760,10 @@ export const SpectatorScreen: React.FC<SpectatorScreenProps> = ({
                                                             </Text>
                                                         </View>
                                                         <View style={{ alignItems: 'flex-end' }}>
-                                                            <Text style={{ fontSize: 11, fontWeight: '700', color: '#475569' }}>₹{player.basePrice || slot.basePrice || 0} {smallUnit}</Text>
+                                                            <Text style={{ fontSize: 11, fontWeight: '700', color: '#475569' }}>{formatPrice(player.basePrice || slot.basePrice || 0)}</Text>
                                                             {player.status === 'sold' ? (
                                                                 <Text style={{ fontSize: 10, fontWeight: '800', color: '#16a34a' }}>
-                                                                    SOLD: ₹{player.soldPrice || player.sold_price || player.currentBid || 0} {smallUnit} {buyer?.shortName ? `(${buyer.shortName})` : ''}
+                                                                    SOLD: {formatPrice(player.soldPrice || player.sold_price || player.currentBid || 0)} {buyer?.shortName ? `(${buyer.shortName})` : ''}
                                                                 </Text>
                                                             ) : isCur ? (
                                                                 <Text style={{ fontSize: 10, fontWeight: '900', color: '#7e22ce' }}>LIVE NOW</Text>
@@ -805,9 +810,9 @@ export const SpectatorScreen: React.FC<SpectatorScreenProps> = ({
                                         </View>
                                         <View style={{ alignItems: 'flex-end' }}>
                                             <Text style={styles.rowSoldPrice}>
-                                                ₹{formatAmount(p.soldPrice || p.sold_price || p.currentBid || p.basePrice)}
+                                                {formatPrice(p.soldPrice || p.sold_price || p.currentBid || p.basePrice)}
                                             </Text>
-                                            <Text style={styles.rowBasePrice}>Base: ₹{p.basePrice}{smallUnit}</Text>
+                                            <Text style={styles.rowBasePrice}>Base: {formatPrice(p.basePrice)}</Text>
                                         </View>
                                     </View>
                                 );
@@ -839,7 +844,7 @@ export const SpectatorScreen: React.FC<SpectatorScreenProps> = ({
                                         </Text>
                                     </View>
                                     <View style={{ alignItems: 'flex-end' }}>
-                                        <Text style={[styles.rowSoldPrice, { color: '#0f172a' }]}>Base: ₹{p.basePrice} {smallUnit}</Text>
+                                        <Text style={[styles.rowSoldPrice, { color: '#0f172a' }]}>Base: {formatPrice(p.basePrice)}</Text>
                                         <Text style={{ fontSize: 10, color: '#d97706', fontWeight: 'bold' }}>Unsold</Text>
                                     </View>
                                 </View>
@@ -1041,7 +1046,7 @@ export const SpectatorScreen: React.FC<SpectatorScreenProps> = ({
                                     {announcementModal.player?.name}
                                 </Text>
                                 <Text style={{ fontSize: 12, fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: 16 }}>
-                                    {announcementModal.player?.category} • Base ₹{announcementModal.player?.basePrice} {smallUnit}
+                                    {announcementModal.player?.category} • Base {formatPrice(announcementModal.player?.basePrice)}
                                 </Text>
 
                                 {announcementModal.type === 'sold' ? (

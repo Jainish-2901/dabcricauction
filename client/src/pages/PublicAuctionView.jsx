@@ -12,7 +12,7 @@ import SafeImage from '../components/SafeImage';
 const PublicAuctionView = () => {
     const { tournamentId } = useParams();
     const [tournament, setTournament] = useState(null);
-    const { largeUnit, smallUnit, formatAmount, formatPrice, formatBid } = getBudgetUnits(tournament);
+    const { largeUnit, smallUnit, formatAmount, formatPrice, formatPriceParts, formatBid } = getBudgetUnits(tournament);
     const [teams, setTeams] = useState([]);
     const [allPlayers, setAllPlayers] = useState([]);
     const [slots, setSlots] = useState([]);
@@ -489,7 +489,7 @@ const PublicAuctionView = () => {
                                                 <div>
                                                     <span className="text-xs font-black uppercase tracking-wider block">FINAL CALL — GOING ONCE, GOING TWICE...</span>
                                                     <span className="text-xs text-amber-100 font-semibold">
-                                                        {currentLeadTeam ? `Current Lead: ₹${currentBid}${smallUnit} by ${currentLeadTeam.name}` : 'Awaiting last-second bid!'}
+                                                        {currentLeadTeam ? `Current Lead: ${formatPrice(currentBid)} by ${currentLeadTeam.name}` : 'Awaiting last-second bid!'}
                                                     </span>
                                                 </div>
                                             </div>
@@ -528,7 +528,7 @@ const PublicAuctionView = () => {
                                             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4 mt-5">
                                                 <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
                                                     <div className="text-slate-500 text-[10px] uppercase font-bold tracking-wider mb-0.5">Base Price</div>
-                                                    <div className="text-base font-black text-slate-800">₹{currentPlayer.basePrice} {smallUnit}</div>
+                                                    <div className="text-base font-black text-slate-800">{formatPrice(currentPlayer.basePrice)}</div>
                                                 </div>
                                                 <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
                                                     <div className="text-slate-500 text-[10px] uppercase font-bold tracking-wider mb-0.5">Role</div>
@@ -577,7 +577,14 @@ const PublicAuctionView = () => {
                                             <div>
                                                 <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mb-1">Current Highest Bid</p>
                                                 <div className="text-6xl font-black text-emerald-700 tabular-nums tracking-tight">
-                                                    ₹{currentBid} <span className="text-2xl text-slate-500 font-semibold">{smallUnit}</span>
+                                                    {(() => {
+                                                        const { amount, unit } = formatPriceParts(currentBid);
+                                                        return (
+                                                            <>
+                                                                ₹{amount} <span className="text-2xl text-slate-500 font-semibold">{unit}</span>
+                                                            </>
+                                                        );
+                                                    })()}
                                                 </div>
                                             </div>
 
@@ -660,7 +667,7 @@ const PublicAuctionView = () => {
                                                     <span className="text-[10px] text-slate-400 font-semibold">{bid.time.toLocaleTimeString()}</span>
                                                 </div>
                                             </div>
-                                            <span className="font-black text-emerald-700 text-xs">₹{bid.amount} {smallUnit}</span>
+                                            <span className="font-black text-emerald-700 text-xs">{formatPrice(bid.amount)}</span>
                                         </div>
                                     ))}
                                 </div>
@@ -959,13 +966,13 @@ const PublicAuctionView = () => {
                                                                                 </div>
                                                                             </td>
                                                                             <td className="p-3 text-right font-bold text-slate-700">
-                                                                                ₹{p.basePrice || slot.basePrice || 0} {smallUnit}
+                                                                                {formatPrice(p.basePrice || slot.basePrice || 0)}
                                                                             </td>
                                                                             <td className="p-3 text-right">
                                                                                 {p.status === 'sold' ? (
                                                                                     <div>
                                                                                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-black text-[11px]">
-                                                                                            SOLD ₹{p.soldPrice || p.sold_price || p.currentBid || 0} {smallUnit}
+                                                                                            SOLD {formatPrice(p.soldPrice || p.sold_price || p.currentBid || 0)}
                                                                                         </span>
                                                                                         {buyerTeam && (
                                                                                             <span className="block text-[10px] font-bold text-emerald-700 mt-0.5">
@@ -975,7 +982,7 @@ const PublicAuctionView = () => {
                                                                                     </div>
                                                                                 ) : isCurrent ? (
                                                                                     <span className="px-2 py-0.5 rounded-md bg-purple-100 text-purple-800 font-black text-[11px]">
-                                                                                        BIDDING: ₹{currentBid} {smallUnit}
+                                                                                        BIDDING: {formatPrice(currentBid)}
                                                                                     </span>
                                                                                 ) : p.status === 'unsold' ? (
                                                                                     <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 font-bold text-[11px]">
@@ -1051,7 +1058,7 @@ const PublicAuctionView = () => {
                                                 <span className="font-bold text-slate-700 block">{p.category}</span>
                                                 <span className="text-[11px] text-slate-500">{p.battingStyle || '-'}{p.bowlingStyle ? ` • ${p.bowlingStyle}` : ''}</span>
                                             </td>
-                                            <td className="p-3.5 font-bold text-slate-600">₹{p.basePrice} {smallUnit}</td>
+                                            <td className="p-3.5 font-bold text-slate-600">{formatPrice(p.basePrice)}</td>
                                             <td className="p-3.5 font-bold text-blue-700">
                                                 <div className="flex items-center gap-2">
                                                     <div className="w-6 h-6 rounded-md bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center text-[10px] font-black text-slate-700">
@@ -1119,7 +1126,7 @@ const PublicAuctionView = () => {
                                         <td className="p-3.5 text-slate-500">
                                             {p.battingStyle || '-'}{p.bowlingStyle ? ` • ${p.bowlingStyle}` : ''}
                                         </td>
-                                        <td className="p-3.5 text-right font-black text-slate-900">₹{p.basePrice} {smallUnit}</td>
+                                        <td className="p-3.5 text-right font-black text-slate-900">{formatPrice(p.basePrice)}</td>
                                     </tr>
                                 )) : (
                                     <tr>
@@ -1345,7 +1352,7 @@ const PublicAuctionView = () => {
 
                                     <h3 className="text-2xl font-black text-slate-900">{announcementModal.player?.name}</h3>
                                     <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mt-0.5">
-                                        {announcementModal.player?.category} • Base ₹{announcementModal.player?.basePrice} {smallUnit}
+                                        {announcementModal.player?.category} • Base {formatPrice(announcementModal.player?.basePrice)}
                                     </p>
 
                                     {/* Winning Team & Price Card */}
@@ -1399,7 +1406,7 @@ const PublicAuctionView = () => {
 
                                     <h3 className="text-2xl font-black text-slate-900">{announcementModal.player?.name}</h3>
                                     <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mt-0.5">
-                                        {announcementModal.player?.category} • Base ₹{announcementModal.player?.basePrice} {smallUnit}
+                                        {announcementModal.player?.category} • Base {formatPrice(announcementModal.player?.basePrice)}
                                     </p>
 
                                     <div className="mt-5 p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-bold">
