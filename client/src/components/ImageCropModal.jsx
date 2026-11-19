@@ -6,10 +6,12 @@ const ImageCropModal = ({
     isOpen,
     imageSrc,
     onCropComplete,
+    onCropDone,
     onClose,
     title = 'Crop Image (1:1 Square)',
     outputSize = 512
 }) => {
+    const handleCropCallback = onCropComplete || onCropDone;
     const [zoom, setZoom] = useState(1);
     const [rotation, setRotation] = useState(0);
     const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -124,14 +126,25 @@ const ImageCropModal = ({
 
         ctx.restore();
 
+        let croppedBase64 = imageSrc;
         try {
-            const croppedBase64 = canvas.toDataURL('image/jpeg', 0.88);
-            onCropComplete(croppedBase64);
+            croppedBase64 = canvas.toDataURL('image/jpeg', 0.88);
         } catch (e) {
             console.warn('Canvas export failed, using original source:', e);
-            onCropComplete(imageSrc);
+            croppedBase64 = imageSrc;
         }
-        onClose();
+
+        try {
+            if (typeof handleCropCallback === 'function') {
+                handleCropCallback(croppedBase64);
+            }
+        } catch (err) {
+            console.error('Error invoking crop callback:', err);
+        }
+
+        if (typeof onClose === 'function') {
+            onClose();
+        }
     };
 
     if (!isOpen || !imageSrc) return null;

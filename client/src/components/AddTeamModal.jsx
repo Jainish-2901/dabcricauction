@@ -7,7 +7,7 @@ import toast from '../lib/toast';
 import SafeImage from './SafeImage';
 
 const AddTeamModal = ({ isOpen, onClose, tournamentId, tournament = null, onAdded, initialData = null, isEdit = false }) => {
-    const { largeUnit, smallUnit } = getBudgetUnits(tournament);
+    const { largeUnit, smallUnit, isKtoL } = getBudgetUnits(tournament);
     const defaultBudget = largeUnit === 'L' ? 10 : 100;
 
     const [formData, setFormData] = useState({

@@ -720,6 +720,7 @@ const CreateTournamentModal = ({ isOpen, onClose, onCreated, initialData = null,
                     imageSrc={cropImageSrc}
                     aspectRatio={1}
                     title="Crop Tournament Logo (1:1 Frame)"
+                    onCropComplete={handleCropDone}
                     onCropDone={handleCropDone}
                     onClose={() => {
                         setShowCropModal(false);
