@@ -13,7 +13,7 @@ import {
     Modal,
     TextInput
 } from 'react-native';
-import { Shield, Users, Pause, LogOut, CheckCircle2, AlertCircle, ArrowLeft, Timer, Coffee, Clock, Gavel, X, ChevronRight, Wallet, Radio, Trophy, Layers, Search, User } from 'lucide-react-native';
+import { Shield, Users, Pause, LogOut, CheckCircle2, AlertCircle, ArrowLeft, Timer, Coffee, Clock, Gavel, X, ChevronRight, Wallet, Radio, Trophy, Layers, Search, User, RotateCcw } from 'lucide-react-native';
 import socket from '../lib/socket';
 import { apiFetch } from '../lib/api';
 import { getBudgetUnits, getBidIncrement } from '../lib/currency';
@@ -529,6 +529,16 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
                         <Text style={styles.purseLabel}>PURSE LEFT</Text>
                         <Text style={styles.purseAmount}>₹ {remainingPurse} <Text style={styles.purseUnit}>{largeUnit}</Text></Text>
                     </View>
+                    <TouchableOpacity 
+                        onPress={() => {
+                            fetchTournament();
+                            toast.success('Refreshed', 'Auction state updated!');
+                        }} 
+                        style={[styles.iconButton, { backgroundColor: '#eff6ff', borderColor: '#bfdbfe' }]}
+                        accessibilityLabel="Refresh Data"
+                    >
+                        <RotateCcw size={16} color="#2563eb" />
+                    </TouchableOpacity>
                     {canSwitchRole && onSwitchRole && (
                         <TouchableOpacity onPress={onSwitchRole} style={styles.iconButton}>
                             <Shield size={16} color="#2563eb" />

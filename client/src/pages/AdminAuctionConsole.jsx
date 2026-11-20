@@ -9,6 +9,7 @@ import { useAuth } from '../context/AuthContext';
 import socket from '../socket';
 import { getBudgetUnits, getBidIncrement } from '../utils/currency';
 import SafeImage from '../components/SafeImage';
+import { exportTournamentSummaryCSVClient, exportTournamentPlayersCSVClient } from '../utils/csvExport';
 
 const AdminAuctionConsole = () => {
     const { user } = useAuth();
@@ -45,6 +46,12 @@ const AdminAuctionConsole = () => {
     const [directSellTargetPlayer, setDirectSellTargetPlayer] = useState(null);
     const [directSellTeamId, setDirectSellTeamId] = useState('');
     const [directSellPrice, setDirectSellPrice] = useState('');
+    const [isRefreshing, setIsRefreshing] = useState(false);
+
+    const currentPlayerRef = React.useRef(null);
+    useEffect(() => {
+        currentPlayerRef.current = currentPlayer;
+    }, [currentPlayer]);
 
     useEffect(() => {
         if (announcementModal) {
@@ -273,7 +280,8 @@ const AdminAuctionConsole = () => {
         setTimeout(() => setNotice(null), 4000);
     };
 
-    const fetchData = async () => {
+    const fetchData = async (isManualRefresh = false) => {
+        if (isManualRefresh) setIsRefreshing(true);
         try {
             const [tRes, pRes, teamRes, sRes, allTRes] = await Promise.all([
                 axios.get(`/api/tournaments/${tournamentId}`),
@@ -282,28 +290,61 @@ const AdminAuctionConsole = () => {
                 axios.get(`/api/tournaments/${tournamentId}/slots`).catch(() => ({ data: [] })),
                 axios.get('/api/tournaments').catch(() => ({ data: [] }))
             ]);
-            setTournament(tRes.data);
-            setPlayers(pRes.data);
-            setTeams(teamRes.data);
-            const slotList = sRes.data || [];
+
+            const tourneyData = tRes.data || {};
+            const playersList = Array.isArray(pRes.data) ? pRes.data : [];
+            const teamsList = Array.isArray(teamRes.data) ? teamRes.data : [];
+            const slotList = Array.isArray(sRes.data) ? sRes.data : [];
+
+            setTournament(tourneyData);
+            setPlayers(playersList);
+            setTeams(teamsList);
             setSlots(slotList);
 
-            const initialSlotId = tRes.data.activeSlotId || (slotList.length > 0 ? slotList[0]._id : null);
+            if (tourneyData.biddingState) setBiddingState(tourneyData.biddingState);
+            if (tourneyData.slotDrawMode) setSlotDrawMode(tourneyData.slotDrawMode);
+
+            const initialSlotId = tourneyData.activeSlotId || (slotList.length > 0 ? slotList[0]._id : null);
             setActiveSlotId(initialSlotId);
 
             if (Array.isArray(allTRes.data)) setAllTournaments(allTRes.data);
 
-            if (!currentPlayer) {
-                const pool = initialSlotId
-                    ? pRes.data.filter(p => p.slotId === initialSlotId && p.status === 'pending')
-                    : pRes.data.filter(p => p.status === 'pending');
-                const pending = pool[0] || pRes.data.find(p => p.status === 'pending');
-                if (pending) {
-                    selectPlayer(pending);
+            // 1. Check if there is already an active bidding player on the server
+            const activePlayerOnServer = (tourneyData.currentBiddingPlayerId && playersList.find(p => p._id === tourneyData.currentBiddingPlayerId || p.id === tourneyData.currentBiddingPlayerId))
+                || playersList.find(p => p.status === 'bidding');
+
+            if (activePlayerOnServer) {
+                // Restore active server bidding player without overriding or re-emitting select_player
+                setCurrentPlayer(activePlayerOnServer);
+                setCurrentBid(activePlayerOnServer.currentBid || activePlayerOnServer.basePrice || 20);
+                const lead = activePlayerOnServer.currentLeadTeamId ? teamsList.find(t => t._id === activePlayerOnServer.currentLeadTeamId || t.id === activePlayerOnServer.currentLeadTeamId) : null;
+                setWinningTeam(lead || null);
+                if (activePlayerOnServer._id) fetchBidsForPlayer(activePlayerOnServer._id);
+            } else if (currentPlayerRef.current) {
+                // If local state already had a player selected, refresh its live state without changing player
+                const refreshedCurrent = playersList.find(p => p._id === currentPlayerRef.current._id || p.id === currentPlayerRef.current._id);
+                if (refreshedCurrent && refreshedCurrent.status !== 'sold' && refreshedCurrent.status !== 'unsold') {
+                    setCurrentPlayer(refreshedCurrent);
+                    if (refreshedCurrent.currentBid) setCurrentBid(refreshedCurrent.currentBid);
+                    if (refreshedCurrent.currentLeadTeamId) {
+                        const lead = teamsList.find(t => t._id === refreshedCurrent.currentLeadTeamId || t.id === refreshedCurrent.currentLeadTeamId);
+                        setWinningTeam(lead || null);
+                    }
                 }
+            }
+            // CRITICAL: If no player is actively bidding, DO NOT automatically call selectPlayer(pending)
+            // on background fetch or reconnect! Doing so caused unexpected auto-switching of players!
+
+            if (isManualRefresh) {
+                showNotice('success', 'Auction data refreshed successfully!');
             }
         } catch (err) {
             console.error('Error fetching auction data:', err);
+            if (isManualRefresh) {
+                showNotice('error', 'Failed to refresh auction data: ' + err.message);
+            }
+        } finally {
+            if (isManualRefresh) setIsRefreshing(false);
         }
     };
 
@@ -660,48 +701,64 @@ const AdminAuctionConsole = () => {
     };
 
     const handleOpenDirectSellModal = (playerToSell = null) => {
-        const target = playerToSell || currentPlayer;
-        if (!target) {
-            showNotice('error', 'Please select a player to sell.');
-            return;
+        try {
+            const target = playerToSell || currentPlayer;
+            if (!target) {
+                showNotice('error', 'Please select a player to sell.');
+                return;
+            }
+            const validTeams = Array.isArray(teams) ? teams : [];
+            setDirectSellTargetPlayer(target);
+            setDirectSellPrice(String(target.basePrice ?? 20));
+            setDirectSellTeamId(winningTeam?._id || winningTeam?.id || (validTeams[0]?._id || validTeams[0]?.id || ''));
+            setShowDirectSellModal(true);
+        } catch (err) {
+            console.error('Error opening direct sell modal:', err);
+            showNotice('error', 'Could not open Direct Sell modal: ' + err.message);
         }
-        setDirectSellTargetPlayer(target);
-        setDirectSellPrice(target.basePrice || 20);
-        setDirectSellTeamId(winningTeam?._id || teams[0]?._id || '');
-        setShowDirectSellModal(true);
     };
 
     const handleConfirmDirectSell = (e) => {
         if (e) e.preventDefault();
-        if (!directSellTargetPlayer || !directSellTeamId) return;
-        const priceNum = Number(directSellPrice);
-        if (isNaN(priceNum) || priceNum < 0) {
-            showNotice('error', 'Please enter a valid price.');
-            return;
-        }
-
-        const team = teams.find(t => t._id === directSellTeamId);
-        const remainingPurse = Number(((Number(team?.budget) || 100) - (Number(team?.spent) || 0)).toFixed(2));
-        const priceInLarge = Number((priceNum / 100).toFixed(2));
-        if (team && priceInLarge > remainingPurse) {
-            showNotice('error', `Insufficient purse! ${team.name} only has ₹${remainingPurse} ${largeUnit} remaining.`);
-            return;
-        }
-
-        socket.emit('manual_sell_player', {
-            tournamentId,
-            playerId: directSellTargetPlayer._id,
-            teamId: directSellTeamId,
-            soldPrice: priceNum
-        }, (res) => {
-            if (res?.success) {
-                showNotice('success', `Directly sold ${directSellTargetPlayer.name} to ${team?.name} for ${formatPrice(priceNum)}!`);
-                setShowDirectSellModal(false);
-                setDirectSellTargetPlayer(null);
-            } else if (res?.error) {
-                showNotice('error', res.error);
+        try {
+            if (!directSellTargetPlayer || !directSellTeamId) {
+                showNotice('error', 'Please select a destination team.');
+                return;
             }
-        });
+            const priceNum = Number(directSellPrice);
+            if (isNaN(priceNum) || priceNum < 0) {
+                showNotice('error', 'Please enter a valid price.');
+                return;
+            }
+
+            const validTeams = Array.isArray(teams) ? teams : [];
+            const team = validTeams.find(t => t._id === directSellTeamId || t.id === directSellTeamId);
+            const remainingPurse = Number(((Number(team?.budget) || 100) - (Number(team?.spent) || 0)).toFixed(2));
+            const priceInLarge = Number((priceNum / 100).toFixed(2));
+            if (team && priceInLarge > remainingPurse) {
+                showNotice('error', `Insufficient purse! ${team.name} only has ₹${remainingPurse} ${largeUnit} remaining.`);
+                return;
+            }
+
+            socket.emit('manual_sell_player', {
+                tournamentId,
+                playerId: directSellTargetPlayer._id || directSellTargetPlayer.id,
+                teamId: directSellTeamId,
+                soldPrice: priceNum
+            }, (res) => {
+                if (res?.success) {
+                    showNotice('success', `Directly sold ${directSellTargetPlayer.name} to ${team?.name} for ${formatPrice(priceNum)}!`);
+                    setShowDirectSellModal(false);
+                    setDirectSellTargetPlayer(null);
+                    fetchData();
+                } else if (res?.error) {
+                    showNotice('error', res.error);
+                }
+            });
+        } catch (err) {
+            console.error('Error confirming direct sell:', err);
+            showNotice('error', 'Direct sell failed: ' + err.message);
+        }
     };
 
     const handleAdminTeamBid = (team, e) => {
@@ -928,6 +985,17 @@ const AdminAuctionConsole = () => {
                         <RotateCcw className="w-3.5 h-3.5 text-slate-600" /> Rollback Sale
                     </button>
 
+                    {/* In-Page Refresh Data Button */}
+                    <button
+                        onClick={() => fetchData(true)}
+                        disabled={isRefreshing}
+                        className="px-3.5 py-2 bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer disabled:opacity-60"
+                        title="Refresh auction data safely without browser reload"
+                    >
+                        <RotateCcw className={`w-3.5 h-3.5 text-blue-600 ${isRefreshing ? 'animate-spin' : ''}`} />
+                        <span>{isRefreshing ? 'Refreshing...' : 'Refresh Data'}</span>
+                    </button>
+
                     {/* Final End Auction Button */}
                     <button
                         onClick={handleEndAuction}
@@ -965,7 +1033,7 @@ const AdminAuctionConsole = () => {
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
                         <button
-                            onClick={() => window.open(`/api/tournaments/${tournamentId}/export-teams-summary-csv`, '_blank')}
+                            onClick={() => exportTournamentSummaryCSVClient(tournamentId, { tournament, teams, players })}
                             className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black rounded-xl shadow-md transition-all flex items-center gap-2 cursor-pointer"
                         >
                             <FileText className="w-4 h-4" /> Download Summary CSV
@@ -1284,7 +1352,7 @@ const AdminAuctionConsole = () => {
                             <span>{countdownTimer ? `Cancel 10s Timer (${countdownTimer.timeLeft}s)` : '⏱️ Final Call (10s Timer)'}</span>
                         </button>
 
-                        {tournament.auctionType === 'owner_driven' ? (
+                        {tournament?.auctionType === 'owner_driven' ? (
                             <div className="flex flex-wrap items-center gap-2">
                                 <button
                                     onClick={handleSellAtCurrentBid}
@@ -1304,15 +1372,24 @@ const AdminAuctionConsole = () => {
                                 </button>
                             </div>
                         ) : (
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
                                 <input
                                     type="number"
-                                    placeholder="Final Price (L)"
+                                    placeholder={`Final Price (${smallUnit})`}
                                     className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-slate-900 text-xs w-36 focus:border-blue-600 focus:outline-none"
                                     value={adminPrice}
                                     onChange={e => setAdminPrice(e.target.value)}
                                 />
-                                <span className="text-[11px] text-slate-500 hidden sm:inline">Select a team in sidebar</span>
+                                <button
+                                    type="button"
+                                    onClick={() => handleOpenDirectSellModal(currentPlayer)}
+                                    disabled={!currentPlayer}
+                                    className="px-4 py-2 bg-teal-600 hover:bg-teal-700 disabled:opacity-40 text-white rounded-xl font-bold shadow-sm transition-all flex items-center gap-1.5 text-xs cursor-pointer"
+                                    title="Directly sell/assign this player to any team at custom price"
+                                >
+                                    <Gavel className="w-3.5 h-3.5" /> Direct Sell...
+                                </button>
+                                <span className="text-[11px] text-slate-500 hidden sm:inline">or select a team in sidebar</span>
                             </div>
                         )}
 
@@ -1930,14 +2007,14 @@ const AdminAuctionConsole = () => {
                                 </p>
                             </div>
 
-                            {slotModalContext !== 'start' && slotModalContext !== 'completed' && (
-                                <button
-                                    onClick={() => setShowSlotSelectModal(false)}
-                                    className="p-2 bg-white/10 hover:bg-white/20 rounded-xl text-white transition-colors cursor-pointer"
-                                >
-                                    <X className="w-5 h-5" />
-                                </button>
-                            )}
+                            <button
+                                type="button"
+                                onClick={() => setShowSlotSelectModal(false)}
+                                className="p-2 bg-white/10 hover:bg-white/20 rounded-xl text-white transition-colors cursor-pointer shrink-0 ml-3"
+                                title="Close Modal"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
                         </div>
 
                         {/* Slots List */}
@@ -2193,14 +2270,13 @@ const AdminAuctionConsole = () => {
                             <span className="text-slate-500">
                                 Total {players.length} players registered in tournament
                             </span>
-                            {slotModalContext !== 'start' && slotModalContext !== 'completed' && (
-                                <button
-                                    onClick={() => setShowSlotSelectModal(false)}
-                                    className="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 rounded-xl font-bold transition-all cursor-pointer"
-                                >
-                                    Dismiss
-                                </button>
-                            )}
+                            <button
+                                type="button"
+                                onClick={() => setShowSlotSelectModal(false)}
+                                className="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 rounded-xl font-bold transition-all cursor-pointer"
+                            >
+                                Cancel / Close
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -2567,12 +2643,13 @@ const AdminAuctionConsole = () => {
                                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-emerald-500"
                                 >
                                     <option value="" disabled>-- Select Destination Team --</option>
-                                    {teams.map(t => {
+                                    {(Array.isArray(teams) ? teams : []).map(t => {
                                         const remaining = ((Number(t.budget) || 100) - (Number(t.spent) || 0)).toFixed(2);
                                         const maxLimit = tournament?.squadSizeLimit || 25;
-                                        const squadCount = (t.players || []).length;
+                                        const squadCount = (Array.isArray(t?.players) ? t.players : []).length;
+                                        const teamIdVal = t._id || t.id;
                                         return (
-                                            <option key={t._id} value={t._id}>
+                                            <option key={teamIdVal} value={teamIdVal}>
                                                 {t.name} (Purse: ₹{remaining} {largeUnit} • Squad: {squadCount}/{maxLimit})
                                             </option>
                                         );

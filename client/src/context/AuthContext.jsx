@@ -3,16 +3,27 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-    const [user, setUser] = useState(null);
-    const [loading, setLoading] = useState(true);
+    const [user, setUser] = useState(() => {
+        try {
+            const savedUser = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
+            return savedUser ? JSON.parse(savedUser) : null;
+        } catch (e) {
+            console.warn('Failed to parse saved user:', e);
+            return null;
+        }
+    });
+    const [loading, setLoading] = useState(false);
 
     useEffect(() => {
-        // Check localStorage on mount
-        const savedUser = localStorage.getItem('user');
-        if (savedUser) {
-            setUser(JSON.parse(savedUser));
+        // Sync check on mount or storage events
+        try {
+            const savedUser = localStorage.getItem('user');
+            if (savedUser && !user) {
+                setUser(JSON.parse(savedUser));
+            }
+        } catch (e) {
+            console.warn('Auth sync notice:', e);
         }
-        setLoading(false);
     }, []);
 
     const login = (userData, token) => {

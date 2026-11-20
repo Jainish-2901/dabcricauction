@@ -23,6 +23,7 @@ import {
     Wallet,
     ChevronRight,
     X,
+    RotateCcw,
     AlertCircle,
     Sparkles,
     Crown,
@@ -35,6 +36,7 @@ import socket from '../lib/socket';
 import { apiFetch } from '../lib/api';
 import SafeImage from './SafeImage';
 import { getBudgetUnits } from '../lib/currency';
+import { toast } from '../lib/toast';
 
 export interface SpectatorScreenProps {
     tournamentId: string;
@@ -326,10 +328,22 @@ export const SpectatorScreen: React.FC<SpectatorScreenProps> = ({
                     </View>
                 </View>
 
-                <TouchableOpacity style={styles.loginPill} onPress={onGoToLogin}>
-                    <LogIn size={14} color="#ffffff" />
-                    <Text style={styles.loginPillText}>Login</Text>
-                </TouchableOpacity>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <TouchableOpacity 
+                        style={[styles.loginPill, { backgroundColor: '#f1f5f9', borderWidth: 1, borderColor: '#cbd5e1', paddingHorizontal: 10 }]} 
+                        onPress={() => {
+                            fetchTournament();
+                            toast.success('Updated', 'Live stream data refreshed');
+                        }}
+                        accessibilityLabel="Refresh data"
+                    >
+                        <RotateCcw size={14} color="#334155" />
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.loginPill} onPress={onGoToLogin}>
+                        <LogIn size={14} color="#ffffff" />
+                        <Text style={styles.loginPillText}>Login</Text>
+                    </TouchableOpacity>
+                </View>
             </View>
 
             {/* Navigation Tabs */}

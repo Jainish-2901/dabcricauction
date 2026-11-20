@@ -21,6 +21,7 @@ import { getBudgetUnits } from '../utils/currency';
 import toast from '../lib/toast';
 import SafeImage from '../components/SafeImage';
 import { supabase } from '../lib/supabase';
+import { exportTournamentSummaryCSVClient, exportTournamentPlayersCSVClient } from '../utils/csvExport';
 
 const normalizeTransfer = (t) => ({
     _id: t._id || t.id,
@@ -327,12 +328,32 @@ const SuperAdminDashboard = () => {
         }
     };
 
-    const handleExportCSV = (tournamentId) => {
-        window.open(`/api/tournaments/${tournamentId}/export-players-csv`, '_blank');
+    const handleExportCSV = async (tournamentId) => {
+        try {
+            toast.info('Preparing Players Feed CSV...');
+            const success = await exportTournamentPlayersCSVClient(tournamentId, {
+                tournament: selectedTournament?._id === tournamentId ? selectedTournament : null,
+                players: selectedTournament?._id === tournamentId ? players : null,
+                teams: selectedTournament?._id === tournamentId ? teams : null
+            });
+            if (success) toast.success('Players CSV downloaded successfully!');
+        } catch (err) {
+            toast.error('Failed to export Players CSV: ' + err.message);
+        }
     };
 
-    const handleExportSummaryCSV = (tournamentId) => {
-        window.open(`/api/tournaments/${tournamentId}/export-teams-summary-csv`, '_blank');
+    const handleExportSummaryCSV = async (tournamentId) => {
+        try {
+            toast.info('Preparing Teams Summary CSV...');
+            const success = await exportTournamentSummaryCSVClient(tournamentId, {
+                tournament: selectedTournament?._id === tournamentId ? selectedTournament : null,
+                teams: selectedTournament?._id === tournamentId ? teams : null,
+                players: selectedTournament?._id === tournamentId ? players : null
+            });
+            if (success) toast.success('Auction Teams Summary CSV downloaded successfully!');
+        } catch (err) {
+            toast.error('Failed to export Summary CSV: ' + err.message);
+        }
     };
 
     const handleMoveInjuredToUnsold = async (player) => {

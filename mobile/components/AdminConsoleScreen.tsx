@@ -94,6 +94,10 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
     const [directSellTargetPlayer, setDirectSellTargetPlayer] = useState<any>(null);
     const [directSellTeamId, setDirectSellTeamId] = useState<string>('');
     const [directSellPrice, setDirectSellPrice] = useState<string>('');
+    const currentPlayerRef = React.useRef<any>(null);
+    useEffect(() => {
+        currentPlayerRef.current = currentPlayer;
+    }, [currentPlayer]);
 
     useEffect(() => {
         if (announcementModal) {
@@ -389,35 +393,55 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
         setTimeout(() => setNotice(null), 3500);
     };
 
-    const fetchAuctionData = async () => {
+    const fetchAuctionData = async (isManual: boolean = false) => {
         try {
-            const [pRes, tRes] = await Promise.all([
-                apiFetch(`/api/players/${tournamentId}`).then(r => r.json()),
-                apiFetch(`/api/teams/${tournamentId}`).then(r => r.json())
+            const [pRes, tRes, tourneyRes] = await Promise.all([
+                apiFetch(`/api/players/${tournamentId}`).then(r => r.json()).catch(() => []),
+                apiFetch(`/api/teams/${tournamentId}`).then(r => r.json()).catch(() => []),
+                apiFetch(`/api/tournaments/${tournamentId}`).then(r => r.json()).catch(() => null)
             ]);
 
-            if (Array.isArray(pRes)) {
-                setPlayers(pRes);
-                const pending = pRes.find((p: any) => p.status === 'pending');
-                if (pending && !currentPlayer) {
-                    selectPlayer(pending);
-                }
-            }
             if (Array.isArray(tRes)) {
                 setTeams(tRes);
             }
+
+            if (Array.isArray(pRes)) {
+                setPlayers(pRes);
+
+                // 1. Check if there is already an active bidding player on the server
+                const activePlayerOnServer = (tourneyRes?.currentBiddingPlayerId && pRes.find((p: any) => p._id === tourneyRes.currentBiddingPlayerId || p.id === tourneyRes.currentBiddingPlayerId))
+                    || pRes.find((p: any) => p.status === 'bidding');
+
+                if (activePlayerOnServer) {
+                    setCurrentPlayer(activePlayerOnServer);
+                    setCurrentBid(activePlayerOnServer.currentBid || activePlayerOnServer.basePrice || 20);
+                    if (activePlayerOnServer.currentLeadTeamId && Array.isArray(tRes)) {
+                        const lead = tRes.find((t: any) => t._id === activePlayerOnServer.currentLeadTeamId || t.id === activePlayerOnServer.currentLeadTeamId);
+                        setLeadTeam(lead || null);
+                    }
+                    if (activePlayerOnServer._id) fetchBidsForPlayer(activePlayerOnServer._id);
+                } else if (currentPlayerRef.current) {
+                    // Update current player state without resetting or overriding
+                    const refreshed = pRes.find((p: any) => p._id === currentPlayerRef.current._id || p.id === currentPlayerRef.current._id);
+                    if (refreshed && refreshed.status !== 'sold' && refreshed.status !== 'unsold') {
+                        setCurrentPlayer(refreshed);
+                        if (refreshed.currentBid) setCurrentBid(refreshed.currentBid);
+                        if (refreshed.currentLeadTeamId && Array.isArray(tRes)) {
+                            const lead = tRes.find((t: any) => t._id === refreshed.currentLeadTeamId || t.id === refreshed.currentLeadTeamId);
+                            setLeadTeam(lead || null);
+                        }
+                    }
+                }
+                // Never auto-select a pending player if nobody has chosen one yet!
+            }
+
+            if (isManual) {
+                toast.success('Data Refreshed', 'Auction state synchronized successfully!');
+            }
         } catch {
-            // Local fallback demo data
-            setPlayers([
-                { _id: 'p1', name: 'Virat Kohli', category: 'Batsman', basePrice: 200, status: 'pending' },
-                { _id: 'p2', name: 'Jasprit Bumrah', category: 'Bowler', basePrice: 200, status: 'pending' },
-                { _id: 'p3', name: 'Hardik Pandya', category: 'All-Rounder', basePrice: 150, status: 'pending' }
-            ]);
-            setTeams([
-                { _id: 't1', name: 'Mumbai Strikers', shortName: 'MS', budget: 100, spent: 0 },
-                { _id: 't2', name: 'Delhi Titans', shortName: 'DT', budget: 100, spent: 0 }
-            ]);
-            selectPlayer({ _id: 'p1', name: 'Virat Kohli', category: 'Batsman', basePrice: 200, status: 'pending' });
+            if (isManual) {
+                toast.error('Refresh Failed', 'Could not fetch latest auction data.');
+            }
         }
     };
 
@@ -956,6 +980,14 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                                 <Shield size={16} color="#2563eb" />
                             </TouchableOpacity>
                         )}
+
+                        <TouchableOpacity
+                            onPress={() => fetchAuctionData(true)}
+                            style={[styles.iconButton, { backgroundColor: '#eff6ff', borderColor: '#bfdbfe' }]}
+                            accessibilityLabel="Refresh Data"
+                        >
+                            <RotateCcw size={16} color="#2563eb" />
+                        </TouchableOpacity>
 
                         <TouchableOpacity onPress={onLogout} style={styles.iconButton}>
                             <LogOut size={16} color="#64748b" />
@@ -1970,11 +2002,9 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                                      'Players from this slot will be called up for bidding.'}
                                 </Text>
                             </View>
-                            {slotModalContext !== 'start' && slotModalContext !== 'completed' && (
-                                <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setShowSlotModal(false)}>
-                                    <X size={18} color="#64748b" />
-                                </TouchableOpacity>
-                            )}
+                            <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setShowSlotModal(false)}>
+                                <X size={18} color="#64748b" />
+                            </TouchableOpacity>
                         </View>
 
                         {/* Slots List */}

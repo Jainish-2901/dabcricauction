@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
 import { 
     User, ArrowLeft, Trophy, Clock, Timer, Coffee, Radio, Shield, 
-    AlertCircle, Sparkles, Layers, Users, Wallet, ChevronRight, X, ExternalLink, Crown, Search
+    AlertCircle, Sparkles, Layers, Users, Wallet, ChevronRight, X, ExternalLink, Crown, Search, RotateCcw
 } from 'lucide-react';
 import socket from '../socket';
 import { getBudgetUnits } from '../utils/currency';
@@ -33,6 +33,7 @@ const PublicAuctionView = () => {
     const [slotSearchQuery, setSlotSearchQuery] = useState('');
     const [viewingTeam, setViewingTeam] = useState(null);
     const [announcementModal, setAnnouncementModal] = useState(null);
+    const [isRefreshing, setIsRefreshing] = useState(false);
 
     useEffect(() => {
         if (announcementModal) {
@@ -373,11 +374,28 @@ const PublicAuctionView = () => {
                     </button>
                 </div>
 
-                <div className="flex items-center gap-2 px-3.5 py-1.5 bg-emerald-50 border border-emerald-200 rounded-full shrink-0">
-                    <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                    <span className="text-emerald-700 font-mono text-xs font-bold tracking-wider uppercase">
-                        {isConnected ? 'Broadcast LIVE' : 'Connecting...'}
-                    </span>
+                <div className="flex items-center gap-2 shrink-0">
+                    <button
+                        onClick={async () => {
+                            setIsRefreshing(true);
+                            try {
+                                await fetchAuctionData();
+                            } finally {
+                                setTimeout(() => setIsRefreshing(false), 500);
+                            }
+                        }}
+                        disabled={isRefreshing}
+                        className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-all cursor-pointer shadow-xs disabled:opacity-50"
+                        title="Refresh live data"
+                    >
+                        <RotateCcw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-blue-600' : ''}`} />
+                    </button>
+                    <div className="flex items-center gap-2 px-3.5 py-1.5 bg-emerald-50 border border-emerald-200 rounded-full">
+                        <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+                        <span className="text-emerald-700 font-mono text-xs font-bold tracking-wider uppercase">
+                            {isConnected ? 'Broadcast LIVE' : 'Connecting...'}
+                        </span>
+                    </div>
                 </div>
             </header>
 

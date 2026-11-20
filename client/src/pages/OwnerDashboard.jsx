@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Gavel, Users, Wallet, Shield, LogOut, User, Timer, TrendingUp, Coffee, Clock, AlertCircle, Layers, Sparkles, Zap, X, ChevronRight, Eye, Crown, Radio, Trophy, Pause, Search } from 'lucide-react';
+import { Gavel, Users, Wallet, Shield, LogOut, User, Timer, TrendingUp, Coffee, Clock, AlertCircle, Layers, Sparkles, Zap, X, ChevronRight, Eye, Crown, Radio, Trophy, Pause, Search, RotateCcw } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
@@ -23,6 +23,7 @@ const OwnerDashboard = () => {
     const [leftTab, setLeftTab] = useState('squad'); // 'squad' | 'slots' | 'unsold'
     const [selectedSlotFilter, setSelectedSlotFilter] = useState('all');
     const [slotSearchQuery, setSlotSearchQuery] = useState('');
+    const [isRefreshing, setIsRefreshing] = useState(false);
 
     // Auction State
     const [currentPlayer, setCurrentPlayer] = useState(null);
@@ -517,7 +518,25 @@ const OwnerDashboard = () => {
                         <p className="text-[11px] text-slate-500 uppercase font-bold tracking-wider mb-0.5">Squad</p>
                         <p className="text-xl md:text-2xl font-black text-slate-800 tabular-nums">{squad.length} <span className="text-xs text-slate-500">/ {tournament?.squadSizeLimit || 25}</span></p>
                     </div>
-                    <button onClick={handleLogout} className="ml-2 p-2.5 bg-white border border-slate-200 rounded-xl hover:bg-slate-100 text-slate-600 hover:text-slate-900 transition-all shadow-xs" title="Logout">
+                    <button
+                        onClick={async () => {
+                            setIsRefreshing(true);
+                            try {
+                                await fetchData();
+                                toast.success("Auction data refreshed!");
+                            } catch (e) {
+                                toast.error("Refresh failed");
+                            } finally {
+                                setTimeout(() => setIsRefreshing(false), 500);
+                            }
+                        }}
+                        disabled={isRefreshing}
+                        className="ml-2 p-2.5 bg-white border border-slate-200 rounded-xl hover:bg-slate-100 text-blue-600 hover:text-blue-700 transition-all shadow-xs cursor-pointer disabled:opacity-50"
+                        title="Refresh auction data"
+                    >
+                        <RotateCcw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                    </button>
+                    <button onClick={handleLogout} className="ml-2 p-2.5 bg-white border border-slate-200 rounded-xl hover:bg-slate-100 text-slate-600 hover:text-slate-900 transition-all shadow-xs cursor-pointer" title="Logout">
                         <LogOut className="w-4 h-4" />
                     </button>
                 </div>
