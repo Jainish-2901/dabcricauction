@@ -80,6 +80,9 @@ const login = async (req, res) => {
                 _id: user._id,
                 id: user._id,
                 username: user.username,
+                name: user.name || user.username,
+                organizationName: user.organizationName || user.organization_name || '',
+                phone: user.phone || '',
                 role: user.role,
                 tournamentId: user.tournamentId,
                 teamId: user.teamId
@@ -176,6 +179,138 @@ const resetPassword = async (req, res) => {
     }
 };
 
+const getProfile = async (req, res) => {
+    try {
+        const userId = req.query.userId || req.headers['x-user-id'] || req.body?.userId;
+        const username = req.query.username || req.headers['x-username'];
+
+        let user = null;
+        if (userId) {
+            user = await db.getUserById(userId);
+        }
+        if (!user && username) {
+            user = await db.findUserByUsername(username);
+        }
+
+        if (!user) {
+            return res.status(404).json({ message: 'User profile not found' });
+        }
+
+        res.json({
+            _id: user._id,
+            id: user._id,
+            username: user.username,
+            name: user.name || user.username,
+            organizationName: user.organizationName || user.organization_name || '',
+            phone: user.phone || '',
+            role: user.role,
+            tournamentId: user.tournamentId,
+            teamId: user.teamId
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+const updateProfile = async (req, res) => {
+    try {
+        const { userId, name, organizationName, phone, username } = req.body;
+        const effectiveId = userId || req.headers['x-user-id'];
+
+        if (!effectiveId) {
+            return res.status(400).json({ message: 'User ID is required to update profile' });
+        }
+
+        let user = await db.getUserById(effectiveId);
+        if (!user && req.headers['x-username']) {
+            user = await db.findUserByUsername(req.headers['x-username']);
+        }
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        const updates = {};
+        if (name !== undefined) updates.name = name.trim();
+        if (organizationName !== undefined) updates.organizationName = organizationName.trim();
+        if (phone !== undefined) updates.phone = phone.trim();
+
+        if (username && username.trim().toLowerCase() !== user.username.toLowerCase()) {
+            const existing = await db.findUserByUsername(username.trim());
+            if (existing && existing._id !== user._id) {
+                return res.status(400).json({ message: 'This username is already taken' });
+            }
+            updates.username = username.trim();
+        }
+
+        const updatedUser = await db.updateUser(user._id, updates);
+
+        res.json({
+            message: 'Profile updated successfully',
+            user: {
+                _id: updatedUser._id,
+                id: updatedUser._id,
+                username: updatedUser.username,
+                name: updatedUser.name || updatedUser.username,
+                organizationName: updatedUser.organizationName || updatedUser.organization_name || '',
+                phone: updatedUser.phone || '',
+                role: updatedUser.role,
+                tournamentId: updatedUser.tournamentId,
+                teamId: updatedUser.teamId
+            }
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+const changePassword = async (req, res) => {
+    try {
+        const { userId, currentPassword, newPassword } = req.body;
+        const effectiveId = userId || req.headers['x-user-id'];
+
+        if (!effectiveId || !currentPassword || !newPassword) {
+            return res.status(400).json({ message: 'Current password and new password are required' });
+        }
+
+        if (newPassword.trim().length < 4) {
+            return res.status(400).json({ message: 'New password must be at least 4 characters long' });
+        }
+
+        let user = await db.getUserById(effectiveId);
+        if (!user && req.headers['x-username']) {
+            user = await db.findUserByUsername(req.headers['x-username']);
+        }
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        // Verify current password
+        let isMatch = false;
+        if (user.passwordHash) {
+            isMatch = bcrypt.compareSync(currentPassword.trim(), user.passwordHash);
+        }
+        if (!isMatch && user.plainPassword) {
+            isMatch = user.plainPassword === currentPassword.trim();
+        }
+
+        if (!isMatch) {
+            return res.status(400).json({ message: 'Current password is incorrect. Please check your password.' });
+        }
+
+        // Update password
+        await db.updateUser(user._id, {
+            password: newPassword.trim()
+        });
+
+        res.json({
+            success: true,
+            message: 'Password changed successfully!'
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 module.exports = {
     register,
     login,
@@ -183,5 +318,8 @@ module.exports = {
     updateUser,
     deleteUser,
     checkUsername,
-    resetPassword
+    resetPassword,
+    getProfile,
+    updateProfile,
+    changePassword
 };

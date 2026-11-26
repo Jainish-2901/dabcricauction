@@ -3,13 +3,17 @@ const { uploadImage, deleteImage } = require('../services/cloudinaryService');
 
 const createTournament = async (req, res) => {
     try {
+        const creatorId = req.body.createdBy || req.body.userId || req.headers['x-user-id'] || req.query.userId;
         if (req.body.logo && typeof req.body.logo === 'string' && req.body.logo.startsWith('data:image/')) {
             const uploaded = await uploadImage(req.body.logo, 'dabcricauction/tournaments', req.body.name || 'tournament');
             if (uploaded?.secure_url) {
                 req.body.logo = uploaded.secure_url;
             }
         }
-        const tournament = await db.createTournament(req.body);
+        const tournament = await db.createTournament({
+            ...req.body,
+            createdBy: creatorId
+        });
         res.status(201).json(tournament);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -18,7 +22,9 @@ const createTournament = async (req, res) => {
 
 const getTournaments = async (req, res) => {
     try {
-        const tournaments = await db.getTournaments();
+        const userId = req.query.userId || req.headers['x-user-id'];
+        const username = req.query.username || req.headers['x-username'];
+        const tournaments = await db.getTournaments({ userId, username });
         res.json(tournaments);
     } catch (error) {
         res.status(500).json({ message: error.message });

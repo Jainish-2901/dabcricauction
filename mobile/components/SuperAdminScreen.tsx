@@ -26,6 +26,9 @@ import {
     LogOut,
     Play,
     KeyRound,
+    Lock,
+    Building,
+    Phone,
     UserPlus,
     Eye,
     EyeOff,
@@ -90,6 +93,8 @@ const DEFAULT_SLABS_K_L = [
 export type SuperAdminTab = 'tournaments' | 'teams' | 'players' | 'slots' | 'credentials' | 'transfers';
 
 export interface SuperAdminScreenProps {
+    user?: any;
+    onUpdateUser?: (updated: any) => void;
     onLogout: () => void;
     onLaunchConsole: (tournamentId: string) => void;
     onLaunchBiddingRoom: (tournamentId: string) => void;
@@ -98,6 +103,8 @@ export interface SuperAdminScreenProps {
 }
 
 export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
+    user,
+    onUpdateUser,
     onLogout,
     onLaunchConsole,
     onLaunchBiddingRoom,
@@ -124,6 +131,27 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
     const [newTourneySquadLimit, setNewTourneySquadLimit] = useState('25');
     const [newTourneyScale, setNewTourneyScale] = useState<'L_TO_CR' | 'K_TO_L'>('L_TO_CR');
     const [newTourneyLogo, setNewTourneyLogo] = useState('');
+
+    // Profile Management States
+    const [profileModalVisible, setProfileModalVisible] = useState(false);
+    const [profileActiveTab, setProfileActiveTab] = useState<'info' | 'password'>('info');
+    const [profileName, setProfileName] = useState(user?.name || '');
+    const [profileOrg, setProfileOrg] = useState(user?.organizationName || user?.organization_name || '');
+    const [profilePhone, setProfilePhone] = useState(user?.phone || '');
+    const [profileCurrentPassword, setProfileCurrentPassword] = useState('');
+    const [profileNewPassword, setProfileNewPassword] = useState('');
+    const [profileConfirmPassword, setProfileConfirmPassword] = useState('');
+    const [profileShowPass, setProfileShowPass] = useState(false);
+    const [isSavingProfile, setIsSavingProfile] = useState(false);
+    const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
+
+    useEffect(() => {
+        if (user) {
+            setProfileName(user.name || '');
+            setProfileOrg(user.organizationName || user.organization_name || '');
+            setProfilePhone(user.phone || '');
+        }
+    }, [user]);
 
     // Teams Tab States
     const [newTeamName, setNewTeamName] = useState('');
@@ -265,7 +293,7 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
 
     useEffect(() => {
         fetchTournaments();
-    }, []);
+    }, [user?._id, user?.id]);
 
     useEffect(() => {
         if (selectedTournament?._id) {
@@ -281,18 +309,23 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
 
     const fetchTournaments = async () => {
         try {
-            const res = await apiFetch('/api/tournaments');
+            const uid = user?._id || user?.id || '';
+            const uname = user?.username || '';
+            const queryParams = uid ? `?userId=${encodeURIComponent(uid)}&username=${encodeURIComponent(uname)}` : '';
+            const res = await apiFetch(`/api/tournaments${queryParams}`);
             const data = await res.json();
             if (Array.isArray(data) && data.length > 0) {
                 setTournaments(data);
-                if (!selectedTournament) {
+                if (!selectedTournament || !data.some((t: any) => t._id === selectedTournament._id)) {
                     setSelectedTournament(data[0]);
                 }
             } else {
                 setTournaments([]);
+                setSelectedTournament(null);
             }
         } catch {
             setTournaments([]);
+            setSelectedTournament(null);
         }
     };
 
@@ -356,7 +389,8 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
             squadSizeLimit: squadLimit,
             budgetScale: newTourneyScale,
             bidIncrementRules: defaultRules,
-            logo: newTourneyLogo.trim()
+            logo: newTourneyLogo.trim(),
+            createdBy: user?._id || user?.id || ''
         };
         try {
             await apiFetch('/api/tournaments', {
@@ -372,6 +406,78 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
         setNewTourneySquadLimit('25');
         setNewTourneyLogo('');
         toast.success('Tournament Created', `"${newT.name}" (${newTourneyScale === 'K_TO_L' ? 'K → L' : 'L → Cr'} Scale) • Limit: ${squadLimit}`);
+    };
+
+    const handleSaveProfile = async () => {
+        const uid = user?._id || user?.id;
+        if (!uid) return;
+        setIsSavingProfile(true);
+        try {
+            const res = await apiFetch('/api/auth/profile', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    userId: uid,
+                    name: profileName.trim(),
+                    organizationName: profileOrg.trim(),
+                    phone: profilePhone.trim()
+                })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                toast.success('Profile Updated', 'Your profile details have been saved.');
+                onUpdateUser?.(data.user || { name: profileName.trim(), organizationName: profileOrg.trim(), phone: profilePhone.trim() });
+            } else {
+                toast.error('Update Failed', data.message || 'Could not update profile');
+            }
+        } catch {
+            toast.error('Network Error', 'Failed to update profile');
+        } finally {
+            setIsSavingProfile(false);
+        }
+    };
+
+    const handleUpdatePassword = async () => {
+        const uid = user?._id || user?.id;
+        if (!uid) return;
+        if (!profileCurrentPassword) {
+            toast.warning('Required', 'Please enter your current password.');
+            return;
+        }
+        if (!profileNewPassword || profileNewPassword.length < 4) {
+            toast.warning('Invalid', 'New password must be at least 4 characters long.');
+            return;
+        }
+        if (profileNewPassword !== profileConfirmPassword) {
+            toast.warning('Mismatch', 'New password and confirmation do not match.');
+            return;
+        }
+
+        setIsUpdatingPassword(true);
+        try {
+            const res = await apiFetch('/api/auth/change-password', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    userId: uid,
+                    currentPassword: profileCurrentPassword.trim(),
+                    newPassword: profileNewPassword.trim()
+                })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                toast.success('Password Updated', 'Your password has been changed successfully.');
+                setProfileCurrentPassword('');
+                setProfileNewPassword('');
+                setProfileConfirmPassword('');
+            } else {
+                toast.error('Failed', data.message || 'Could not change password.');
+            }
+        } catch {
+            toast.error('Error', 'Failed to update password');
+        } finally {
+            setIsUpdatingPassword(false);
+        }
     };
 
     const handleToggleTournamentStatus = async (t: any) => {
@@ -1252,6 +1358,12 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                 </View>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                     <TouchableOpacity
+                        onPress={() => setProfileModalVisible(true)}
+                        style={[styles.logoutBtn, { borderColor: '#cbd5e1', backgroundColor: '#f8fafc' }]}
+                    >
+                        <User size={15} color="#1e293b" />
+                    </TouchableOpacity>
+                    <TouchableOpacity
                         onPress={() => checkForAppUpdates(true)}
                         style={[styles.logoutBtn, { borderColor: '#bfdbfe', backgroundColor: '#eff6ff' }]}
                     >
@@ -1302,7 +1414,7 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                     >
                         <Trophy size={14} color={activeTab === 'tournaments' ? '#2563eb' : '#64748b'} />
                         <Text style={[styles.tabText, activeTab === 'tournaments' && styles.tabTextActive]} numberOfLines={1}>
-                            Tourney ({tournaments.length})
+                            Tournament ({tournaments.length})
                         </Text>
                     </TouchableOpacity>
 
@@ -1529,7 +1641,27 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                             <Text style={styles.listTitle}>All Tournaments ({filteredTournaments.length})</Text>
                             <Text style={styles.listHint}>Tap any tournament to inspect Console, Credentials, Links & Settings</Text>
 
-                            {filteredTournaments.map(t => {
+                            {filteredTournaments.length === 0 ? (
+                                <View style={{ backgroundColor: '#ffffff', borderRadius: 20, padding: 24, alignItems: 'center', marginTop: 12, borderWidth: 1, borderColor: '#cbd5e1', borderStyle: 'dashed' }}>
+                                    <View style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: '#eff6ff', justifyContent: 'center', alignItems: 'center', marginBottom: 12 }}>
+                                        <Trophy size={28} color="#2563eb" />
+                                    </View>
+                                    <Text style={{ fontSize: 16, fontWeight: '800', color: '#0f172a', marginBottom: 4, textAlign: 'center' }}>
+                                        Welcome to Your Workspace!
+                                    </Text>
+                                    <Text style={{ fontSize: 12, color: '#64748b', textAlign: 'center', lineHeight: 18, marginBottom: 16 }}>
+                                        You haven't created any tournaments yet. As a tournament organizer, you have your own dedicated workspace. Tap below to create your first tournament.
+                                    </Text>
+                                    <TouchableOpacity
+                                        style={[styles.addBtn, { alignSelf: 'center', paddingHorizontal: 20 }]}
+                                        onPress={handleCreateTournament}
+                                    >
+                                        <Plus size={16} color="#ffffff" />
+                                        <Text style={styles.addBtnText}>Create Your First Tournament</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            ) : (
+                                filteredTournaments.map(t => {
                                 const isSelected = selectedTournament?._id === t._id;
                                 return (
                                     <TouchableOpacity
@@ -1650,7 +1782,7 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                                         </View>
                                     </TouchableOpacity>
                                 );
-                            })}
+                            }))}
                         </View>
                     )}
 
@@ -3930,6 +4062,158 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                     </View>
                 </TouchableOpacity>
             </Modal>
+
+            {/* Profile Management Modal */}
+            <Modal
+                visible={profileModalVisible}
+                animationType="slide"
+                transparent={true}
+                onRequestClose={() => setProfileModalVisible(false)}
+            >
+                <KeyboardAvoidingView
+                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                    style={{ flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.65)', justifyContent: 'flex-end' }}
+                >
+                    <View style={{ backgroundColor: '#ffffff', borderTopLeftRadius: 28, borderTopRightRadius: 28, maxHeight: '90%', paddingBottom: 24 }}>
+                        {/* Modal Header */}
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                                <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: '#eff6ff', justifyContent: 'center', alignItems: 'center' }}>
+                                    <User size={20} color="#2563eb" />
+                                </View>
+                                <View>
+                                    <Text style={{ fontSize: 16, fontWeight: '900', color: '#0f172a' }}>Organizer Profile</Text>
+                                    <Text style={{ fontSize: 11, color: '#64748b', fontWeight: '600' }}>@{user?.username || 'admin'}</Text>
+                                </View>
+                            </View>
+                            <TouchableOpacity
+                                onPress={() => setProfileModalVisible(false)}
+                                style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: '#f1f5f9', justifyContent: 'center', alignItems: 'center' }}
+                            >
+                                <X size={18} color="#64748b" />
+                            </TouchableOpacity>
+                        </View>
+
+                        {/* Sub Tab Switcher */}
+                        <View style={{ flexDirection: 'row', padding: 16, gap: 8, backgroundColor: '#f8fafc' }}>
+                            <TouchableOpacity
+                                onPress={() => setProfileActiveTab('info')}
+                                style={{ flex: 1, paddingVertical: 10, borderRadius: 12, alignItems: 'center', backgroundColor: profileActiveTab === 'info' ? '#2563eb' : '#ffffff', borderWidth: 1, borderColor: profileActiveTab === 'info' ? '#2563eb' : '#e2e8f0' }}
+                            >
+                                <Text style={{ fontSize: 12, fontWeight: '800', color: profileActiveTab === 'info' ? '#ffffff' : '#64748b' }}>Account Details</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                onPress={() => setProfileActiveTab('password')}
+                                style={{ flex: 1, paddingVertical: 10, borderRadius: 12, alignItems: 'center', backgroundColor: profileActiveTab === 'password' ? '#2563eb' : '#ffffff', borderWidth: 1, borderColor: profileActiveTab === 'password' ? '#2563eb' : '#e2e8f0' }}
+                            >
+                                <Text style={{ fontSize: 12, fontWeight: '800', color: profileActiveTab === 'password' ? '#ffffff' : '#64748b' }}>Change Password</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        <ScrollView style={{ paddingHorizontal: 20, paddingTop: 16 }} showsVerticalScrollIndicator={false}>
+                            {profileActiveTab === 'info' ? (
+                                <View style={{ gap: 14 }}>
+                                    <View>
+                                        <Text style={{ fontSize: 11, fontWeight: '800', color: '#475569', marginBottom: 6, textTransform: 'uppercase' }}>Full Name</Text>
+                                        <TextInput
+                                            value={profileName}
+                                            onChangeText={setProfileName}
+                                            placeholder="Your Full Name"
+                                            placeholderTextColor="#94a3b8"
+                                            style={{ backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 11, fontSize: 13, fontWeight: '700', color: '#0f172a' }}
+                                        />
+                                    </View>
+                                    <View>
+                                        <Text style={{ fontSize: 11, fontWeight: '800', color: '#475569', marginBottom: 6, textTransform: 'uppercase' }}>Organization / Club Name</Text>
+                                        <TextInput
+                                            value={profileOrg}
+                                            onChangeText={setProfileOrg}
+                                            placeholder="e.g. Dabgar Cricket Club"
+                                            placeholderTextColor="#94a3b8"
+                                            style={{ backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 11, fontSize: 13, fontWeight: '700', color: '#0f172a' }}
+                                        />
+                                    </View>
+                                    <View>
+                                        <Text style={{ fontSize: 11, fontWeight: '800', color: '#475569', marginBottom: 6, textTransform: 'uppercase' }}>Mobile / WhatsApp Number</Text>
+                                        <TextInput
+                                            value={profilePhone}
+                                            onChangeText={setProfilePhone}
+                                            placeholder="e.g. +91 9876543210"
+                                            placeholderTextColor="#94a3b8"
+                                            keyboardType="phone-pad"
+                                            style={{ backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 11, fontSize: 13, fontWeight: '700', color: '#0f172a' }}
+                                        />
+                                    </View>
+
+                                    <TouchableOpacity
+                                        onPress={handleSaveProfile}
+                                        disabled={isSavingProfile}
+                                        style={{ backgroundColor: '#2563eb', paddingVertical: 13, borderRadius: 14, alignItems: 'center', marginTop: 12, flexDirection: 'row', justifyContent: 'center', gap: 8 }}
+                                    >
+                                        <Save size={16} color="#ffffff" />
+                                        <Text style={{ fontSize: 13, fontWeight: '800', color: '#ffffff' }}>
+                                            {isSavingProfile ? 'Saving...' : 'Save Profile Changes'}
+                                        </Text>
+                                    </TouchableOpacity>
+                                </View>
+                            ) : (
+                                <View style={{ gap: 14 }}>
+                                    <View>
+                                        <Text style={{ fontSize: 11, fontWeight: '800', color: '#475569', marginBottom: 6, textTransform: 'uppercase' }}>Current Password</Text>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 12, paddingHorizontal: 14 }}>
+                                            <TextInput
+                                                value={profileCurrentPassword}
+                                                onChangeText={setProfileCurrentPassword}
+                                                secureTextEntry={!profileShowPass}
+                                                placeholder="Enter current password"
+                                                placeholderTextColor="#94a3b8"
+                                                style={{ flex: 1, paddingVertical: 11, fontSize: 13, fontWeight: '700', color: '#0f172a' }}
+                                            />
+                                            <TouchableOpacity onPress={() => setProfileShowPass(!profileShowPass)}>
+                                                {profileShowPass ? <EyeOff size={16} color="#64748b" /> : <Eye size={16} color="#64748b" />}
+                                            </TouchableOpacity>
+                                        </View>
+                                    </View>
+                                    <View>
+                                        <Text style={{ fontSize: 11, fontWeight: '800', color: '#475569', marginBottom: 6, textTransform: 'uppercase' }}>New Password</Text>
+                                        <TextInput
+                                            value={profileNewPassword}
+                                            onChangeText={setProfileNewPassword}
+                                            secureTextEntry={!profileShowPass}
+                                            placeholder="Min. 4 characters"
+                                            placeholderTextColor="#94a3b8"
+                                            style={{ backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 11, fontSize: 13, fontWeight: '700', color: '#0f172a' }}
+                                        />
+                                    </View>
+                                    <View>
+                                        <Text style={{ fontSize: 11, fontWeight: '800', color: '#475569', marginBottom: 6, textTransform: 'uppercase' }}>Confirm New Password</Text>
+                                        <TextInput
+                                            value={profileConfirmPassword}
+                                            onChangeText={setProfileConfirmPassword}
+                                            secureTextEntry={!profileShowPass}
+                                            placeholder="Confirm new password"
+                                            placeholderTextColor="#94a3b8"
+                                            style={{ backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 11, fontSize: 13, fontWeight: '700', color: '#0f172a' }}
+                                        />
+                                    </View>
+
+                                    <TouchableOpacity
+                                        onPress={handleUpdatePassword}
+                                        disabled={isUpdatingPassword}
+                                        style={{ backgroundColor: '#4f46e5', paddingVertical: 13, borderRadius: 14, alignItems: 'center', marginTop: 12, flexDirection: 'row', justifyContent: 'center', gap: 8 }}
+                                    >
+                                        <Lock size={16} color="#ffffff" />
+                                        <Text style={{ fontSize: 13, fontWeight: '800', color: '#ffffff' }}>
+                                            {isUpdatingPassword ? 'Updating...' : 'Update Password'}
+                                        </Text>
+                                    </TouchableOpacity>
+                                </View>
+                            )}
+                            <View style={{ height: 40 }} />
+                        </ScrollView>
+                    </View>
+                </KeyboardAvoidingView>
+            </Modal>
         </SafeAreaView>
     );
 };
@@ -4145,16 +4429,20 @@ const styles = StyleSheet.create({
         borderBottomColor: '#e2e8f0',
     },
     tabScroll: {
-        paddingHorizontal: 12,
-        gap: 6,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-around',
+        flexGrow: 1,
+        paddingHorizontal: 6,
     },
     tabItem: {
         flex: 1,
+        minWidth: 54,
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
         paddingVertical: 8,
-        paddingHorizontal: 2,
+        paddingHorizontal: 4,
         gap: 3,
         borderBottomWidth: 2,
         borderBottomColor: 'transparent',

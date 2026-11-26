@@ -55,7 +55,15 @@ const createMockResponse = (data: any, status: number = 200, ok: boolean = true)
  * Runs with 100% database fidelity, zero localhost issues, zero cleartext errors!
  */
 export const handleDirectSupabaseApi = async (endpoint: string, options?: RequestInit): Promise<Response> => {
-    const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    const rawPath = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    const [path, queryString] = rawPath.split('?');
+    const queryParams: Record<string, string> = {};
+    if (queryString) {
+        queryString.split('&').forEach(pair => {
+            const [k, v] = pair.split('=');
+            if (k) queryParams[decodeURIComponent(k)] = decodeURIComponent(v || '');
+        });
+    }
     const method = (options?.method || 'GET').toUpperCase();
     const body = options?.body ? (typeof options.body === 'string' ? JSON.parse(options.body) : options.body) : {};
 
@@ -77,10 +85,22 @@ export const handleDirectSupabaseApi = async (endpoint: string, options?: Reques
             const result = await db.directResetPassword(body);
             return createMockResponse(result, 200, true);
         }
+        if (path === '/api/auth/profile' && method === 'GET') {
+            const result = await db.directGetProfile(queryParams.userId || body.userId);
+            return createMockResponse(result, 200, true);
+        }
+        if (path === '/api/auth/profile' && method === 'PUT') {
+            const result = await db.directUpdateProfile(body);
+            return createMockResponse(result, 200, true);
+        }
+        if (path === '/api/auth/change-password' && method === 'PUT') {
+            const result = await db.directChangePassword(body);
+            return createMockResponse(result, 200, true);
+        }
 
         // 2. Tournaments endpoints
         if (path === '/api/tournaments' && method === 'GET') {
-            const result = await db.directGetTournaments();
+            const result = await db.directGetTournaments(queryParams.userId, queryParams.username);
             return createMockResponse(result, 200, true);
         }
         if (path === '/api/tournaments' && method === 'POST') {

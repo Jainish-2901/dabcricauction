@@ -280,6 +280,8 @@ export default function App() {
 
             {currentScreen === 'admin' && user && (
                 <SuperAdminScreen
+                    user={user}
+                    onUpdateUser={(updated: any) => setUser((prev: any) => ({ ...prev, ...updated }))}
                     onLogout={handleLogout}
                     onLaunchConsole={(tId) => {
                         setActiveTournamentId(tId);

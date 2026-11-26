@@ -58,8 +58,9 @@ const supaSync = {
         try {
             const scale = t.budgetScale === 'K_TO_L' ? 'K_TO_L' : 'L_TO_CR';
             const scaleTag = `[SCALE:${scale}]`;
-            const cleanDesc = (t.description || '').replace(/\[SCALE:[^\]]+\]\s*/g, '').trim();
-            const descWithTag = cleanDesc ? `${scaleTag} ${cleanDesc}` : scaleTag;
+            const creatorTag = t.createdBy ? `[CREATOR:${t.createdBy}]` : '';
+            const cleanDesc = (t.description || '').replace(/\[(SCALE|CREATOR):[^\]]+\]\s*/g, '').trim();
+            const descWithTag = [scaleTag, creatorTag, cleanDesc].filter(Boolean).join(' ');
             const row = {
                 _id: t._id,
                 name: t.name || 'Tournament',
@@ -78,9 +79,11 @@ const supaSync = {
             };
             if (t.budgetScale) row.budget_scale = scale;
             if (t.slotDrawMode) row.slot_draw_mode = t.slotDrawMode;
+            if (t.createdBy) row.created_by = t.createdBy;
 
             let { error } = await supabase.from('tournaments').upsert(row, { onConflict: '_id' });
-            if (error && error.message?.includes('schema cache')) {
+            if (error && (error.message?.includes('schema cache') || error.message?.includes('column "created_by"') || error.message?.includes('created_by'))) {
+                delete row.created_by;
                 delete row.budget_scale;
                 delete row.slot_draw_mode;
                 const retry = await supabase.from('tournaments').upsert(row, { onConflict: '_id' });
@@ -691,7 +694,32 @@ const db = {
 
     async findUserByUsername(username) {
         const state = readData();
-        const user = state.users.find(u => u.username?.toLowerCase() === username.toLowerCase());
+        let user = state.users.find(u => u.username?.toLowerCase() === username.toLowerCase());
+        if (!user && supabase) {
+            try {
+                const { data } = await supabase.from('users').select('*').ilike('username', username.trim()).maybeSingle();
+                if (data) {
+                    user = {
+                        _id: data._id,
+                        id: data._id,
+                        username: data.username,
+                        name: data.name,
+                        organizationName: data.organization_name,
+                        phone: data.phone,
+                        role: data.role,
+                        passwordHash: data.password_hash,
+                        plainPassword: data.plain_password,
+                        tournamentId: data.tournament_id,
+                        teamId: data.team_id,
+                        teamName: data.team_name
+                    };
+                    state.users.push(user);
+                    writeData(state);
+                }
+            } catch (err) {
+                console.warn('Fallback findUserByUsername error:', err.message);
+            }
+        }
         if (!user) return null;
 
         // Populate team if available
@@ -1188,10 +1216,55 @@ const db = {
         return true;
     },
 
-    // --- TOURNAMENTS ---
-    async getTournaments() {
+    // --- USERS ---
+    async getUserById(id) {
         const state = readData();
-        return state.tournaments || [];
+        let user = state.users.find(u => u._id === id || u.id === id);
+        if (!user && supabase) {
+            try {
+                const { data } = await supabase.from('users').select('*').eq('_id', id).maybeSingle();
+                if (data) {
+                    user = {
+                        _id: data._id,
+                        id: data._id,
+                        username: data.username,
+                        name: data.name,
+                        organizationName: data.organization_name,
+                        phone: data.phone,
+                        role: data.role,
+                        passwordHash: data.password_hash,
+                        plainPassword: data.plain_password,
+                        tournamentId: data.tournament_id,
+                        teamId: data.team_id,
+                        teamName: data.team_name
+                    };
+                    state.users.push(user);
+                    writeData(state);
+                }
+            } catch (err) {
+                console.warn('Fallback getUserById error:', err.message);
+            }
+        }
+        return user;
+    },
+
+    // --- TOURNAMENTS ---
+    async getTournaments(filter = {}) {
+        const state = readData();
+        let list = state.tournaments || [];
+        if (filter.userId || filter.username) {
+            const uId = String(filter.userId || '').trim();
+            const uName = String(filter.username || '').trim().toLowerCase();
+            list = list.filter(t => {
+                const creator = String(t.createdBy || t.created_by || '').trim();
+                if (!creator) {
+                    // Legacy tournaments without creator belong to jainish_dabgar
+                    return uId === 'user_1794153277298_yd2lx' || uName === 'jainish_dabgar';
+                }
+                return creator === uId || creator.toLowerCase() === uName;
+            });
+        }
+        return list;
     },
 
     async getTournamentById(id) {
@@ -1202,7 +1275,9 @@ const db = {
                 const { data } = await supabase.from('tournaments').select('*').eq('_id', id).maybeSingle();
                 if (data) {
                     const scale = data.budget_scale || (data.description && data.description.includes('SCALE:K_TO_L') ? 'K_TO_L' : (data.description && data.description.includes('SCALE:L_TO_CR') ? 'L_TO_CR' : 'L_TO_CR'));
-                    const cleanDesc = data.description ? data.description.replace(/\[SCALE:[^\]]+\]\s*/g, '').trim() : '';
+                    const creatorMatch = data.description ? data.description.match(/\[CREATOR:([^\]]+)\]/) : null;
+                    const createdBy = data.created_by || (creatorMatch ? creatorMatch[1] : null);
+                    const cleanDesc = data.description ? data.description.replace(/\[(SCALE|CREATOR):[^\]]+\]\s*/g, '').trim() : '';
                     tourney = {
                         _id: data._id,
                         name: data.name,
@@ -1215,6 +1290,7 @@ const db = {
                         description: cleanDesc,
                         logo: data.logo,
                         budgetScale: scale,
+                        createdBy: createdBy,
                         activeSlotId: data.active_slot_id,
                         slotDrawMode: data.slot_draw_mode || 'order',
                         currentBiddingPlayerId: data.current_bidding_player_id,
@@ -1233,6 +1309,7 @@ const db = {
 
     async createTournament(data) {
         const state = readData();
+        const creatorId = data.createdBy || data.userId || 'system';
         const newT = {
             _id: 'tourney_' + Date.now(),
             status: data.status || 'upcoming', // upcoming, live, paused, break, completed
@@ -1242,6 +1319,7 @@ const db = {
             bidIncrementRules: data.bidIncrementRules || DEFAULT_BID_RULES,
             registrationOpen: data.registrationOpen !== false,
             ...data,
+            createdBy: creatorId,
             budgetScale: data.budgetScale === 'K_TO_L' ? 'K_TO_L' : 'L_TO_CR',
             squadSizeLimit: Number(data.squadSizeLimit) || 25
         };

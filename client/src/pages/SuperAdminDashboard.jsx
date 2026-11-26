@@ -63,7 +63,7 @@ const normalizeTransfer = (t) => ({
 });
 
 const SuperAdminDashboard = () => {
-    const { logout } = useAuth();
+    const { user, logout } = useAuth();
     const [activeTab, setActiveTab] = useState('tournaments');
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [showPlayerModal, setShowPlayerModal] = useState(false);
@@ -158,7 +158,7 @@ const SuperAdminDashboard = () => {
 
     useEffect(() => {
         fetchTournaments();
-    }, []);
+    }, [user?._id, user?.id]);
 
     useEffect(() => {
         if (selectedTournament) {
@@ -201,16 +201,27 @@ const SuperAdminDashboard = () => {
 
     const fetchTournaments = async () => {
         try {
-            const res = await axios.get('/api/tournaments');
+            const uid = user?._id || user?.id;
+            const res = await axios.get('/api/tournaments', {
+                params: {
+                    userId: uid,
+                    username: user?.username
+                }
+            });
             if (Array.isArray(res.data)) {
                 setTournaments(res.data);
-                if (!selectedTournament && res.data.length > 0) {
-                    setSelectedTournament(res.data[0]);
+                if (res.data.length > 0) {
+                    if (!selectedTournament || !res.data.some(t => t._id === selectedTournament._id)) {
+                        setSelectedTournament(res.data[0]);
+                    }
+                } else {
+                    setSelectedTournament(null);
                 }
             }
         } catch (err) {
             console.error(err);
             setTournaments([]);
+            setSelectedTournament(null);
         }
     };
 
@@ -950,13 +961,34 @@ const SuperAdminDashboard = () => {
                     )}
                 </nav>
 
-                {/* Logout Footer */}
-                <div className="p-4 border-t border-slate-100">
+                {/* User Profile & Logout Footer */}
+                <div className="p-3 border-t border-slate-100 space-y-1">
+                    <button
+                        onClick={() => navigate('/profile')}
+                        className="w-full flex items-center justify-between px-3 py-2 rounded-xl hover:bg-slate-100 transition-all group text-left cursor-pointer"
+                        title="Manage Profile & Security"
+                    >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="w-7 h-7 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center font-black text-xs shrink-0">
+                                {(user?.name || user?.username || 'U').substring(0, 2).toUpperCase()}
+                            </div>
+                            <div className="truncate">
+                                <p className="text-xs font-bold text-slate-800 truncate leading-tight">
+                                    {user?.name || user?.username || 'Organizer'}
+                                </p>
+                                <p className="text-[10px] text-slate-400 font-medium truncate">
+                                    {user?.organizationName || `@${user?.username || 'organizer'}`}
+                                </p>
+                            </div>
+                        </div>
+                        <Settings className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-600 shrink-0" />
+                    </button>
+
                     <button 
                         onClick={handleLogout} 
-                        className="w-full flex items-center gap-2.5 px-4 py-2.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all font-bold text-xs"
+                        className="w-full flex items-center gap-2.5 px-3 py-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all font-bold text-xs cursor-pointer"
                     >
-                        <LogOut className="w-4 h-4" />
+                        <LogOut className="w-3.5 h-3.5" />
                         <span>Sign Out</span>
                     </button>
                 </div>
@@ -986,10 +1018,18 @@ const SuperAdminDashboard = () => {
                     </div>
 
                     <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => navigate('/profile')}
+                            className="px-3 py-2 bg-slate-100 hover:bg-slate-200/80 text-slate-700 rounded-xl font-bold text-xs flex items-center gap-1.5 border border-slate-200 transition-all cursor-pointer"
+                            title="Manage Profile & Security"
+                        >
+                            <User className="w-3.5 h-3.5 text-slate-500" />
+                            <span className="hidden sm:inline">Profile</span>
+                        </button>
                         {activeTab === 'tournaments' && (
                             <button 
                                 onClick={() => { setEditTournament(null); setShowCreateModal(true); }} 
-                                className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-extrabold text-xs flex items-center gap-2 shadow-sm shadow-blue-600/30 transition-all"
+                                className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-extrabold text-xs flex items-center gap-2 shadow-sm shadow-blue-600/30 transition-all cursor-pointer"
                             >
                                 <Plus className="w-4 h-4" /> Create Tournament
                             </button>
@@ -1245,10 +1285,22 @@ const SuperAdminDashboard = () => {
                                         </div>
                                     );
                                 }) : (
-                                    <div className="col-span-full py-16 text-center text-slate-500 bg-white rounded-3xl border border-slate-200 border-dashed">
-                                        <Trophy className="w-12 h-12 mx-auto mb-3 text-slate-300" />
-                                        <p className="text-base font-bold text-slate-700">No tournaments created yet.</p>
-                                        <button onClick={() => setShowCreateModal(true)} className="text-blue-600 hover:underline text-xs font-bold mt-2 inline-block">Create your first tournament</button>
+                                    <div className="col-span-full py-16 px-6 text-center text-slate-500 bg-white rounded-3xl border border-slate-200 border-dashed shadow-xs">
+                                        <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto mb-4 shadow-xs">
+                                            <Trophy className="w-8 h-8" />
+                                        </div>
+                                        <h3 className="text-lg font-black text-slate-900 mb-1">
+                                            Welcome to your Dedicated Workspace!
+                                        </h3>
+                                        <p className="text-slate-500 text-xs max-w-md mx-auto mb-6">
+                                            You haven't created any tournaments yet. As a tournament organizer, you have your own private workspace. Click below to create your first tournament.
+                                        </p>
+                                        <button 
+                                            onClick={() => { setEditTournament(null); setShowCreateModal(true); }} 
+                                            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-xs inline-flex items-center gap-2 shadow-md shadow-blue-600/30 transition-all cursor-pointer"
+                                        >
+                                            <Plus className="w-4 h-4" /> Create Your First Tournament
+                                        </button>
                                     </div>
                                 )}
                             </div>

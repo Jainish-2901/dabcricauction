@@ -26,6 +26,22 @@ if (API_BASE_URL) {
     axios.defaults.baseURL = API_BASE_URL;
 }
 
+// Request interceptor to attach active user identity for multi-tenant workspace isolation
+axios.interceptors.request.use(config => {
+    try {
+        const saved = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
+        if (saved) {
+            const u = JSON.parse(saved);
+            const uid = u._id || u.id;
+            if (uid) config.headers['x-user-id'] = uid;
+            if (u.username) config.headers['x-username'] = u.username;
+        }
+    } catch {
+        // ignore
+    }
+    return config;
+});
+
 /**
  * Universal apiFetch wrapper that prefixes API_BASE_URL in production
  * Prevents Vercel 404/rewrite errors when hitting /api/* endpoints
@@ -33,7 +49,25 @@ if (API_BASE_URL) {
 export const apiFetch = (endpoint, options = {}) => {
     const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
     const fullUrl = API_BASE_URL ? `${API_BASE_URL}${path}` : path;
-    return fetch(fullUrl, options);
+    
+    // Attach user identity headers if not explicitly provided
+    const headers = { ...(options.headers || {}) };
+    try {
+        const saved = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
+        if (saved) {
+            const u = JSON.parse(saved);
+            const uid = u._id || u.id;
+            if (uid && !headers['x-user-id']) headers['x-user-id'] = uid;
+            if (u.username && !headers['x-username']) headers['x-username'] = u.username;
+        }
+    } catch {
+        // ignore
+    }
+
+    return fetch(fullUrl, {
+        ...options,
+        headers
+    });
 };
 
 export default axios;

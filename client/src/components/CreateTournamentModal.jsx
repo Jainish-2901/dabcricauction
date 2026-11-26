@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { X, Trophy, TrendingUp, Layers, Coins, Plus, Trash2, RotateCcw, Calendar, Clock, Upload, Maximize2, Image as ImageIcon } from 'lucide-react';
 import toast from '../lib/toast';
+import { useAuth } from '../context/AuthContext';
 import { WebDatePickerModal, WebTimePickerModal } from './DateTimePickerModal';
 import ImageCropModal from './ImageCropModal';
 import SafeImage from './SafeImage';
@@ -21,6 +22,7 @@ const DEFAULT_SLABS_K_L = [
 ];
 
 const CreateTournamentModal = ({ isOpen, onClose, onCreated, initialData = null, isEdit = false }) => {
+    const { user } = useAuth();
     const [formData, setFormData] = useState({
         name: '',
         startDate: '',
@@ -235,7 +237,12 @@ const CreateTournamentModal = ({ isOpen, onClose, onCreated, initialData = null,
                     label: r.label || ''
                 };
             });
-            const submitData = { ...formData, bidIncrementRules: cleanedRules, logo: formData.logo || '' };
+            const submitData = { 
+                ...formData, 
+                bidIncrementRules: cleanedRules, 
+                logo: formData.logo || '',
+                createdBy: isEdit ? (initialData?.createdBy || user?._id || user?.id) : (user?._id || user?.id)
+            };
 
             if (isEdit) {
                 await axios.put(`/api/tournaments/${initialData._id}`, submitData);

@@ -197,7 +197,9 @@ export const directResetPassword = async (payload: { username: string; phone?: s
 
 const mapTournament = (r: any) => {
     const scale = r.budget_scale || (r.description && r.description.includes('SCALE:K_TO_L') ? 'K_TO_L' : (r.description && r.description.includes('SCALE:L_TO_CR') ? 'L_TO_CR' : (r.budgetScale || 'L_TO_CR')));
-    const cleanDesc = r.description ? r.description.replace(/\[SCALE:[^\]]+\]\s*/g, '').trim() : '';
+    const creatorMatch = r.description ? r.description.match(/\[CREATOR:([^]]+)\]/) : null;
+    const createdBy = r.created_by || (creatorMatch ? creatorMatch[1] : null);
+    const cleanDesc = r.description ? r.description.replace(/\[(SCALE|CREATOR):[^]]+\]\s*/g, '').trim() : '';
     return {
         _id: r._id,
         id: r._id,
@@ -211,6 +213,7 @@ const mapTournament = (r: any) => {
         description: cleanDesc,
         logo: r.logo || '',
         budgetScale: scale,
+        createdBy: createdBy,
         activeSlotId: r.active_slot_id || null,
         slotDrawMode: r.slot_draw_mode || 'order',
         currentBiddingPlayerId: r.current_bidding_player_id || null,
@@ -221,14 +224,26 @@ const mapTournament = (r: any) => {
     };
 };
 
-export const directGetTournaments = async () => {
+export const directGetTournaments = async (userId?: string | null, username?: string | null) => {
     const { data, error } = await supabase
         .from('tournaments')
         .select('*')
         .order('created_at', { ascending: false });
 
     if (error) throw new Error(error.message);
-    return (data || []).map(mapTournament);
+    const mapped = (data || []).map(mapTournament);
+    if (userId || username) {
+        const uId = String(userId || '').trim();
+        const uName = String(username || '').trim().toLowerCase();
+        return mapped.filter(t => {
+            const creator = String(t.createdBy || '').trim();
+            if (!creator) {
+                return uId === 'user_1794153277298_yd2lx' || uName === 'jainish_dabgar';
+            }
+            return creator === uId || creator.toLowerCase() === uName;
+        });
+    }
+    return mapped;
 };
 
 export const directGetTournament = async (id: string) => {
@@ -1078,3 +1093,70 @@ export const directMoveInjuredToUnsold = async (tournamentId: string, playerId: 
     return { success: true };
 };
 
+// ==================== PROFILE & PASSWORD ====================
+
+export const directGetProfile = async (userId: string) => {
+    const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('_id', userId)
+        .maybeSingle();
+
+    if (error || !data) throw new Error('User profile not found');
+    return {
+        _id: data._id,
+        id: data._id,
+        username: data.username,
+        name: data.name || data.username,
+        organizationName: data.organization_name || '',
+        phone: data.phone || '',
+        role: data.role || 'superadmin'
+    };
+};
+
+export const directUpdateProfile = async (payload: { userId: string; name?: string; organizationName?: string; phone?: string; username?: string }) => {
+    const { userId, name, organizationName, phone, username } = payload;
+    const row: any = { updated_at: new Date().toISOString() };
+    if (name !== undefined) row.name = name.trim();
+    if (organizationName !== undefined) row.organization_name = organizationName.trim();
+    if (phone !== undefined) row.phone = phone.trim();
+    if (username !== undefined) row.username = username.trim();
+
+    const { error } = await supabase.from('users').update(row).eq('_id', userId);
+    if (error) throw new Error(error.message);
+
+    return {
+        _id: userId,
+        id: userId,
+        username: username || '',
+        name: name || '',
+        organizationName: organizationName || '',
+        phone: phone || ''
+    };
+};
+
+export const directChangePassword = async (payload: { userId: string; currentPassword: string; newPassword: string }) => {
+    const { userId, currentPassword, newPassword } = payload;
+    const { data: user, error: findErr } = await supabase
+        .from('users')
+        .select('*')
+        .eq('_id', userId)
+        .maybeSingle();
+
+    if (findErr || !user) throw new Error('User not found');
+
+    const passMatch = user.plain_password === currentPassword.trim() || user.password_hash === currentPassword.trim();
+    if (!passMatch) throw new Error('Current password is incorrect. Please check your credentials.');
+
+    const { error: updateErr } = await supabase
+        .from('users')
+        .update({
+            plain_password: newPassword.trim(),
+            password_hash: newPassword.trim(),
+            updated_at: new Date().toISOString()
+        })
+        .eq('_id', userId);
+
+    if (updateErr) throw new Error(updateErr.message);
+    return { success: true, message: 'Password updated successfully!' };
+};
