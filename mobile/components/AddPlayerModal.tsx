@@ -359,7 +359,7 @@ export default function AddPlayerModal({
 
                 const rawPrice = colIndex.basePrice !== -1 ? cols[colIndex.basePrice] : cols[2];
                 const parsedBase = Number(String(rawPrice ?? '').replace(/[^0-9.]/g, ''));
-                const basePriceVal = Number.isFinite(parsedBase) && rawPrice !== '' && rawPrice !== undefined ? parsedBase : (Number(defaultBase) || 20);
+                const basePriceVal = (rawPrice !== '' && rawPrice !== undefined && Number.isFinite(parsedBase) && parsedBase >= 0) ? parsedBase : 0;
 
                 newPlayers.push({
                     name: pName,

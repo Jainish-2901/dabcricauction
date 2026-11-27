@@ -654,7 +654,7 @@ const SuperAdminDashboard = () => {
                                         </div>
                                         <div className="text-right">
                                             <span className="text-[10px] font-black text-amber-700 uppercase block">Retention Fee</span>
-                                            <div className="text-sm font-black text-amber-900">₹{selectedTeamForRoster.captainPrice || 0}{smallUnit}</div>
+                                            <div className="text-sm font-black text-amber-900">{formatPrice(selectedTeamForRoster.captainPrice || 0)}</div>
                                         </div>
                                     </div>
                                 );
@@ -1500,11 +1500,11 @@ const SuperAdminDashboard = () => {
                                                             )}
                                                         </div>
                                                         <div className="text-xs text-slate-500 font-bold mt-0.5">
-                                                            {p.category} • {isCap ? `Fee: ₹${p.soldPrice || p.sold_price || p.basePrice}${smallUnit}` : p.status === 'sold' ? (
+                                                            {p.category} • {isCap ? `Fee: ${formatPrice(p.soldPrice || p.sold_price || p.basePrice)}` : p.status === 'sold' ? (
                                                                 <span className="text-emerald-700 font-extrabold">
-                                                                    Sold: ₹{p.soldPrice || p.sold_price || p.currentBid || p.basePrice}{smallUnit} <span className="text-slate-400 font-semibold">(Base: ₹{p.basePrice}{smallUnit})</span>
+                                                                    Sold: {formatPrice(p.soldPrice || p.sold_price || p.currentBid || p.basePrice)} <span className="text-slate-400 font-semibold">(Base: {formatPrice(p.basePrice)})</span>
                                                                 </span>
-                                                            ) : `Base: ₹${p.basePrice}${smallUnit}`}
+                                                            ) : `Base: ${formatPrice(p.basePrice)}`}
                                                         </div>
                                                         <div className="text-[11px] text-slate-400 font-medium mt-0.5">{p.battingStyle || 'Right-Hand Bat'}</div>
                                                         
@@ -1518,14 +1518,14 @@ const SuperAdminDashboard = () => {
                                                                     : 'bg-slate-100 text-slate-600'
                                                             }`}>
                                                                 {isCap 
-                                                                    ? `🚫 NOT IN AUCTION (DIRECT SQUAD)` 
+                                                                    ? `🚫 DIRECT SQUAD (${formatPrice(p.soldPrice || p.sold_price || p.basePrice)})` 
                                                                     : p.status === 'sold'
-                                                                    ? `SOLD • ₹${p.soldPrice || p.sold_price || p.currentBid || p.basePrice}${smallUnit}`
+                                                                    ? `SOLD • ${formatPrice(p.soldPrice || p.sold_price || p.currentBid || p.basePrice)}`
                                                                     : p.status === 'unsold'
                                                                     ? `UNSOLD`
                                                                     : p.status === 'injured'
                                                                     ? `🚑 INJURED`
-                                                                    : `AVAILABLE • ₹${p.basePrice}${smallUnit}`}
+                                                                    : `AVAILABLE • ${formatPrice(p.basePrice)}`}
                                                             </span>
                                                             {p.status === 'injured' && (
                                                                 <button
@@ -1997,7 +1997,7 @@ const SuperAdminDashboard = () => {
                                                             <span className="text-xs font-black text-amber-950 truncate">{resolvedCapName || 'Captain'}</span>
                                                         </div>
                                                         <span className="text-[10px] font-black text-amber-800 bg-amber-200/60 px-2 py-0.5 rounded-md shrink-0">
-                                                            ₹{team.captainPrice || 0}{smallUnit} Retained
+                                                            {formatPrice(team.captainPrice || 0)} Retained
                                                         </span>
                                                     </div>
                                                 )}

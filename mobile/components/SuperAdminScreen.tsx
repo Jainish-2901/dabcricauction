@@ -1899,7 +1899,7 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                                                         previewTitle={tmCapName}
                                                     />
                                                     <Text style={styles.captainBannerText}>
-                                                        Captain: <Text style={{ fontWeight: '900' }}>{tmCapName}</Text> (₹{tm.captainPrice || (isKtoL ? 3 : 15)} {smallUnit} Retained)
+                                                        Captain: <Text style={{ fontWeight: '900' }}>{tmCapName}</Text> ({formatPrice(tm.captainPrice || (isKtoL ? 3 : 15))} Retained)
                                                     </Text>
                                                 </View>
                                             );
@@ -2242,7 +2242,7 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                                                         )}
                                                     </View>
                                                     <Text style={styles.cardSub}>
-                                                        Role: {p.category} • {isCap ? `Fee: ₹${p.soldPrice || p.sold_price || p.basePrice} ${smallUnit}` : p.status === 'sold' ? `Sold: ₹${p.soldPrice || p.sold_price || p.currentBid || p.basePrice} ${smallUnit} (Base: ₹${p.basePrice} ${smallUnit})` : `Base: ₹${p.basePrice} ${smallUnit}`}
+                                                        Role: {p.category} • {isCap ? `Fee: ${formatPrice(p.soldPrice || p.sold_price || p.basePrice)}` : p.status === 'sold' ? `Sold: ${formatPrice(p.soldPrice || p.sold_price || p.currentBid || p.basePrice)} (Base: ${formatPrice(p.basePrice)})` : `Base: ${formatPrice(p.basePrice)}`}
                                                     </Text>
 
                                                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
@@ -2257,7 +2257,7 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                                                                 fontWeight: '800',
                                                                 color: isCap ? '#92400e' : p.status === 'sold' ? '#15803d' : p.status === 'unsold' ? '#b91c1c' : p.status === 'injured' ? '#e11d48' : '#64748b'
                                                             }}>
-                                                                {isCap ? `🚫 DIRECT SQUAD (₹${p.soldPrice || p.sold_price || p.basePrice} ${smallUnit})` : p.status === 'sold' ? `SOLD • ₹${p.soldPrice || p.sold_price || p.currentBid || p.basePrice} ${smallUnit}` : p.status === 'injured' ? `🚑 INJURED` : `${(p.status || 'AVAILABLE').toUpperCase()}`}
+                                                                {isCap ? `🚫 DIRECT SQUAD (${formatPrice(p.soldPrice || p.sold_price || p.basePrice)})` : p.status === 'sold' ? `SOLD • ${formatPrice(p.soldPrice || p.sold_price || p.currentBid || p.basePrice)}` : p.status === 'injured' ? `🚑 INJURED` : `${(p.status || 'AVAILABLE').toUpperCase()}`}
                                                             </Text>
                                                         </View>
                                                         {p.status === 'injured' && (
@@ -2686,7 +2686,7 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
 
                                                     {!isAuctioneer && cred.captainName && (
                                                         <Text style={styles.cardSub}>
-                                                            Captain: {cred.captainName} (Fee: ₹{cred.captainPrice || (isKtoL ? 3 : 15)} {smallUnit})
+                                                            Captain: {cred.captainName} (Fee: {formatPrice(cred.captainPrice || (isKtoL ? 3 : 15))})
                                                         </Text>
                                                     )}
 
@@ -3059,7 +3059,7 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                                             RETAINED CAPTAIN: {viewingSquadTeam?.captainName || `${viewingSquadTeam?.name} Captain`}
                                         </Text>
                                         <Text style={{ fontSize: 10, color: '#b45309' }}>
-                                            Price: ₹{viewingSquadTeam?.captainPrice || (isKtoL ? 3 : 15)} {smallUnit} (Auto-deducted)
+                                            Price: {formatPrice(viewingSquadTeam?.captainPrice || (isKtoL ? 3 : 15))} (Auto-deducted)
                                         </Text>
                                     </View>
                                 </View>
@@ -4432,8 +4432,9 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-around',
+        minWidth: '100%',
         flexGrow: 1,
-        paddingHorizontal: 6,
+        paddingHorizontal: 4,
     },
     tabItem: {
         flex: 1,

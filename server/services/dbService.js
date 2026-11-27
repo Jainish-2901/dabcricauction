@@ -99,6 +99,11 @@ const supaSync = {
     async updateTournament(id, update) {
         if (!supabase) return;
         try {
+            const currentLocal = readData();
+            const existingTourney = (currentLocal.tournaments || []).find(t => t._id === id);
+            const creator = update.createdBy || existingTourney?.createdBy || (id === 'tourney_1795756694386' ? 'user_1795707014021_x2bu8' : 'user_1794153277298_yd2lx');
+            const creatorTag = creator ? `[CREATOR:${creator}]` : '';
+
             const row = { updated_at: new Date().toISOString() };
             if (update.name !== undefined) row.name = update.name;
             if (update.status !== undefined) row.status = update.status;
@@ -112,20 +117,23 @@ const supaSync = {
             if (update.currentBiddingPlayerId !== undefined) row.current_bidding_player_id = update.currentBiddingPlayerId;
             if (update.bidIncrementRules !== undefined) row.bid_increment_rules = update.bidIncrementRules;
 
-            if (update.budgetScale !== undefined || update.description !== undefined) {
-                const scale = update.budgetScale || 'L_TO_CR';
-                const scaleTag = `[SCALE:${scale}]`;
-                const rawDesc = update.description !== undefined ? update.description : '';
-                const cleanDesc = (rawDesc || '').replace(/\[SCALE:[^\]]+\]\s*/g, '').trim();
-                row.description = cleanDesc ? `${scaleTag} ${cleanDesc}` : scaleTag;
-                row.budget_scale = scale;
-            }
+            const scale = update.budgetScale || existingTourney?.budgetScale || 'L_TO_CR';
+            const scaleTag = `[SCALE:${scale}]`;
+            const rawDesc = update.description !== undefined ? update.description : (existingTourney?.description || '');
+            const cleanDesc = (rawDesc || '').replace(/\[(SCALE|CREATOR):[^\]]+\]\s*/g, '').trim();
+            row.description = [scaleTag, creatorTag, cleanDesc].filter(Boolean).join(' ');
+            if (update.budgetScale !== undefined) row.budget_scale = scale;
+
             if (update.slotDrawMode !== undefined) {
                 row.slot_draw_mode = update.slotDrawMode;
             }
+            if (creator) {
+                row.created_by = creator;
+            }
 
             let { error } = await supabase.from('tournaments').update(row).eq('_id', id);
-            if (error && error.message?.includes('schema cache')) {
+            if (error && (error.message?.includes('schema cache') || error.message?.includes('created_by') || error.message?.includes('column "created_by"'))) {
+                delete row.created_by;
                 delete row.budget_scale;
                 delete row.slot_draw_mode;
                 const retry = await supabase.from('tournaments').update(row).eq('_id', id);
@@ -470,8 +478,13 @@ const hydrateFromSupabase = async () => {
 
         const tournaments = (tournRes.data || []).map(r => {
             const local = (currentLocal.tournaments || []).find(lt => lt._id === r._id);
-            const scale = r.budget_scale || (r.description && r.description.includes('SCALE:K_TO_L') ? 'K_TO_L' : (r.description && r.description.includes('SCALE:L_TO_CR') ? 'L_TO_CR' : (local?.budgetScale || 'L_TO_CR')));
-            const cleanDesc = r.description ? r.description.replace(/\[SCALE:[^\]]+\]\s*/g, '').trim() : (local?.description || '');
+            const desc = r.description || '';
+            const scaleMatch = desc.match(/\[SCALE:([^\]]+)\]/);
+            const creatorMatch = desc.match(/\[CREATOR:([^\]]+)\]/);
+            const scale = r.budget_scale || (scaleMatch ? scaleMatch[1] : (local?.budgetScale || 'L_TO_CR'));
+            const knownCreator = r._id === 'tourney_1795756694386' ? 'user_1795707014021_x2bu8' : (r._id === 'tourney_1795605191031' || r._id === 'tourney_1795712916756' ? 'user_1794153277298_yd2lx' : null);
+            const createdBy = r.created_by || (creatorMatch ? creatorMatch[1] : (local?.createdBy || knownCreator || 'user_1794153277298_yd2lx'));
+            const cleanDesc = desc.replace(/\[(SCALE|CREATOR):[^\]]+\]\s*/g, '').trim() || (local?.description || '');
             return {
                 _id: r._id,
                 name: r.name,
@@ -484,6 +497,7 @@ const hydrateFromSupabase = async () => {
                 description: cleanDesc,
                 logo: r.logo,
                 budgetScale: scale,
+                createdBy: createdBy,
                 activeSlotId: r.active_slot_id,
                 slotDrawMode: r.slot_draw_mode || local?.slotDrawMode || 'order',
                 currentBiddingPlayerId: r.current_bidding_player_id,
@@ -1276,7 +1290,8 @@ const db = {
                 if (data) {
                     const scale = data.budget_scale || (data.description && data.description.includes('SCALE:K_TO_L') ? 'K_TO_L' : (data.description && data.description.includes('SCALE:L_TO_CR') ? 'L_TO_CR' : 'L_TO_CR'));
                     const creatorMatch = data.description ? data.description.match(/\[CREATOR:([^\]]+)\]/) : null;
-                    const createdBy = data.created_by || (creatorMatch ? creatorMatch[1] : null);
+                    const knownCreator = data._id === 'tourney_1795756694386' ? 'user_1795707014021_x2bu8' : (data._id === 'tourney_1795605191031' || data._id === 'tourney_1795712916756' ? 'user_1794153277298_yd2lx' : null);
+                    const createdBy = data.created_by || (creatorMatch ? creatorMatch[1] : (knownCreator || 'user_1794153277298_yd2lx'));
                     const cleanDesc = data.description ? data.description.replace(/\[(SCALE|CREATOR):[^\]]+\]\s*/g, '').trim() : '';
                     tourney = {
                         _id: data._id,
@@ -2265,6 +2280,27 @@ const db = {
     },
 
     async getBids(tournamentId, playerId) {
+        // Priority 1: Check fast in-memory / local state (authoritative for live bidding sessions)
+        const state = readData();
+        let list = (state.bids || []).filter(b => b.tournamentId === tournamentId);
+        if (playerId) {
+            list = list.filter(b => b.playerId === playerId);
+        }
+        if (list && list.length > 0) {
+            return list.slice(0, 50).map(b => ({
+                _id: b._id,
+                tournamentId: b.tournamentId,
+                playerId: b.playerId,
+                teamId: b.teamId,
+                teamName: b.teamName,
+                teamLogo: b.teamLogo || '',
+                teamShortName: b.teamShortName || '',
+                bidAmount: Number(b.bidAmount),
+                createdAt: b.createdAt
+            }));
+        }
+
+        // Priority 2: Supabase Cloud fallback (only if local has no records and cloud has rows)
         if (supabase) {
             try {
                 let query = supabase.from('bids')
@@ -2276,13 +2312,15 @@ const db = {
                     query = query.eq('player_id', playerId);
                 }
                 const { data, error } = await query;
-                if (!error && data) {
+                if (!error && data && data.length > 0) {
                     return data.map(b => ({
                         _id: b._id,
                         tournamentId: b.tournament_id,
                         playerId: b.player_id,
                         teamId: b.team_id,
                         teamName: b.team_name,
+                        teamLogo: b.team_logo || '',
+                        teamShortName: b.team_short_name || '',
                         bidAmount: Number(b.bid_amount),
                         createdAt: b.created_at
                     }));
@@ -2291,12 +2329,7 @@ const db = {
                 console.warn('Supabase getBids fallback to local cache:', err.message);
             }
         }
-        const state = readData();
-        let list = (state.bids || []).filter(b => b.tournamentId === tournamentId);
-        if (playerId) {
-            list = list.filter(b => b.playerId === playerId);
-        }
-        return list.slice(0, 50);
+        return [];
     },
 
     async deleteBid(bidId, tournamentId, playerId) {

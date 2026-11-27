@@ -622,17 +622,25 @@ io.on('connection', (socket) => {
                 const previousBid = recentBids[1];
                 if (previousBid) {
                     const prevTeam = await db.getTeamById(previousBid.teamId);
-                    player.currentBid = previousBid.bidAmount;
-                    player.current_bid = previousBid.bidAmount;
-                    player.currentLeadTeamId = prevTeam || { _id: previousBid.teamId, name: previousBid.teamName };
+                    const restoredBid = Number(previousBid.bidAmount);
+                    player.currentBid = restoredBid;
+                    player.current_bid = restoredBid;
+                    player.currentLeadTeamId = prevTeam || {
+                        _id: previousBid.teamId,
+                        name: previousBid.teamName,
+                        logo: previousBid.teamLogo || '',
+                        shortName: previousBid.teamShortName || ''
+                    };
                 } else {
-                    player.currentBid = player.basePrice || 20;
-                    player.current_bid = player.basePrice || 20;
+                    const defaultBase = Number(player.basePrice) >= 0 ? Number(player.basePrice) : 0;
+                    player.currentBid = defaultBase;
+                    player.current_bid = defaultBase;
                     player.currentLeadTeamId = null;
                 }
             } else {
-                player.currentBid = player.basePrice || 20;
-                player.current_bid = player.basePrice || 20;
+                const defaultBase = Number(player.basePrice) >= 0 ? Number(player.basePrice) : 0;
+                player.currentBid = defaultBase;
+                player.current_bid = defaultBase;
                 player.currentLeadTeamId = null;
             }
 

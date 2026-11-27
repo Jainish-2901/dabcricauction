@@ -197,9 +197,10 @@ export const directResetPassword = async (payload: { username: string; phone?: s
 
 const mapTournament = (r: any) => {
     const scale = r.budget_scale || (r.description && r.description.includes('SCALE:K_TO_L') ? 'K_TO_L' : (r.description && r.description.includes('SCALE:L_TO_CR') ? 'L_TO_CR' : (r.budgetScale || 'L_TO_CR')));
-    const creatorMatch = r.description ? r.description.match(/\[CREATOR:([^]]+)\]/) : null;
-    const createdBy = r.created_by || (creatorMatch ? creatorMatch[1] : null);
-    const cleanDesc = r.description ? r.description.replace(/\[(SCALE|CREATOR):[^]]+\]\s*/g, '').trim() : '';
+    const creatorMatch = r.description ? r.description.match(/\[CREATOR:([^\]]+)\]/) : null;
+    const knownCreator = r._id === 'tourney_1795756694386' ? 'user_1795707014021_x2bu8' : (r._id === 'tourney_1795605191031' || r._id === 'tourney_1795712916756' ? 'user_1794153277298_yd2lx' : null);
+    const createdBy = r.created_by || (creatorMatch ? creatorMatch[1] : (knownCreator || null));
+    const cleanDesc = r.description ? r.description.replace(/\[(SCALE|CREATOR):[^\]]+\]\s*/g, '').trim() : '';
     return {
         _id: r._id,
         id: r._id,
@@ -261,8 +262,10 @@ export const directCreateTournament = async (payload: any) => {
     const newId = payload._id || generateId('t');
     const scale = payload.budgetScale === 'K_TO_L' ? 'K_TO_L' : 'L_TO_CR';
     const scaleTag = `[SCALE:${scale}]`;
-    const cleanDesc = (payload.description || '').replace(/\[SCALE:[^\]]+\]\s*/g, '').trim();
-    const descWithTag = cleanDesc ? `${scaleTag} ${cleanDesc}` : scaleTag;
+    const creator = payload.createdBy || payload.userId || null;
+    const creatorTag = creator ? `[CREATOR:${creator}]` : '';
+    const cleanDesc = (payload.description || '').replace(/\[(SCALE|CREATOR):[^\]]+\]\s*/g, '').trim();
+    const descWithTag = [scaleTag, creatorTag, cleanDesc].filter(Boolean).join(' ');
 
     const record: any = {
         _id: newId,
@@ -281,6 +284,7 @@ export const directCreateTournament = async (payload: any) => {
     if (payload.budgetScale) record.budget_scale = scale;
     if (payload.slotDrawMode) record.slot_draw_mode = payload.slotDrawMode;
     if (payload.bidIncrementRules) record.bid_increment_rules = payload.bidIncrementRules;
+    if (creator) record.created_by = creator;
 
     let { data, error } = await supabase
         .from('tournaments')
@@ -288,7 +292,8 @@ export const directCreateTournament = async (payload: any) => {
         .select()
         .single();
 
-    if (error && error.message?.includes('schema cache')) {
+    if (error && (error.message?.includes('schema cache') || error.message?.includes('created_by') || error.message?.includes('column "created_by"'))) {
+        delete record.created_by;
         delete record.budget_scale;
         delete record.slot_draw_mode;
         const retry = await supabase.from('tournaments').insert(record).select().single();
@@ -314,13 +319,24 @@ export const directUpdateTournament = async (id: string, payload: any) => {
     if (payload.activeSlotId !== undefined) updateRecord.active_slot_id = payload.activeSlotId;
     if (payload.currentBiddingPlayerId !== undefined) updateRecord.current_bidding_player_id = payload.currentBiddingPlayerId;
 
-    if (payload.budgetScale !== undefined || payload.description !== undefined) {
+    if (payload.budgetScale !== undefined || payload.description !== undefined || payload.createdBy !== undefined) {
+        // Fetch current tournament to preserve creator tag
+        let existingCreator = payload.createdBy;
+        if (!existingCreator) {
+            try {
+                const { data: curr } = await supabase.from('tournaments').select('description, created_by').eq('_id', id).maybeSingle();
+                const m = curr?.description?.match(/\[CREATOR:([^\]]+)\]/);
+                existingCreator = curr?.created_by || (m ? m[1] : (id === 'tourney_1795756694386' ? 'user_1795707014021_x2bu8' : 'user_1794153277298_yd2lx'));
+            } catch {}
+        }
         const scale = payload.budgetScale || 'L_TO_CR';
         const scaleTag = `[SCALE:${scale}]`;
+        const creatorTag = existingCreator ? `[CREATOR:${existingCreator}]` : '';
         const rawDesc = payload.description !== undefined ? payload.description : '';
-        const cleanDesc = (rawDesc || '').replace(/\[SCALE:[^\]]+\]\s*/g, '').trim();
-        updateRecord.description = cleanDesc ? `${scaleTag} ${cleanDesc}` : scaleTag;
+        const cleanDesc = (rawDesc || '').replace(/\[(SCALE|CREATOR):[^\]]+\]\s*/g, '').trim();
+        updateRecord.description = [scaleTag, creatorTag, cleanDesc].filter(Boolean).join(' ');
         updateRecord.budget_scale = scale;
+        if (existingCreator) updateRecord.created_by = existingCreator;
     }
     if (payload.slotDrawMode !== undefined) {
         updateRecord.slot_draw_mode = payload.slotDrawMode;
@@ -336,7 +352,8 @@ export const directUpdateTournament = async (id: string, payload: any) => {
         .select()
         .single();
 
-    if (error && error.message?.includes('schema cache')) {
+    if (error && (error.message?.includes('schema cache') || error.message?.includes('created_by') || error.message?.includes('column "created_by"'))) {
+        delete updateRecord.created_by;
         delete updateRecord.budget_scale;
         delete updateRecord.slot_draw_mode;
         const retry = await supabase.from('tournaments').update(updateRecord).eq('_id', id).select().single();
@@ -567,7 +584,7 @@ const mapPlayer = (r: any) => ({
     category: r.category || 'Batsman',
     battingStyle: r.batting_style || 'Right-Hand Bat',
     bowlingStyle: r.bowling_style || 'Right-Arm Medium',
-    basePrice: Number(r.base_price) || 20,
+    basePrice: Number(r.base_price) >= 0 ? Number(r.base_price) : 0,
     currentBid: Number(r.current_bid) || 0,
     soldPrice: Number(r.sold_price) > 0 ? Number(r.sold_price) : (r.status === 'sold' && Number(r.current_bid) > 0 ? Number(r.current_bid) : (Number(r.sold_price) || 0)),
     sold_price: Number(r.sold_price) > 0 ? Number(r.sold_price) : (r.status === 'sold' && Number(r.current_bid) > 0 ? Number(r.current_bid) : (Number(r.sold_price) || 0)),
@@ -604,7 +621,7 @@ export const directCreatePlayer = async (payload: any) => {
         category: payload.category || 'Batsman',
         batting_style: payload.battingStyle || 'Right-Hand Bat',
         bowling_style: payload.bowlingStyle || 'Right-Arm Medium',
-        base_price: Number(payload.basePrice) || 20,
+        base_price: Number(payload.basePrice) >= 0 ? Number(payload.basePrice) : 0,
         current_bid: 0,
         sold_price: 0,
         status: payload.status || 'pending',

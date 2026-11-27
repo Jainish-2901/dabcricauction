@@ -49,7 +49,7 @@ export default function AddTeamModal({
     initialData = null,
     isEdit = false
 }: AddTeamModalProps) {
-    const { largeUnit, smallUnit, isKtoL, smallName } = getBudgetUnits(tournament);
+    const { largeUnit, smallUnit, isKtoL, smallName, formatPrice } = getBudgetUnits(tournament);
     const defaultBudget = largeUnit === 'L' ? '10' : '100';
 
     const [name, setName] = useState('');
@@ -347,7 +347,7 @@ export default function AddTeamModal({
                                         onChangeText={setCaptainPrice}
                                     />
                                     <Text style={[styles.hintText, { marginTop: -6, marginBottom: 8 }]}>
-                                        Auto-deducted from team purse (₹{captainNum} {smallUnit} = ₹{captainSpentInLarge} {largeUnit})
+                                        Auto-deducted from team purse ({formatPrice(captainNum)} = ₹{captainSpentInLarge} {largeUnit})
                                     </Text>
 
                                     {/* Live Purse Strip */}

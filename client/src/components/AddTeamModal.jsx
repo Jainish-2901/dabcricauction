@@ -7,7 +7,7 @@ import toast from '../lib/toast';
 import SafeImage from './SafeImage';
 
 const AddTeamModal = ({ isOpen, onClose, tournamentId, tournament = null, onAdded, initialData = null, isEdit = false }) => {
-    const { largeUnit, smallUnit, isKtoL } = getBudgetUnits(tournament);
+    const { largeUnit, smallUnit, isKtoL, formatPrice } = getBudgetUnits(tournament);
     const defaultBudget = largeUnit === 'L' ? 10 : 100;
 
     const [formData, setFormData] = useState({
@@ -348,7 +348,7 @@ const AddTeamModal = ({ isOpen, onClose, tournamentId, tournament = null, onAdde
                                         required
                                     />
                                     <p className="text-[10px] text-slate-400 font-medium mt-1">
-                                        Auto-deducted from team purse (₹{captainNum} {smallUnit} = ₹{captainSpentInLarge} {largeUnit})
+                                        Auto-deducted from team purse ({formatPrice(captainNum)} = ₹{captainSpentInLarge} {largeUnit})
                                     </p>
                                 </div>
 

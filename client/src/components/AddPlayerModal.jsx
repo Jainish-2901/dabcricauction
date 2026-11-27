@@ -235,7 +235,7 @@ const AddPlayerModal = ({ isOpen, onClose, tournamentId, tournament, onAdded, in
                 const category = normalizeCategory(rawCat);
                 const rawPrice = colIndex.basePrice !== -1 ? cols[colIndex.basePrice] : cols[2];
                 const parsedBase = Number(String(rawPrice ?? '').replace(/[^0-9.]/g, ''));
-                const basePrice = Number.isFinite(parsedBase) && parsedBase >= 0 && rawPrice !== '' && rawPrice !== undefined ? parsedBase : 20;
+                const basePrice = (rawPrice !== '' && rawPrice !== undefined && Number.isFinite(parsedBase) && parsedBase >= 0) ? parsedBase : 0;
 
                 if (!name) continue;
 
