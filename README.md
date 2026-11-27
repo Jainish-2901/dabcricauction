@@ -20,14 +20,17 @@
 ## 🚀 Key Features
 
 ### 🏆 Tournament & Budget Management
+- **Multi-Tenant Organizer Workspaces & Isolation**:
+  - Each organizer account (e.g. `@jainish_dabgar`, `@dcb_auction_admin`) has a completely isolated workspace. Tournaments, teams, players, and live auctions belong strictly to their creator, preserved permanently across server hydration and cold boots with metadata tags `[CREATOR:<userId>]`.
+  - Dedicated **Organizer Profile & Security Management** (`/profile`) allowing live updates to organization names, display profiles, contact numbers, and password resets.
 - **Dual Currency & Budget Scales**:
   - **Lakhs to Crores (`L_TO_CR`)**: Designed for mega IPL-scale tournaments with purse in Crores (`Cr`) and increments in Lakhs (`L`). Unit selectors strictly show `['L', 'Cr']`.
   - **Thousands to Lakhs (`K_TO_L`)**: Designed for local club, box cricket, and village/corporate tournaments with purse in Lakhs (`L`) and increments in Thousands (`K`). Unit selectors strictly show `['K', 'L']`.
-- **Dynamic Multi-Unit Formatting (`K`, `L`, `Cr`)**: Seamless automatic conversion across all tables, rosters, and cards (e.g. 100K displays as ₹1 L; Lakhs and Crores automatically scaled with zero truncation or rounding confusion).
+- **Dynamic Multi-Unit Formatting (`K`, `L`, `Cr`)**: Seamless automatic conversion across all tables, rosters, and cards (e.g. 100K displays as ₹1 L; 700L in `L_TO_CR` displays as ₹7 Cr; Lakhs and Crores automatically scaled with zero truncation or rounding confusion).
 - **Dynamic Bid Increment Slabs**: Per-slab `from`, `to`, `increment`, and independent unit selection pills (`K`, `L`, `Cr`). Supports adding, removing, and reordering slabs with seamless parity between Web and Mobile.
 - **Tournament Logo Full CRUD & Lightbox**: Upload, 1:1 square crop, view, change, and remove tournament logos at creation and edit time. Click-to-open high-resolution lightbox modal preview across tournament cards, modals, and hub.
 - **Interactive Date & Time Pickers**: Native-feeling date pickers and time pickers on both Web (`WebDatePickerModal`, `WebTimePickerModal`) and Mobile (`DatePickerModal`, `TimePickerModal`) for tournament scheduling.
-- **Multi-Tenant Tournament Hub**: Scope players, teams, slots, budgets, and logins cleanly per tournament.
+- **Bulk CSV Player Import**: Intelligent CSV ingestion with auto-mapped columns, category normalization, and configurable base prices (defaulting cleanly to `0` when empty).
 
 ### ⚡ Live Auction Engine & Gavel Controls
 - **Real-Time Live Bidding Engine**: Sub-100ms WebSocket auctions with instant leader updates, timer sync, and dynamic bid increments.
