@@ -62,8 +62,9 @@ export default function TermsPage() {
                                 Organizer & SuperAdmin Responsibilities
                             </h2>
                             <ul className="list-disc pl-5 space-y-1.5 text-slate-900 font-medium">
+                                <li><strong>Dedicated Workspace Ownership:</strong> Each registered organizer account possesses an isolated workspace. Organizers retain full administrative ownership over tournaments, rosters, and financial scales created within their workspace.</li>
                                 <li><strong>Tournament Rule Enforcement:</strong> Organizers are solely responsible for setting squad limits, base prices, bidding slab scales, and enforcing physical cricket league rules.</li>
-                                <li><strong>Credential Confidentiality:</strong> Organizers must keep SuperAdmin and Auctioneer login passwords confidential. Dab Cric Auction is not responsible for unauthorized actions resulting from shared passwords.</li>
+                                <li><strong>Credential Confidentiality & Profile Security:</strong> Organizers must keep SuperAdmin and Auctioneer login passwords confidential and utilize their Profile Management page to maintain secure, updated credentials. Dab Cric Auction is not responsible for unauthorized actions resulting from shared passwords.</li>
                                 <li><strong>Player Consent:</strong> Organizers must ensure players submitted to the nomination portal have granted consent for their name, statistics, and photo to be displayed on public spectator screens.</li>
                             </ul>
                         </div>

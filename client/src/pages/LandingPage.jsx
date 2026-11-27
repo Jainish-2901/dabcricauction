@@ -218,7 +218,7 @@ const LandingPage = () => {
                             color: 'bg-indigo-50 text-indigo-600 border-indigo-100',
                             title: 'Category Slots & Pool Management',
                             subtitle: 'Budget & Squad Governance',
-                            desc: 'Dual currency scales (L→Cr & K→L), dedicated Pending Players pool, 1-click squad release to Unsold pool with purse refund, direct manual player allocation, and strict quota controls.'
+                            desc: 'Dual currency scales (L→Cr & K→L), smart CSV bulk player import with auto-formatting, dedicated Pending Players pool, 1-click squad release to Unsold pool, and direct manual player allocation.'
                         },
                         {
                             icon: RotateCcw,
@@ -226,6 +226,13 @@ const LandingPage = () => {
                             title: 'Audit-Safe Rollback & Undo',
                             subtitle: 'Zero Data Loss Guarantee',
                             desc: 'Accidental high bid? Step-by-step Erase Last Bid deletes only the recent bid back to the previous leader. Roll back sold sales or return players to the Unsold pool with zero data loss.'
+                        },
+                        {
+                            icon: Shield,
+                            color: 'bg-cyan-50 text-cyan-600 border-cyan-100',
+                            title: 'Isolated Organizer Workspaces',
+                            subtitle: 'Multi-Tenant Architecture',
+                            desc: 'Every organizer account operates in a completely dedicated, isolated workspace. Tournaments, teams, rosters, and live bidding sessions remain strictly private with built-in profile & password controls.'
                         }
                     ].map((service, idx) => (
                         <div

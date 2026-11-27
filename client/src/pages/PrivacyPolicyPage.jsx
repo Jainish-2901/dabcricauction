@@ -75,10 +75,13 @@ export default function PrivacyPolicyPage() {
                         <div>
                             <h2 className="text-base sm:text-lg font-black text-slate-950 mb-2 flex items-center gap-2">
                                 <span className="w-6 h-6 rounded-lg bg-blue-600 text-white text-xs flex items-center justify-center font-black">4</span>
-                                Cloud Storage & Security Infrastructure
+                                Cloud Storage, Security & Multi-Tenant Segregation
                             </h2>
+                            <p className="mb-2">
+                                All auction records and database tables are securely hosted on <strong>Supabase (PostgreSQL)</strong> with strict Row-Level Security (RLS) policies and HTTPS/TLS encryption in transit. Player photos and tournament logos are processed through an interactive 1:1 aspect cropper and hosted via <strong>Cloudinary CDN</strong> over secure HTTPS.
+                            </p>
                             <p>
-                                All auction records and database tables are securely hosted on <strong>Supabase (PostgreSQL)</strong> with strict Row-Level Security (RLS) policies and HTTPS/TLS encryption in transit. Player photos and tournament logos are processed through an interactive 1:1 aspect cropper and hosted via <strong>Cloudinary CDN</strong> over secure HTTPS. We do not sell, rent, or trade your data to any third-party advertisers or marketing agencies.
+                                <strong>Multi-Tenant Data Isolation:</strong> Every tournament organizer account operates inside a dedicated, isolated workspace. Tournaments, player pools, franchise purse configurations, and live bidding logs are strictly partitioned by account creator IDs, guaranteeing that no organizer can view, access, or modify another organizer's proprietary event data. We do not sell, rent, or trade your data to any third-party advertisers or marketing agencies.
                             </p>
                         </div>
 

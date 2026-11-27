@@ -105,11 +105,11 @@ export default function PublicHeader() {
                     <a
                         href={APK_URL}
                         download="dab-cric-auction-v1.2.0.apk"
-                        className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-black shadow-xs transition-all active:scale-95"
-                        title="Download Android APK"
+                        className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-blue-600 hover:from-emerald-500 hover:to-blue-500 text-white rounded-xl text-xs font-black shadow-xs transition-all active:scale-95"
+                        title="Download Android APK (v1.2.0)"
                     >
                         <Download className="w-3.5 h-3.5" />
-                        <span>Android APK</span>
+                        <span>Android APK (v1.2.0)</span>
                     </a>
 
                     <Link
@@ -212,9 +212,10 @@ export default function PublicHeader() {
                         <a
                             href={APK_URL}
                             download="dab-cric-auction-v1.2.0.apk"
-                            className="flex-1 text-center py-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-xl font-bold flex items-center justify-center gap-1.5 shadow-xs"
+                            className="flex-1 text-center py-2 bg-gradient-to-r from-emerald-600 via-teal-600 to-blue-600 text-white rounded-xl font-bold flex items-center justify-center gap-1.5 shadow-xs"
+                            title="Download Android APK (v1.2.0)"
                         >
-                            <Download className="w-3.5 h-3.5" /> Download APK
+                            <Download className="w-3.5 h-3.5" /> Download APK (v1.2.0)
                         </a>
                         <Link
                             to="/register"

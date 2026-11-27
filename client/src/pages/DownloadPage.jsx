@@ -75,7 +75,7 @@ export default function DownloadPage() {
                             </button>
                         </div>
                         <p className="text-[11px] text-slate-900 font-bold mt-3">
-                            Direct Standalone APK • Size: ~70 MB • Fast GitHub Release Mirror
+                            Direct Standalone APK • Size: ~80 MB • Fast GitHub Release Mirror
                         </p>
                     </div>
 

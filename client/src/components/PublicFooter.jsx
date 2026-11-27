@@ -105,9 +105,9 @@ export default function PublicFooter() {
                             <a
                                 href={APK_URL}
                                 download="dab-cric-auction-v1.2.0.apk"
-                                className="w-full inline-flex items-center justify-center gap-1.5 py-1.5 px-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-lg text-[11px] font-black shadow-xs transition-all"
+                                className="w-full inline-flex items-center justify-center gap-1.5 py-1.5 px-3 bg-gradient-to-r from-emerald-600 via-teal-600 to-blue-600 hover:from-emerald-500 hover:to-blue-500 text-white rounded-lg text-[11px] font-black shadow-xs transition-all"
                             >
-                                <Download className="w-3.5 h-3.5" /> Download APK (70MB)
+                                <Download className="w-3.5 h-3.5" /> Download APK (80MB)
                             </a>
                         </div>
                         <ul className="space-y-1.5 text-xs font-bold text-slate-300 pt-1">

@@ -32,12 +32,6 @@ const APK_URL = "https://github.com/Jainish-2901/dabcricauction/releases/downloa
 export default function AboutPage() {
     return (
         <div className="relative min-h-screen bg-slate-50 text-slate-900 overflow-x-hidden flex flex-col justify-between font-sans selection:bg-blue-600 selection:text-white">
-            {/* Subtle Gradient Glow Elements */}
-            <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
-                <div className="absolute -top-[20%] -left-[10%] w-[55%] h-[55%] bg-blue-100/60 rounded-full blur-[120px]" />
-                <div className="absolute top-[25%] -right-[10%] w-[45%] h-[45%] bg-indigo-100/60 rounded-full blur-[120px]" />
-            </div>
-
             <PublicHeader />
 
             <main className="flex-1 py-10 sm:py-16">
@@ -156,6 +150,28 @@ export default function AboutPage() {
                                     Shareable live stream URL for audience, spectators, and fans to monitor live bids, sold players, and squad compositions on any TV or phone.
                                 </p>
                             </div>
+
+                            {/* Feature 7 */}
+                            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
+                                <div className="w-9 h-9 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center mb-3">
+                                    <Shield className="w-4 h-4" />
+                                </div>
+                                <h3 className="text-sm font-black text-slate-900 mb-1">Multi-Tenant Workspaces</h3>
+                                <p className="text-xs text-slate-800 leading-relaxed font-medium">
+                                    Organizers receive isolated workspaces where tournaments, teams, players, and financials remain private and partitioned with full profile controls.
+                                </p>
+                            </div>
+
+                            {/* Feature 8 */}
+                            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
+                                <div className="w-9 h-9 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center mb-3">
+                                    <Layers className="w-4 h-4" />
+                                </div>
+                                <h3 className="text-sm font-black text-slate-900 mb-1">Smart CSV Bulk Ingestion</h3>
+                                <p className="text-xs text-slate-800 leading-relaxed font-medium">
+                                    Rapid player pool import from Excel/CSV files with auto-detected columns, role normalization, and configurable base pricing defaulting cleanly to ₹0.
+                                </p>
+                            </div>
                         </div>
                     </div>
 
@@ -176,43 +192,41 @@ export default function AboutPage() {
                                     <Code2 className="w-3.5 h-3.5" /> Lead Architect & Developer
                                 </div>
                                 <h3 className="text-2xl sm:text-3xl font-black text-white">Jainish Dabgar</h3>
-                                <p className="text-xs sm:text-sm text-slate-300 font-medium mt-1 leading-relaxed">
-                                    <p className="text-xs sm:text-sm text-slate-100 font-medium mt-1 leading-relaxed">
-                                        Full-Stack Engineer & UI/UX Designer specialized in real-time cloud architectures, reactive frontends, and mobile development. Designed, engineered, and fine-tuned Dab Cric Auction from the ground up.
-                                    </p>
-                                    <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 mt-4 text-xs font-bold">
-                                        <a
-                                            href="https://jainishdabgar.vercel.app/"
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl flex items-center gap-1.5 transition-all"
-                                        >
-                                            <Globe className="w-3.5 h-3.5" /> Portfolio
-                                        </a>
-                                        <a
-                                            href="https://github.com/Jainish-2901"
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl flex items-center gap-1.5 border border-slate-700 transition-all"
-                                        >
-                                            <Github className="w-3.5 h-3.5" /> GitHub
-                                        </a>
-                                        <a
-                                            href="https://www.linkedin.com/in/jainish-dabgar-87474a320/"
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="px-3 py-1.5 bg-[#0A66C2]/20 hover:bg-[#0A66C2] text-white rounded-xl flex items-center gap-1.5 border border-[#0A66C2]/40 transition-all"
-                                        >
-                                            <Linkedin className="w-3.5 h-3.5" /> LinkedIn
-                                        </a>
-                                        <a
-                                            href="mailto:jainishdabgar2901@gmail.com"
-                                            className="px-3 py-1.5 bg-rose-500/20 hover:bg-rose-600 text-white rounded-xl flex items-center gap-1.5 border border-rose-500/40 transition-all"
-                                        >
-                                            <Mail className="w-3.5 h-3.5" /> Email
-                                        </a>
-                                    </div>
+                                <p className="text-xs sm:text-sm text-slate-200 font-medium mt-1 leading-relaxed">
+                                    Full-Stack Engineer & UI/UX Designer specialized in real-time cloud architectures, reactive frontends, and mobile development. Designed, engineered, and fine-tuned Dab Cric Auction from the ground up.
                                 </p>
+                                <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 mt-4 text-xs font-bold">
+                                    <a
+                                        href="https://jainishdabgar.vercel.app/"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl flex items-center gap-1.5 transition-all"
+                                    >
+                                        <Globe className="w-3.5 h-3.5" /> Portfolio
+                                    </a>
+                                    <a
+                                        href="https://github.com/Jainish-2901"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl flex items-center gap-1.5 border border-slate-700 transition-all"
+                                    >
+                                        <Github className="w-3.5 h-3.5" /> GitHub
+                                    </a>
+                                    <a
+                                        href="https://www.linkedin.com/in/jainish-dabgar-87474a320/"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="px-3 py-1.5 bg-[#0A66C2]/20 hover:bg-[#0A66C2] text-white rounded-xl flex items-center gap-1.5 border border-[#0A66C2]/40 transition-all"
+                                    >
+                                        <Linkedin className="w-3.5 h-3.5" /> LinkedIn
+                                    </a>
+                                    <a
+                                        href="mailto:jainishdabgar2901@gmail.com"
+                                        className="px-3 py-1.5 bg-rose-500/20 hover:bg-rose-600 text-white rounded-xl flex items-center gap-1.5 border border-rose-500/40 transition-all"
+                                    >
+                                        <Mail className="w-3.5 h-3.5" /> Email
+                                    </a>
+                                </div>
                             </div>
                         </div>
                     </div>
