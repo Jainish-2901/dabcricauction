@@ -30,7 +30,8 @@
       "predictiveBackGestureEnabled": false
     },
     "plugins": [
-      "./plugins/withWebRTCProguard"
+      "./plugins/withWebRTCProguard",
+      "./plugins/withAudioRouter"
     ],
     "web": {
       "favicon": "./assets/favicon.png"

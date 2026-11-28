@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Platform, PermissionsAndroid } from 'react-native';
+import { Platform, PermissionsAndroid, NativeModules } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { safeStorage } from '../lib/storage';
 import socket from '../lib/socket';
@@ -11,7 +11,8 @@ try {
 } catch {
     webrtc = null;
 }
-const InCallManager: any = null;
+
+const AudioRouter = NativeModules?.AudioRouter || null;
 
 export const isNativeWebRTCAvailable = Boolean(
     webrtc && webrtc.RTCPeerConnection && webrtc.mediaDevices
@@ -146,9 +147,9 @@ export function useVoiceChat({ tournamentId, user }: { tournamentId: string; use
             localStreamRef.current = null;
         }
 
-        if (InCallManager) {
+        if (AudioRouter?.reset) {
             try {
-                InCallManager.stop();
+                AudioRouter.reset();
             } catch {
                 // ignore
             }
@@ -364,10 +365,9 @@ export function useVoiceChat({ tournamentId, user }: { tournamentId: string; use
             setVoiceError('Microphone permission denied. Joined in listen-only mode.');
         }
 
-        if (InCallManager) {
+        if (AudioRouter?.setSpeakerphoneOn) {
             try {
-                InCallManager.start({ media: 'audio' });
-                InCallManager.setForceSpeakerphoneOn(isSpeakerOn);
+                AudioRouter.setSpeakerphoneOn(isSpeakerOn);
             } catch {
                 // ignore
             }
@@ -493,9 +493,9 @@ export function useVoiceChat({ tournamentId, user }: { tournamentId: string; use
     const toggleSpeaker = useCallback(() => {
         const next = !isSpeakerOn;
         setIsSpeakerOn(next);
-        if (InCallManager) {
+        if (AudioRouter?.setSpeakerphoneOn) {
             try {
-                InCallManager.setForceSpeakerphoneOn(next);
+                AudioRouter.setSpeakerphoneOn(next);
             } catch {
                 // ignore
             }
@@ -701,6 +701,16 @@ export function useVoiceChat({ tournamentId, user }: { tournamentId: string; use
             socket.off('connect', onSocketReconnect);
         };
     }, [closePeerConnection, createPeerConnection, flushPendingCandidates, joinVoiceRoom, syncLocalTrackEnabled]);
+
+    useEffect(() => {
+        if (voiceStatus === 'connected' && AudioRouter?.setSpeakerphoneOn) {
+            try {
+                AudioRouter.setSpeakerphoneOn(isSpeakerOn);
+            } catch {
+                // ignore
+            }
+        }
+    }, [voiceStatus, p2pState, isSpeakerOn]);
 
     useEffect(() => {
         return () => {
