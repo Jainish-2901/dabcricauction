@@ -66,6 +66,7 @@ export function useVoiceChat({ tournamentId, user }: { tournamentId: string; use
     const [isSpeakerOn, setIsSpeakerOn] = useState(true);
     const [micPermissionDenied, setMicPermissionDenied] = useState(false);
     const [moderatorNotice, setModeratorNotice] = useState<string | null>(null);
+    const [p2pState, setP2pState] = useState<'idle' | 'connecting' | 'connected' | 'failed'>('idle');
 
     const localStreamRef = useRef<any>(null);
     const peerConnectionsRef = useRef<Map<string, any>>(new Map());
@@ -234,16 +235,49 @@ export function useVoiceChat({ tournamentId, user }: { tournamentId: string; use
         }
 
         pc.onicecandidate = (event: any) => {
-            if (event.candidate) {
+            if (event.candidate && event.candidate.candidate) {
                 socket.emit('voice:ice-candidate', {
                     targetSocketId: remoteSocketId,
-                    candidate: event.candidate
+                    candidate: {
+                        candidate: event.candidate.candidate,
+                        sdpMid: event.candidate.sdpMid ?? null,
+                        sdpMLineIndex: event.candidate.sdpMLineIndex ?? null
+                    }
                 });
             }
         };
 
+        pc.ontrack = (event: any) => {
+            try {
+                if (event?.track) {
+                    event.track.enabled = true;
+                }
+                event?.streams?.forEach((stream: any) => {
+                    stream?.getAudioTracks?.().forEach((t: any) => {
+                        t.enabled = true;
+                    });
+                });
+            } catch {
+                // ignore
+            }
+        };
+
+        pc.oniceconnectionstatechange = () => {
+            const state = pc.iceConnectionState;
+            if (state === 'connected' || state === 'completed') {
+                setP2pState('connected');
+            } else if (state === 'failed') {
+                setP2pState('failed');
+            } else if (state === 'checking' || state === 'new') {
+                setP2pState('connecting');
+            }
+        };
+
         pc.onconnectionstatechange = () => {
-            if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+            if (pc.connectionState === 'connected') {
+                setP2pState('connected');
+            } else if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+                if (pc.connectionState === 'failed') setP2pState('failed');
                 closePeerConnection(remoteSocketId);
             }
         };
@@ -379,9 +413,13 @@ export function useVoiceChat({ tournamentId, user }: { tournamentId: string; use
                         if (!pc) continue;
                         const offer = await pc.createOffer({ offerToReceiveAudio: true });
                         await pc.setLocalDescription(offer);
+                        const localSdp = pc.localDescription || offer;
                         socket.emit('voice:offer', {
                             targetSocketId: peer.socketId,
-                            sdp: pc.localDescription
+                            sdp: {
+                                type: localSdp.type,
+                                sdp: localSdp.sdp
+                            }
                         });
                     } catch (err) {
                         console.error('[Voice] Error creating offer:', err);
@@ -404,6 +442,7 @@ export function useVoiceChat({ tournamentId, user }: { tournamentId: string; use
         isAdminMutedRef.current = false;
         setIsHandRaised(false);
         setModeratorNotice(null);
+        setP2pState('idle');
         setVoiceStatus('disconnected');
         setVoiceError(null);
     }, [cleanupAllMediaAndPeers]);
@@ -520,7 +559,14 @@ export function useVoiceChat({ tournamentId, user }: { tournamentId: string; use
                 await flushPendingCandidates(fromSocketId, pc);
                 const answer = await pc.createAnswer();
                 await pc.setLocalDescription(answer);
-                socket.emit('voice:answer', { targetSocketId: fromSocketId, sdp: pc.localDescription });
+                const localSdp = pc.localDescription || answer;
+                socket.emit('voice:answer', {
+                    targetSocketId: fromSocketId,
+                    sdp: {
+                        type: localSdp.type,
+                        sdp: localSdp.sdp
+                    }
+                });
             } catch (err) {
                 console.error('[Voice] onOffer error:', err);
             }
@@ -699,6 +745,7 @@ export function useVoiceChat({ tournamentId, user }: { tournamentId: string; use
         isSpeakerOn,
         micPermissionDenied,
         moderatorNotice,
+        p2pState,
         isNativeWebRTCAvailable,
         joinVoiceRoom,
         leaveVoiceRoom,

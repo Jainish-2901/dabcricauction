@@ -45,6 +45,7 @@ export const VoiceChatPanel: React.FC<VoiceChatPanelProps> = ({
         isHandRaised,
         isSpeakerOn,
         moderatorNotice,
+        p2pState,
         isNativeWebRTCAvailable,
         joinVoiceRoom,
         leaveVoiceRoom,
@@ -123,7 +124,15 @@ export const VoiceChatPanel: React.FC<VoiceChatPanelProps> = ({
                     ]}
                 >
                     {voiceStatus === 'connected'
-                        ? `Live Audio • ${participants.length} Connected`
+                        ? `Live Audio • ${participants.length} Connected${
+                              participants.length > 1
+                                  ? p2pState === 'connected'
+                                      ? ' • P2P Ready'
+                                      : p2pState === 'failed'
+                                          ? ' • Network Blocked (Needs TURN)'
+                                          : ' • Linking P2P...'
+                                  : ''
+                          }`
                         : voiceStatus === 'connecting'
                             ? 'Connecting Voice...'
                             : voiceStatus === 'error'
