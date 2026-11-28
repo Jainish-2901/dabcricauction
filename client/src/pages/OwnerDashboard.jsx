@@ -7,6 +7,8 @@ import socket from '../socket';
 import { getBudgetUnits, getBidIncrement } from '../utils/currency';
 import toast from '../lib/toast';
 import SafeImage from '../components/SafeImage';
+import { useVoiceChat } from '../hooks/useVoiceChat';
+import VoiceChatPanel from '../components/voice/VoiceChatPanel';
 
 const OwnerDashboard = () => {
     const { user, logout } = useAuth();
@@ -24,6 +26,10 @@ const OwnerDashboard = () => {
     const [selectedSlotFilter, setSelectedSlotFilter] = useState('all');
     const [slotSearchQuery, setSlotSearchQuery] = useState('');
     const [isRefreshing, setIsRefreshing] = useState(false);
+
+    const ownerTourneyId = user?.tournamentId ? (typeof user.tournamentId === 'object' ? user.tournamentId._id : user.tournamentId) : null;
+    const isOwnerModerator = ['superadmin', 'admin', 'auctioneer'].includes((user?.role || '').toLowerCase());
+    const voice = useVoiceChat({ tournamentId: ownerTourneyId, user });
 
     // Auction State
     const [currentPlayer, setCurrentPlayer] = useState(null);
@@ -704,9 +710,7 @@ const OwnerDashboard = () => {
                                         <span className="px-2 py-0.5 bg-white border border-slate-200 rounded-md font-bold text-slate-700">R: {currentPlayer.stats.runs || 0}</span>
                                         <span className="px-2 py-0.5 bg-white border border-slate-200 rounded-md font-bold text-slate-700">HS: {currentPlayer.stats.highestScore || 0}</span>
                                         <span className="px-2 py-0.5 bg-white border border-slate-200 rounded-md font-bold text-slate-700">W: {currentPlayer.stats.wickets || 0}</span>
-                                        {currentPlayer.stats.bestBowling && currentPlayer.stats.bestBowling !== '-' && (
-                                            <span className="px-2 py-0.5 bg-white border border-slate-200 rounded-md font-bold text-slate-700">BB: {currentPlayer.stats.bestBowling}</span>
-                                        )}
+                                        <span className="px-2 py-0.5 bg-white border border-slate-200 rounded-md font-bold text-slate-700">Best: {currentPlayer.stats?.bestBowling || currentPlayer.bestBowling || '-'}</span>
                                         {currentPlayer.cricHeroesProfileUrl && (
                                             <a
                                                 href={currentPlayer.cricHeroesProfileUrl}
@@ -884,6 +888,16 @@ const OwnerDashboard = () => {
                                 >
                                     <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
                                     Unsold Players ({unsoldPlayers.length})
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setLeftTab('voice')}
+                                    className={`px-3.5 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+                                        leftTab === 'voice' ? 'bg-white text-emerald-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                                    }`}
+                                >
+                                    {voice.isJoined && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />}
+                                    🎙️ Voice Room {voice.participants.length > 0 ? `(${voice.participants.length})` : ''}
                                 </button>
                             </div>
                         </div>
@@ -1306,6 +1320,8 @@ const OwnerDashboard = () => {
                                     );
                                 })()}
                             </div>
+                        ) : leftTab === 'voice' ? (
+                            <VoiceChatPanel voice={voice} isModerator={isOwnerModerator} />
                         ) : (
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left text-xs border-collapse">

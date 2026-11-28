@@ -1507,6 +1507,19 @@ const SuperAdminDashboard = () => {
                                                             ) : `Base: ${formatPrice(p.basePrice)}`}
                                                         </div>
                                                         <div className="text-[11px] text-slate-400 font-medium mt-0.5">{p.battingStyle || 'Right-Hand Bat'}</div>
+                                                        {p.stats && (
+                                                            <div className="text-[10px] text-slate-500 font-bold mt-1 flex flex-wrap items-center gap-1.5">
+                                                                <span>M: {p.stats.matches || 0}</span>
+                                                                <span>•</span>
+                                                                <span>R: {p.stats.runs || 0}</span>
+                                                                <span>•</span>
+                                                                <span>HS: {p.stats.highestScore || '-'}</span>
+                                                                <span>•</span>
+                                                                <span>W: {p.stats.wickets || 0}</span>
+                                                                <span>•</span>
+                                                                <span className="text-blue-700 font-black">Best: {p.stats.bestBowling || p.bestBowling || '-'}</span>
+                                                            </div>
+                                                        )}
                                                         
                                                         <div className="flex items-center gap-2 mt-2 flex-wrap">
                                                             <span className={`text-[10px] px-2 py-0.5 rounded-full font-black uppercase ${

@@ -7,6 +7,7 @@ const { createServer } = require('http');
 const { Server } = require("socket.io");
 const db = require('./services/dbService');
 const supabase = require('./config/supabase');
+const registerVoiceHandlers = require('./voice/voiceSocket');
 
 dotenv.config();
 
@@ -158,6 +159,9 @@ const socketBidCooldown = new Map();
 // Socket.io logic
 io.on('connection', (socket) => {
     console.log('User connected to socket:', socket.id);
+
+    // Modular WebRTC voice signaling & moderation handlers
+    registerVoiceHandlers(io, socket);
 
     socket.on('join_auction', (tournamentId) => {
         socket.join(tournamentId);

@@ -10,6 +10,8 @@ import socket from '../socket';
 import { getBudgetUnits, getBidIncrement } from '../utils/currency';
 import SafeImage from '../components/SafeImage';
 import { exportTournamentSummaryCSVClient, exportTournamentPlayersCSVClient } from '../utils/csvExport';
+import { useVoiceChat } from '../hooks/useVoiceChat';
+import VoiceChatPanel from '../components/voice/VoiceChatPanel';
 
 const AdminAuctionConsole = () => {
     const { user } = useAuth();
@@ -47,6 +49,8 @@ const AdminAuctionConsole = () => {
     const [directSellTeamId, setDirectSellTeamId] = useState('');
     const [directSellPrice, setDirectSellPrice] = useState('');
     const [isRefreshing, setIsRefreshing] = useState(false);
+
+    const voice = useVoiceChat({ tournamentId, user });
 
     const currentPlayerRef = React.useRef(null);
     useEffect(() => {
@@ -1236,9 +1240,7 @@ const AdminAuctionConsole = () => {
                                         <span className="px-2 py-0.5 bg-white border border-slate-200 rounded-md font-bold text-slate-700">Runs: {currentPlayer.stats.runs || 0}</span>
                                         <span className="px-2 py-0.5 bg-white border border-slate-200 rounded-md font-bold text-slate-700">HS: {currentPlayer.stats.highestScore || 0}</span>
                                         <span className="px-2 py-0.5 bg-white border border-slate-200 rounded-md font-bold text-slate-700">Wickets: {currentPlayer.stats.wickets || 0}</span>
-                                        {currentPlayer.stats.bestBowling && currentPlayer.stats.bestBowling !== '-' && (
-                                            <span className="px-2 py-0.5 bg-white border border-slate-200 rounded-md font-bold text-slate-700">BB: {currentPlayer.stats.bestBowling}</span>
-                                        )}
+                                        <span className="px-2 py-0.5 bg-white border border-slate-200 rounded-md font-bold text-slate-700">Best: {currentPlayer.stats.bestBowling || currentPlayer.bestBowling || '-'}</span>
                                         {currentPlayer.cricHeroesProfileUrl && (
                                             <a
                                                 href={currentPlayer.cricHeroesProfileUrl}
@@ -1445,6 +1447,15 @@ const AdminAuctionConsole = () => {
                             }`}
                         >
                             Bids ({bidLogs.length})
+                        </button>
+                        <button
+                            onClick={() => setSidebarTab('voice')}
+                            className={`flex-1 py-2 px-2 text-xs font-bold rounded-lg transition-all shrink-0 flex items-center justify-center gap-1 ${
+                                sidebarTab === 'voice' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                        >
+                            {voice.isJoined && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />}
+                            🎙️ Voice {voice.participants.length > 0 ? `(${voice.participants.length})` : ''}
                         </button>
                     </div>
 
@@ -1979,6 +1990,13 @@ const AdminAuctionConsole = () => {
                                     ))
                                 )}
                             </div>
+                        </div>
+                    )}
+
+                    {/* Tab 5: Live Voice Room */}
+                    {sidebarTab === 'voice' && (
+                        <div className="overflow-y-auto flex-1 pr-1">
+                            <VoiceChatPanel voice={voice} isModerator={true} />
                         </div>
                     )}
                 </div>

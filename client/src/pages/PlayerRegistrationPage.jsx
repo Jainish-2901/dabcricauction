@@ -560,11 +560,10 @@ const PlayerRegistrationPage = () => {
                                             type="button"
                                             key={cat.id}
                                             onClick={() => setFormData({ ...formData, category: cat.id })}
-                                            className={`p-3 rounded-2xl border text-left transition-all flex flex-col justify-between ${
-                                                selected
+                                            className={`p-3 rounded-2xl border text-left transition-all flex flex-col justify-between ${selected
                                                     ? 'bg-blue-50/80 border-blue-600 text-blue-900 shadow-xs ring-1 ring-blue-600/30'
                                                     : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300'
-                                            }`}
+                                                }`}
                                         >
                                             <div className="flex items-center justify-between mb-1.5">
                                                 <span className="text-xl">{cat.icon}</span>
@@ -698,7 +697,16 @@ const PlayerRegistrationPage = () => {
                                         className="w-full bg-transparent text-sm text-slate-900 focus:outline-none font-bold"
                                         value={formData.bestBowling}
                                         onChange={e => setFormData({ ...formData, bestBowling: e.target.value })}
-                                    />
+                                    /><div className="bg-white p-2 rounded-xl border border-slate-200 col-span-2 sm:col-span-1">
+                                        <span className="text-[10px] text-slate-500 font-bold uppercase block mb-1">Best Bowling</span>
+                                        <input
+                                            type="text"
+                                            placeholder="e.g. 4/18"
+                                            className="w-full bg-transparent text-sm text-slate-900 focus:outline-none font-bold"
+                                            value={formData.bestBowling}
+                                            onChange={e => setFormData({ ...formData, bestBowling: e.target.value })}
+                                        />
+                                    </div>
                                 </div>
                             </div>
                         </div>

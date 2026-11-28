@@ -40,13 +40,17 @@ import {
     Sparkles,
     FileText,
     User,
-    Check
+    Check,
+    Mic
 } from 'lucide-react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import socket from '../lib/socket';
 import { apiFetch } from '../lib/api';
 import { getBudgetUnits, getBidIncrement } from '../lib/currency';
 import { toast } from '../lib/toast';
 import { handleExportCSVAction } from '../lib/csvExport';
+import { useVoiceChat } from '../hooks/useVoiceChat';
+import VoiceChatPanel from './voice/VoiceChatPanel';
 
 export interface AdminConsoleScreenProps {
     tournamentId: string;
@@ -85,7 +89,22 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
     const [notice, setNotice] = useState<string | null>(null);
     const [bidLogs, setBidLogs] = useState<any[]>([]);
     const [announcementModal, setAnnouncementModal] = useState<{ type: 'sold' | 'unsold'; player: any; team?: any; price?: number } | null>(null);
-    const [consoleTab, setConsoleTab] = useState<'stage' | 'players' | 'slots'>('stage');
+    const [consoleTab, setConsoleTab] = useState<'stage' | 'players' | 'slots' | 'voice'>('stage');
+    const [currentUser, setCurrentUser] = useState<any>(null);
+
+    useEffect(() => {
+        AsyncStorage.getItem('user').then((str) => {
+            if (str) {
+                try {
+                    setCurrentUser(JSON.parse(str));
+                } catch {
+                    // ignore
+                }
+            }
+        }).catch(() => {});
+    }, []);
+
+    const voice = useVoiceChat({ tournamentId, user: currentUser });
     const [playerFilter, setPlayerFilter] = useState<'all' | 'remaining' | 'pending' | 'passed' | 'unsold' | 'sold'>('all');
     const [playerSearch, setPlayerSearch] = useState('');
     const [slotAdminSearch, setSlotAdminSearch] = useState('');
@@ -1064,6 +1083,15 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                             Slots ({slots.length})
                         </Text>
                     </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[styles.consoleTabBtn, consoleTab === 'voice' && styles.consoleTabBtnActive]}
+                        onPress={() => setConsoleTab('voice')}
+                    >
+                        <Mic size={13} color={consoleTab === 'voice' ? '#ffffff' : voice.isJoined ? '#059669' : '#64748b'} />
+                        <Text style={[styles.consoleTabText, consoleTab === 'voice' && styles.consoleTabTextActive, ! (consoleTab === 'voice') && voice.isJoined && { color: '#059669' }]}>
+                            Voice {voice.participants.length > 0 ? `(${voice.participants.length})` : ''}
+                        </Text>
+                    </TouchableOpacity>
                 </View>
             </View>
 
@@ -1414,6 +1442,10 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                             })
                         )}
                     </View>
+                </ScrollView>
+            ) : consoleTab === 'voice' ? (
+                <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+                    <VoiceChatPanel voice={voice} isModerator={true} />
                 </ScrollView>
             ) : (
             <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>

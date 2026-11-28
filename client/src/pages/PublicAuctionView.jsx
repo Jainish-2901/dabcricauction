@@ -570,9 +570,7 @@ const PublicAuctionView = () => {
                                                     <span className="px-2 py-0.5 bg-white border border-slate-200 rounded-md font-bold text-slate-700">Runs: {currentPlayer.stats.runs || 0}</span>
                                                     <span className="px-2 py-0.5 bg-white border border-slate-200 rounded-md font-bold text-slate-700">High: {currentPlayer.stats.highestScore || 0}</span>
                                                     <span className="px-2 py-0.5 bg-white border border-slate-200 rounded-md font-bold text-slate-700">Wickets: {currentPlayer.stats.wickets || 0}</span>
-                                                    {currentPlayer.stats.bestBowling && currentPlayer.stats.bestBowling !== '-' && (
-                                                        <span className="px-2 py-0.5 bg-white border border-slate-200 rounded-md font-bold text-slate-700">BB: {currentPlayer.stats.bestBowling}</span>
-                                                    )}
+                                                    <span className="px-2 py-0.5 bg-white border border-slate-200 rounded-md font-bold text-slate-700">Best: {currentPlayer.stats?.bestBowling || currentPlayer.bestBowling || '-'}</span>
                                                     {currentPlayer.cricHeroesProfileUrl && (
                                                         <a
                                                             href={currentPlayer.cricHeroesProfileUrl}

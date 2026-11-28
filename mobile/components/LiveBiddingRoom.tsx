@@ -13,12 +13,15 @@ import {
     Modal,
     TextInput
 } from 'react-native';
-import { Shield, Users, Pause, LogOut, CheckCircle2, AlertCircle, ArrowLeft, Timer, Coffee, Clock, Gavel, X, ChevronRight, Wallet, Radio, Trophy, Layers, Search, User, RotateCcw } from 'lucide-react-native';
+import { Shield, Users, Pause, LogOut, CheckCircle2, AlertCircle, ArrowLeft, Timer, Coffee, Clock, Gavel, X, ChevronRight, Wallet, Radio, Trophy, Layers, Search, User, RotateCcw, Mic } from 'lucide-react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import socket from '../lib/socket';
 import { apiFetch } from '../lib/api';
 import { getBudgetUnits, getBidIncrement } from '../lib/currency';
 import { toast } from '../lib/toast';
 import SafeImage from './SafeImage';
+import { useVoiceChat } from '../hooks/useVoiceChat';
+import VoiceChatPanel from './voice/VoiceChatPanel';
 
 export interface Player {
     _id: string;
@@ -42,6 +45,8 @@ export interface Player {
         matches: number;
         runs: number;
         wickets: number;
+        highestScore?: string | number;
+        bestBowling?: string;
     };
     [key: string]: any;
 }
@@ -92,7 +97,23 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
     const [allPlayers, setAllPlayers] = useState<Player[]>([]);
     const [otherTeams, setOtherTeams] = useState<TeamData[]>([]);
     const [viewingTeam, setViewingTeam] = useState<TeamData | null>(null);
-    const [activeTab, setActiveTab] = useState<'auction' | 'squad' | 'slots' | 'teams' | 'unsold'>('auction');
+    const [activeTab, setActiveTab] = useState<'auction' | 'squad' | 'slots' | 'teams' | 'unsold' | 'voice'>('auction');
+    const [currentUser, setCurrentUser] = useState<any>(null);
+
+    useEffect(() => {
+        AsyncStorage.getItem('user').then((str) => {
+            if (str) {
+                try {
+                    setCurrentUser(JSON.parse(str));
+                } catch {
+                    // ignore
+                }
+            }
+        }).catch(() => {});
+    }, []);
+
+    const isVoiceModerator = ['superadmin', 'admin', 'auctioneer'].includes((currentUser?.role || '').toLowerCase());
+    const voice = useVoiceChat({ tournamentId, user: currentUser });
     const [slotMobileSearch, setSlotMobileSearch] = useState('');
     const [selectedSlotMobile, setSelectedSlotMobile] = useState<string>('all');
     const [notice, setNotice] = useState<string | null>(null);
@@ -590,6 +611,14 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
                         Unsold ({unsoldPlayers.length})
                     </Text>
                 </TouchableOpacity>
+                <TouchableOpacity
+                    style={[styles.tabItem, activeTab === 'voice' && styles.activeTabItem]}
+                    onPress={() => setActiveTab('voice')}
+                >
+                    <Text style={[styles.tabText, activeTab === 'voice' && styles.activeTabText, voice.isJoined && { color: '#059669' }]}>
+                        🎙️ Voice {voice.participants.length > 0 ? `(${voice.participants.length})` : ''}
+                    </Text>
+                </TouchableOpacity>
             </View>
 
             {/* In-App Notice Banner */}
@@ -728,9 +757,11 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
                                         <Text style={{ fontSize: 11, fontWeight: '700', color: '#334155' }}>•</Text>
                                         <Text style={{ fontSize: 11, fontWeight: '700', color: '#334155' }}>R: {currentPlayer.stats.runs || 0}</Text>
                                         <Text style={{ fontSize: 11, fontWeight: '700', color: '#334155' }}>•</Text>
-                                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#334155' }}>HS: {(currentPlayer.stats as any).highestScore || 0}</Text>
+                                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#334155' }}>HS: {(currentPlayer.stats as any).highestScore || (currentPlayer as any).highestScore || '-'}</Text>
                                         <Text style={{ fontSize: 11, fontWeight: '700', color: '#334155' }}>•</Text>
                                         <Text style={{ fontSize: 11, fontWeight: '700', color: '#334155' }}>W: {currentPlayer.stats.wickets || 0}</Text>
+                                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#334155' }}>•</Text>
+                                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#334155' }}>Best: {(currentPlayer.stats as any).bestBowling || (currentPlayer as any).bestBowling || '-'}</Text>
                                     </View>
                                 )}
                             </View>
@@ -1252,7 +1283,7 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
                         </View>
                     </View>
                 </ScrollView>
-            ) : (
+            ) : activeTab === 'unsold' ? (
                 /* Unsold Tab */
                 <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
                     <View style={styles.card}>
@@ -1294,6 +1325,11 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
                             ))
                         )}
                     </View>
+                </ScrollView>
+            ) : (
+                /* Voice Room Tab */
+                <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+                    <VoiceChatPanel voice={voice} isModerator={isVoiceModerator} />
                 </ScrollView>
             )}
 

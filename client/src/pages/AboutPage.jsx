@@ -27,7 +27,7 @@ import SafeImage from '../components/SafeImage';
 import PublicHeader from '../components/PublicHeader';
 import PublicFooter from '../components/PublicFooter';
 
-const APK_URL = "https://github.com/Jainish-2901/dabcricauction/releases/download/v1.2.0/dab-cric-auction-v1.2.0.apk";
+const APK_URL = "https://github.com/Jainish-2901/dabcricauction/releases/download/v1.3.0/dab-cric-auction-v1.3.0.apk";
 
 export default function AboutPage() {
     return (

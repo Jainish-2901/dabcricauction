@@ -231,6 +231,8 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
     const [editPlayerMatches, setEditPlayerMatches] = useState('0');
     const [editPlayerRuns, setEditPlayerRuns] = useState('0');
     const [editPlayerWickets, setEditPlayerWickets] = useState('0');
+    const [editPlayerHighestScore, setEditPlayerHighestScore] = useState('');
+    const [editPlayerBestBowling, setEditPlayerBestBowling] = useState('');
     const [savingPlayer, setSavingPlayer] = useState(false);
 
     // Image Picker Helper with 1:1 Frame Cropping
@@ -972,6 +974,8 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
         setEditPlayerMatches(String(p.stats?.matches ?? 0));
         setEditPlayerRuns(String(p.stats?.runs ?? 0));
         setEditPlayerWickets(String(p.stats?.wickets ?? 0));
+        setEditPlayerHighestScore(String(p.stats?.highestScore ?? p.highestScore ?? ''));
+        setEditPlayerBestBowling(String(p.stats?.bestBowling ?? p.bestBowling ?? ''));
         setEditPlayerModalVisible(true);
     };
 
@@ -996,8 +1000,8 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                     matches: Number(editPlayerMatches) || 0,
                     runs: Number(editPlayerRuns) || 0,
                     wickets: Number(editPlayerWickets) || 0,
-                    highestScore: editingPlayer.stats?.highestScore || '',
-                    bestBowling: editingPlayer.stats?.bestBowling || ''
+                    highestScore: editPlayerHighestScore.trim(),
+                    bestBowling: editPlayerBestBowling.trim()
                 }
             };
 
@@ -2244,6 +2248,11 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                                                     <Text style={styles.cardSub}>
                                                         Role: {p.category} • {isCap ? `Fee: ${formatPrice(p.soldPrice || p.sold_price || p.basePrice)}` : p.status === 'sold' ? `Sold: ${formatPrice(p.soldPrice || p.sold_price || p.currentBid || p.basePrice)} (Base: ${formatPrice(p.basePrice)})` : `Base: ${formatPrice(p.basePrice)}`}
                                                     </Text>
+                                                    {p.stats && (
+                                                        <Text style={{ fontSize: 11, color: '#64748b', marginTop: 2, fontWeight: '500' }}>
+                                                            M: {p.stats.matches || 0} • R: {p.stats.runs || 0} • HS: {p.stats.highestScore || '-'} • W: {p.stats.wickets || 0} • Best: {p.stats.bestBowling || p.bestBowling || '-'}
+                                                        </Text>
+                                                    )}
 
                                                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
                                                         <View style={{
@@ -3951,7 +3960,7 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                             />
 
                             <Text style={styles.fieldLabel}>CAREER STATS</Text>
-                            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
+                            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
                                 <View style={{ flex: 1 }}>
                                     <Text style={styles.statMiniLabel}>MATCHES</Text>
                                     <TextInput
@@ -3977,6 +3986,29 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                                         value={editPlayerWickets}
                                         onChangeText={setEditPlayerWickets}
                                         keyboardType="numeric"
+                                    />
+                                </View>
+                            </View>
+
+                            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.statMiniLabel}>HIGHEST SCORE</Text>
+                                    <TextInput
+                                        style={[styles.modalInput, { textAlign: 'center' }]}
+                                        value={editPlayerHighestScore}
+                                        onChangeText={setEditPlayerHighestScore}
+                                        placeholder="e.g. 84*"
+                                        placeholderTextColor="#94a3b8"
+                                    />
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.statMiniLabel}>BEST BOWLING</Text>
+                                    <TextInput
+                                        style={[styles.modalInput, { textAlign: 'center' }]}
+                                        value={editPlayerBestBowling}
+                                        onChangeText={setEditPlayerBestBowling}
+                                        placeholder="e.g. 4/18"
+                                        placeholderTextColor="#94a3b8"
                                     />
                                 </View>
                             </View>

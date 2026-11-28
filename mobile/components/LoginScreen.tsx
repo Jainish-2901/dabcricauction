@@ -761,7 +761,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                                 <Text style={styles.footerBrandName}>Dab Cric <Text style={{ color: '#3b82f6' }}>Auction</Text></Text>
                                 <View style={styles.footerBadgeRow}>
                                     <View style={styles.onlineDot} />
-                                    <Text style={styles.footerVersionText}>v1.2.0 • Android Release</Text>
+                                    <Text style={styles.footerVersionText}>v1.3.0 • Android Release</Text>
                                 </View>
                             </View>
                         </View>
