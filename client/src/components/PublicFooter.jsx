@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import SafeImage from './SafeImage';
 
-const APK_URL = "https://github.com/Jainish-2901/dabcricauction/releases/download/v1.3.0/dab-cric-auction-v1.3.0.apk";
+const APK_URL = "https://github.com/Jainish-2901/dabcricauction/releases/download/v1.4.0/dab-cric-auction-v1.4.0.apk";
 
 export default function PublicFooter() {
     return (
@@ -50,7 +50,7 @@ export default function PublicFooter() {
                         <div className="pt-1">
                             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-[11px] font-bold">
                                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                                Version 1.3.0 Live
+                                Version 1.4.0 Live
                             </span>
                         </div>
                     </div>
@@ -97,14 +97,14 @@ export default function PublicFooter() {
                         <div className="p-3 bg-slate-900/90 rounded-2xl border border-slate-800 space-y-2">
                             <div className="flex items-center gap-2">
                                 <Smartphone className="w-4 h-4 text-emerald-400" />
-                                <span className="text-xs font-bold text-white">Android APK v1.3.0</span>
+                                <span className="text-xs font-bold text-white">Android APK v1.4.0</span>
                             </div>
                             <p className="text-[11px] text-slate-300 leading-tight font-medium">
                                 Standalone installation for Android phones. Ultra-fast real-time keypad for team owners.
                             </p>
                             <a
                                 href={APK_URL}
-                                download="dab-cric-auction-v1.3.0.apk"
+                                download="dab-cric-auction-v1.4.0.apk"
                                 className="w-full inline-flex items-center justify-center gap-1.5 py-1.5 px-3 bg-gradient-to-r from-emerald-600 via-teal-600 to-blue-600 hover:from-emerald-500 hover:to-blue-500 text-white rounded-lg text-[11px] font-black shadow-xs transition-all"
                             >
                                 <Download className="w-3.5 h-3.5" /> Download APK (~130 MB)

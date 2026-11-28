@@ -51,8 +51,8 @@
 
 ### 📱 Android Mobile App & Cross-Platform Parity
 - **100% Full Access on Both Platforms (Web & Mobile)**: All roles (SuperAdmin, Auctioneer, Team Owner, Spectator) have full feature parity across both Desktop Web and Android Mobile App. Use any device, or mix them simultaneously for the same tournament (e.g. Auctioneer on laptop, Owners on mobile). Good internet speed (Wi-Fi or 4G/5G) is recommended for seamless real-time sub-second synchronization.
-- **Standalone Android APK (v1.2.0)**:
-  - Download Link: [Download dab-cric-auction-v1.2.0.apk](https://github.com/Jainish-2901/dabcricauction/releases/download/v1.2.0/dab-cric-auction-v1.2.0.apk)
+- **Standalone Android APK (v1.4.0)**:
+  - Download Link: [Download dab-cric-auction-v1.4.0.apk](https://github.com/Jainish-2901/dabcricauction/releases/download/v1.4.0/dab-cric-auction-v1.4.0.apk)
   - Standalone build for Android smartphones (Android 8.0+).
   - 100ms quick bids, live purse counter, 1:1 camera crop for player/team photos.
 - **Interactive Fullscreen Previews (`SafeImage`)**: 1-click modal preview for all player photos, team logos, and tournament badges with Android status-bar safe offset.
@@ -122,7 +122,7 @@ npx expo start --go --tunnel
 
 The native mobile app is compiled as a standalone Universal Android APK:
 
-- **Direct Download**: [dab-cric-auction-v1.2.0.apk](https://github.com/Jainish-2901/dabcricauction/releases/download/v1.2.0/dab-cric-auction-v1.2.0.apk)
+- **Direct Download**: [dab-cric-auction-v1.4.0.apk](https://github.com/Jainish-2901/dabcricauction/releases/download/v1.4.0/dab-cric-auction-v1.4.0.apk)
 - **Compatibility**: Android 8.0 (Oreo) through Android 15
 - **Architecture**: Universal (`arm64-v8a`, `armeabi-v7a`)
 - **Web Download Page**: Visit [`/download`](http://localhost:5173/download) for a full step-by-step installation guide.

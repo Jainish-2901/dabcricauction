@@ -21,7 +21,7 @@ import {
 import PublicHeader from '../components/PublicHeader';
 import PublicFooter from '../components/PublicFooter';
 
-const APK_URL = "https://github.com/Jainish-2901/dabcricauction/releases/download/v1.3.0/dab-cric-auction-v1.3.0.apk";
+const APK_URL = "https://github.com/Jainish-2901/dabcricauction/releases/download/v1.4.0/dab-cric-auction-v1.4.0.apk";
 
 export default function DownloadPage() {
     const [copied, setCopied] = useState(false);
@@ -58,11 +58,11 @@ export default function DownloadPage() {
                         <div className="flex flex-col sm:flex-row items-center justify-center gap-3.5 max-w-md mx-auto">
                             <a
                                 href={APK_URL}
-                                download="dab-cric-auction-v1.3.0.apk"
+                                download="dab-cric-auction-v1.4.0.apk"
                                 className="w-full sm:flex-1 py-4 px-6 bg-gradient-to-r from-emerald-600 via-teal-600 to-blue-600 hover:from-emerald-500 hover:to-blue-500 text-white font-black text-sm rounded-2xl shadow-xl shadow-emerald-600/20 flex items-center justify-center gap-2.5 transition-all transform hover:-translate-y-0.5 active:translate-y-0"
                             >
                                 <Download className="w-5 h-5 animate-bounce" />
-                                <span>Download Android APK (v1.3.0)</span>
+                                <span>Download Android APK (v1.4.0)</span>
                             </a>
                             <button
                                 type="button"
@@ -185,7 +185,7 @@ export default function DownloadPage() {
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
                             <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
                                 <span className="text-slate-800 font-extrabold uppercase text-[10px] block">App Version</span>
-                                <span className="text-sm font-black text-slate-950 mt-0.5 block">v1.3.0</span>
+                                <span className="text-sm font-black text-slate-950 mt-0.5 block">v1.4.0</span>
                                 <span className="text-[10px] text-emerald-700 font-black">Latest Release</span>
                             </div>
                             <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
@@ -225,7 +225,7 @@ export default function DownloadPage() {
                                 </div>
                                 <h3 className="text-sm font-black text-slate-950 mb-1.5">Download APK</h3>
                                 <p className="text-xs text-slate-900 leading-relaxed font-medium">
-                                    Tap the green <strong>"Download Android APK"</strong> button above. Your browser will start downloading <code className="bg-slate-100 px-1 py-0.5 rounded text-[11px] font-mono font-bold">dab-cric-auction-v1.3.0.apk</code>.
+                                    Tap the green <strong>"Download Android APK"</strong> button above. Your browser will start downloading <code className="bg-slate-100 px-1 py-0.5 rounded text-[11px] font-mono font-bold">dab-cric-auction-v1.4.0.apk</code>.
                                 </p>
                             </div>
 
@@ -311,10 +311,10 @@ export default function DownloadPage() {
                         <div className="mt-8 pt-6 border-t border-slate-800 text-center">
                             <a
                                 href={APK_URL}
-                                download="dab-cric-auction-v1.3.0.apk"
+                                download="dab-cric-auction-v1.4.0.apk"
                                 className="inline-flex items-center gap-2 px-6 py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl transition-all shadow-md active:scale-95"
                             >
-                                <Download className="w-4 h-4" /> Start Download: dab-cric-auction-v1.3.0.apk
+                                <Download className="w-4 h-4" /> Start Download: dab-cric-auction-v1.4.0.apk
                             </a>
                         </div>
                     </div>

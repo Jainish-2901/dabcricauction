@@ -8,7 +8,7 @@ The responsive web application for **Dab Cric Auction**, built with **React 18**
 
 1. **Executive Landing Page (`/`)**: Service showcase, live auction room joiner, cross-platform capabilities, Android APK download card, and developer contact.
 2. **About Us (`/about`)**: Architecture blueprint, mission, technology overview, feature catalog, and developer profile.
-3. **Download Android App (`/download`)**: Dedicated APK download portal with universal Android APK release (v1.2.0) and step-by-step installation instructions.
+3. **Download Android App (`/download`)**: Dedicated APK download portal with universal Android APK release (v1.4.0) and step-by-step installation instructions.
 4. **Terms & Conditions (`/terms`)**: Platform agreement, auctioneer authority, purse policies, and intellectual property.
 5. **Privacy Policy (`/privacy`)**: Supabase PostgreSQL data security, Cloudinary CDN asset protection, and minimal permission models.
 6. **Super Admin Dashboard (`/admin`)**: Multi-tournament creation (dual scales: L→Cr and K→L), dynamic bid increment slab manager, tournament logo CRUD with 1:1 cropper and click-to-open lightbox, dedicated Pending Players Pool, quick status filter pills (ALL, Pending, Sold, Unsold, Injured) with live counts, 1-click squad player release to Unsold pool with purse refund, direct manual player sale/assignment to any team, team purse allocation, player catalog, franchise trades, and injury replacement engine.

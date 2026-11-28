@@ -38,7 +38,7 @@ import {
 import PublicHeader from '../components/PublicHeader';
 import PublicFooter from '../components/PublicFooter';
 
-const APK_URL = "https://github.com/Jainish-2901/dabcricauction/releases/download/v1.3.0/dab-cric-auction-v1.3.0.apk";
+const APK_URL = "https://github.com/Jainish-2901/dabcricauction/releases/download/v1.4.0/dab-cric-auction-v1.4.0.apk";
 
 const LandingPage = () => {
     const navigate = useNavigate();
@@ -424,10 +424,10 @@ const LandingPage = () => {
                             <div className="pt-4 mt-4 border-t border-slate-800">
                                 <a
                                     href={APK_URL}
-                                    download="dab-cric-auction-v1.3.0.apk"
+                                    download="dab-cric-auction-v1.4.0.apk"
                                     className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all shadow-md active:scale-98"
                                 >
-                                    <Download className="w-3.5 h-3.5" /> Download Android APK (v1.3.0)
+                                    <Download className="w-3.5 h-3.5" /> Download Android APK (v1.4.0)
                                 </a>
                             </div>
                         </div>
@@ -459,7 +459,7 @@ const LandingPage = () => {
                             {/* Android Only Pill */}
                             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-black uppercase tracking-wider mb-4 border border-emerald-400/40 shadow-xs">
                                 <Smartphone className="w-3.5 h-3.5 text-emerald-400" />
-                                <span>Android Phones Only (v1.3.0 Released)</span>
+                                <span>Android Phones Only (v1.4.0 Released)</span>
                             </div>
 
                             <h2 className="text-2xl sm:text-4xl font-black tracking-tight mb-3 leading-tight text-white">
@@ -482,11 +482,11 @@ const LandingPage = () => {
                             <div className="flex flex-col sm:flex-row items-center gap-3 justify-center lg:justify-start">
                                 <a
                                     href={APK_URL}
-                                    download="dab-cric-auction-v1.3.0.apk"
+                                    download="dab-cric-auction-v1.4.0.apk"
                                     className="w-full sm:w-auto px-6 py-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 transition-all active:scale-95"
                                 >
                                     <Download className="w-4 h-4" />
-                                    <span>Download Android APK (v1.3.0)</span>
+                                    <span>Download Android APK (v1.4.0)</span>
                                 </a>
                                 <Link
                                     to="/download"
@@ -507,7 +507,7 @@ const LandingPage = () => {
                             </div>
                             <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 text-center">
                                 <span className="text-[10px] uppercase font-bold text-slate-300 block tracking-wider">Version</span>
-                                <span className="text-base font-black text-white mt-0.5 block">v1.3.0</span>
+                                <span className="text-base font-black text-white mt-0.5 block">v1.4.0</span>
                                 <span className="text-[10px] text-blue-400 font-black">EAS Build</span>
                             </div>
                             <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 text-center">
