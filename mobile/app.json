@@ -14,7 +14,7 @@
     },
     "android": {
       "package": "com.dabcricauction.app",
-      "versionCode": 6,
+      "versionCode": 7,
       "permissions": [
         "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS",
@@ -29,6 +29,9 @@
       },
       "predictiveBackGestureEnabled": false
     },
+    "plugins": [
+      "expo-status-bar"
+    ],
     "plugins": [
       "./plugins/withWebRTCProguard"
     ],
@@ -46,9 +49,6 @@
         "projectId": "3d00bb3e-26cf-401a-826d-693f81d396a2"
       }
     },
-    "owner": "jainish_j_dabgar",
-    "plugins": [
-      "expo-status-bar"
-    ]
+    "owner": "jainish_j_dabgar"
   }
 }
