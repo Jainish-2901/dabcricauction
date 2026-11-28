@@ -23,7 +23,7 @@ export const toBaseBidUnit = (value, unit, budgetScale = 'L_TO_CR') => {
         return val;
     } else {
         if (unit === 'Cr') return val * 100;
-        if (unit === 'K') return Math.max(1, Math.round(val / 100));
+        if (unit === 'K') return Number((val / 100).toFixed(4));
         return val;
     }
 };
@@ -66,7 +66,7 @@ export const getBidIncrement = (currentBid, rules, budgetScale = 'L_TO_CR') => {
             incrementUnit: iUnit,
             normFrom,
             normUpTo,
-            normInc: Math.max(1, normInc)
+            normInc: normInc > 0 ? Number(normInc.toFixed(4)) : (isKtoL ? 5 : 10)
         };
     });
 

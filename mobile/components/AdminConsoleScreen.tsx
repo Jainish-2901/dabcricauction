@@ -1611,16 +1611,12 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
                                     <Text style={styles.statVal}>{currentPlayer.runs || currentPlayer.stats?.runs || '-'}</Text>
                                 </View>
                                 <View style={styles.statBox}>
-                                    <Text style={styles.statLabel}>HS</Text>
-                                    <Text style={styles.statVal}>{currentPlayer.highestScore || currentPlayer.stats?.highestScore || '-'}</Text>
-                                </View>
-                                <View style={styles.statBox}>
                                     <Text style={styles.statLabel}>WKTS</Text>
                                     <Text style={styles.statVal}>{currentPlayer.wickets || currentPlayer.stats?.wickets || '-'}</Text>
                                 </View>
                                 <View style={styles.statBox}>
-                                    <Text style={styles.statLabel}>BEST</Text>
-                                    <Text style={styles.statVal}>{currentPlayer.bestBowling || currentPlayer.stats?.bestBowling || '-'}</Text>
+                                    <Text style={styles.statLabel}>ECON</Text>
+                                    <Text style={styles.statVal}>{currentPlayer.economy || currentPlayer.stats?.economy || '-'}</Text>
                                 </View>
                             </View>
 

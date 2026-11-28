@@ -521,11 +521,9 @@ export const SpectatorScreen: React.FC<SpectatorScreenProps> = ({
                                         <Text style={styles.statDot}>•</Text>
                                         <Text style={styles.statItem}>R: {currentPlayer.stats.runs || 0}</Text>
                                         <Text style={styles.statDot}>•</Text>
-                                        <Text style={styles.statItem}>HS: {currentPlayer.stats.highestScore || (currentPlayer as any).highestScore || '-'}</Text>
-                                        <Text style={styles.statDot}>•</Text>
                                         <Text style={styles.statItem}>W: {currentPlayer.stats.wickets || 0}</Text>
                                         <Text style={styles.statDot}>•</Text>
-                                        <Text style={styles.statItem}>Best: {currentPlayer.stats.bestBowling || (currentPlayer as any).bestBowling || '-'}</Text>
+                                        <Text style={styles.statItem}>Econ: {currentPlayer.stats.economy || (currentPlayer as any).economy || '-'}</Text>
                                     </View>
                                 )}
                             </View>

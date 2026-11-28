@@ -49,9 +49,8 @@ const ManageCredentialsModal = ({
     const [cricHeroesProfileUrl, setCricHeroesProfileUrl] = useState('');
     const [matches, setMatches] = useState('0');
     const [runs, setRuns] = useState('0');
-    const [highestScore, setHighestScore] = useState('');
     const [wickets, setWickets] = useState('0');
-    const [bestBowling, setBestBowling] = useState('');
+    const [economy, setEconomy] = useState('');
 
     const [formSaving, setFormSaving] = useState(false);
     const [formError, setFormError] = useState('');
@@ -144,9 +143,8 @@ const ManageCredentialsModal = ({
         setCricHeroesProfileUrl('');
         setMatches('0');
         setRuns('0');
-        setHighestScore('');
         setWickets('0');
-        setBestBowling('');
+        setEconomy('');
         applyTeamCaptainDefaults(defaultTeamId);
         setShowCricketDetails(false);
         setFormError('');
@@ -170,9 +168,8 @@ const ManageCredentialsModal = ({
         setCricHeroesProfileUrl(cred.cricHeroesProfileUrl || '');
         setMatches(cred.stats?.matches?.toString() || '0');
         setRuns(cred.stats?.runs?.toString() || '0');
-        setHighestScore(cred.stats?.highestScore || '');
         setWickets(cred.stats?.wickets?.toString() || '0');
-        setBestBowling(cred.stats?.bestBowling || '');
+        setEconomy(cred.stats?.economy ?? '');
         setShowCricketDetails(false);
         setFormError('');
         setIsFormOpen(true);
@@ -252,9 +249,8 @@ const ManageCredentialsModal = ({
             stats: formRole === 'team_owner' ? {
                 matches: Number(matches) || 0,
                 runs: Number(runs) || 0,
-                highestScore: highestScore.trim(),
                 wickets: Number(wickets) || 0,
-                bestBowling: bestBowling.trim()
+                economy: String(economy ?? '').trim()
             } : undefined
         };
 
@@ -779,7 +775,7 @@ const ManageCredentialsModal = ({
                                         </button>
 
                                         {showCricketDetails && (
-                                            <div className="grid grid-cols-4 gap-2 pt-2 border-t border-amber-200/60">
+                                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-amber-200/60">
                                                 <div>
                                                     <label className="block text-[9px] font-bold text-slate-500 uppercase">Matches</label>
                                                     <input
@@ -808,12 +804,12 @@ const ManageCredentialsModal = ({
                                                     />
                                                 </div>
                                                 <div>
-                                                    <label className="block text-[9px] font-bold text-slate-500 uppercase">High Score</label>
+                                                    <label className="block text-[9px] font-bold text-slate-500 uppercase">Economy</label>
                                                     <input
                                                         type="text"
-                                                        value={highestScore}
-                                                        onChange={(e) => setHighestScore(e.target.value)}
-                                                        placeholder="78*"
+                                                        value={economy}
+                                                        onChange={(e) => setEconomy(e.target.value)}
+                                                        placeholder="0.001"
                                                         className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs text-center"
                                                     />
                                                 </div>

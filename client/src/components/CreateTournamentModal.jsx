@@ -579,10 +579,11 @@ const CreateTournamentModal = ({ isOpen, onClose, onCreated, initialData = null,
                                                     <span className="text-[11px] font-black text-slate-500 w-10 pl-1 shrink-0">From</span>
                                                     <input
                                                         type="number"
+                                                        step="any"
                                                         min="0"
                                                         className="w-20 bg-slate-50 border border-slate-200 rounded px-2.5 py-1 text-xs font-black text-slate-900 focus:outline-none focus:border-blue-600"
                                                         value={slab.from !== undefined ? slab.from : ''}
-                                                        onChange={(e) => handleUpdateSlab(idx, 'from', Number(e.target.value) || 0)}
+                                                        onChange={(e) => handleUpdateSlab(idx, 'from', e.target.value)}
                                                     />
                                                     <div className="inline-flex items-center bg-slate-100 p-0.5 rounded-md gap-1 border border-slate-200 ml-auto shrink-0">
                                                         {availableUnits.map(u => {
@@ -610,13 +611,14 @@ const CreateTournamentModal = ({ isOpen, onClose, onCreated, initialData = null,
                                                     <span className="text-[11px] font-black text-slate-500 w-10 pl-1 shrink-0">To</span>
                                                     <input
                                                         type="number"
+                                                        step="any"
                                                         min="0"
                                                         placeholder={isLast ? "Above / ∞" : "Max"}
                                                         className="w-20 bg-slate-50 border border-slate-200 rounded px-2.5 py-1 text-xs font-black text-slate-900 focus:outline-none focus:border-blue-600"
                                                         value={isUnlimited ? '' : (slab.upTo !== undefined ? slab.upTo : '')}
                                                         onChange={(e) => {
-                                                            const v = e.target.value === '' ? 999999 : Number(e.target.value);
-                                                            handleUpdateSlab(idx, 'upTo', isNaN(v) ? 999999 : v);
+                                                            const raw = e.target.value;
+                                                            handleUpdateSlab(idx, 'upTo', raw === '' ? 999999 : raw);
                                                         }}
                                                     />
                                                     <div className="inline-flex items-center bg-slate-100 p-0.5 rounded-md gap-1 border border-slate-200 ml-auto shrink-0">
@@ -651,11 +653,12 @@ const CreateTournamentModal = ({ isOpen, onClose, onCreated, initialData = null,
                                                 <span className="text-[12px] font-black text-emerald-600 w-10 pl-1 shrink-0">+₹</span>
                                                 <input
                                                     type="number"
-                                                    min="1"
+                                                    step="any"
+                                                    min="0.001"
                                                     required
                                                     className="w-20 bg-slate-50 border border-slate-200 rounded px-2.5 py-1 text-xs font-black text-emerald-700 focus:outline-none focus:border-emerald-600"
-                                                    value={slab.increment}
-                                                    onChange={(e) => handleUpdateSlab(idx, 'increment', Number(e.target.value) || 0)}
+                                                    value={slab.increment !== undefined ? slab.increment : ''}
+                                                    onChange={(e) => handleUpdateSlab(idx, 'increment', e.target.value)}
                                                 />
                                                 <div className="inline-flex items-center bg-slate-100 p-0.5 rounded-md gap-1 border border-slate-200 ml-auto shrink-0">
                                                     {availableUnits.map(u => {

@@ -595,7 +595,7 @@ const mapPlayer = (r: any) => ({
     cricHeroesProfileUrl: r.cric_heroes_profile_url || '',
     mobile: r.mobile || '',
     age: Number(r.age) || 24,
-    stats: r.stats || { matches: 0, runs: 0, wickets: 0, highestScore: '0', bestBowling: '0/0' },
+    stats: r.stats || { matches: 0, runs: 0, wickets: 0, economy: '' },
     isReAuction: r.is_re_auction || false,
     isCaptain: Boolean(r.is_captain) || String(r._id || '').startsWith('pl_cap_')
 });
@@ -629,7 +629,7 @@ export const directCreatePlayer = async (payload: any) => {
         cric_heroes_profile_url: payload.cricHeroesProfileUrl || '',
         mobile: payload.mobile || '',
         age: Number(payload.age) || 24,
-        stats: payload.stats || { matches: 0, runs: 0, wickets: 0, highestScore: '0', bestBowling: '0/0' },
+        stats: payload.stats || { matches: 0, runs: 0, wickets: 0, economy: '' },
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
     };

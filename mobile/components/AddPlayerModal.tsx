@@ -76,10 +76,10 @@ const normalizeCategory = (raw: string): string => {
 };
 
 const TEMPLATE_CSV =
-    'Name,Category,BattingStyle,BowlingStyle,BasePrice,Age,CricHeroesURL,Matches,Runs,HighestScore,Wickets,BestBowling\n' +
-    'Virat Kohli,Batsman,Right Handed,Right-arm Medium,200,35,https://cricheroes.in/player/1,250,8500,183,4,2/25\n' +
-    'Jasprit Bumrah,Bowler,Right Handed,Right-arm Fast,200,30,https://cricheroes.in/player/2,120,250,20,165,5/27\n' +
-    'Hardik Pandya,All-Rounder,Right Handed,Right-arm Fast Medium,150,30,https://cricheroes.in/player/3,140,2400,91,65,4/24';
+    'Name,Category,BattingStyle,BowlingStyle,BasePrice,Age,CricHeroesURL,Matches,Runs,Wickets,Economy\n' +
+    'Virat Kohli,Batsman,Right Handed,Right-arm Medium,200,35,https://cricheroes.in/player/1,250,8500,4,6.20\n' +
+    'Jasprit Bumrah,Bowler,Right Handed,Right-arm Fast,200,30,https://cricheroes.in/player/2,120,250,165,0.001\n' +
+    'Hardik Pandya,All-Rounder,Right Handed,Right-arm Fast Medium,150,30,https://cricheroes.in/player/3,140,2400,65,7.45';
 
 export default function AddPlayerModal({
     visible,
@@ -107,8 +107,7 @@ export default function AddPlayerModal({
     const [matches, setMatches] = useState('0');
     const [runs, setRuns] = useState('0');
     const [wickets, setWickets] = useState('0');
-    const [highestScore, setHighestScore] = useState('');
-    const [bestBowling, setBestBowling] = useState('');
+    const [economy, setEconomy] = useState('');
 
     const [csvText, setCsvText] = useState('');
     const [csvFileName, setCsvFileName] = useState('');
@@ -128,8 +127,7 @@ export default function AddPlayerModal({
                 setMatches(String(initialData.stats?.matches ?? 0));
                 setRuns(String(initialData.stats?.runs ?? 0));
                 setWickets(String(initialData.stats?.wickets ?? 0));
-                setHighestScore(initialData.stats?.highestScore || '');
-                setBestBowling(initialData.stats?.bestBowling || '');
+                setEconomy(String(initialData.stats?.economy ?? ''));
                 setShowCricketDetails(true);
                 setMode('manual');
             } else {
@@ -144,8 +142,7 @@ export default function AddPlayerModal({
                 setMatches('0');
                 setRuns('0');
                 setWickets('0');
-                setHighestScore('');
-                setBestBowling('');
+                setEconomy('');
                 setCsvText('');
                 setCsvFileName('');
                 setShowCricketDetails(false);
@@ -198,9 +195,8 @@ export default function AddPlayerModal({
                 stats: {
                     matches: Number(matches) || 0,
                     runs: Number(runs) || 0,
-                    highestScore: highestScore.trim(),
                     wickets: Number(wickets) || 0,
-                    bestBowling: bestBowling.trim()
+                    economy: economy.trim()
                 },
                 image: image ?? '',
                 tournamentId
@@ -345,9 +341,8 @@ export default function AddPlayerModal({
                 cricHeroesURL: headerRow.findIndex(h => h.includes('crich') || h.includes('url')),
                 matches: headerRow.findIndex(h => h.includes('match')),
                 runs: headerRow.findIndex(h => h.includes('run')),
-                highestScore: headerRow.findIndex(h => h.includes('high')),
                 wickets: headerRow.findIndex(h => h.includes('wick') || h.includes('wkt')),
-                bestBowling: headerRow.findIndex(h => h.includes('best'))
+                economy: headerRow.findIndex(h => h.includes('econ'))
             };
 
             const newPlayers: any[] = [];
@@ -373,9 +368,8 @@ export default function AddPlayerModal({
                     stats: {
                         matches: colIndex.matches !== -1 && cols[colIndex.matches] ? Number(cols[colIndex.matches]) || 0 : 0,
                         runs: colIndex.runs !== -1 && cols[colIndex.runs] ? Number(cols[colIndex.runs]) || 0 : 0,
-                        highestScore: colIndex.highestScore !== -1 ? (cols[colIndex.highestScore] || '') : '',
                         wickets: colIndex.wickets !== -1 && cols[colIndex.wickets] ? Number(cols[colIndex.wickets]) || 0 : 0,
-                        bestBowling: colIndex.bestBowling !== -1 ? (cols[colIndex.bestBowling] || '') : ''
+                        economy: colIndex.economy !== -1 ? (cols[colIndex.economy] || '') : ''
                     },
                     tournamentId
                 });
@@ -598,7 +592,7 @@ export default function AddPlayerModal({
                                             onChangeText={setCricHeroesUrl}
                                         />
 
-                                        {/* 4-column Stats Grid */}
+                                        {/* Stats Grid */}
                                         <View style={styles.statsGrid}>
                                             <View style={styles.statCell}>
                                                 <Text style={styles.statLabel}>MATCHES</Text>
@@ -628,13 +622,13 @@ export default function AddPlayerModal({
                                                 />
                                             </View>
                                             <View style={styles.statCell}>
-                                                <Text style={styles.statLabel}>HIGH SCORE</Text>
+                                                <Text style={styles.statLabel}>ECONOMY</Text>
                                                 <TextInput
                                                     style={styles.statInput}
-                                                    placeholder="78*"
+                                                    placeholder="e.g. 0.001"
                                                     placeholderTextColor="#94a3b8"
-                                                    value={highestScore}
-                                                    onChangeText={setHighestScore}
+                                                    value={economy}
+                                                    onChangeText={setEconomy}
                                                 />
                                             </View>
                                         </View>

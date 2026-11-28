@@ -102,9 +102,10 @@ export const generateTournamentPlayersCSV = (tournament, players = [], teams = [
         'CricHeroesURL',
         'Matches',
         'Runs',
-        'HighestScore',
+        'Matches',
+        'Runs',
         'Wickets',
-        'BestBowling'
+        'Economy'
     ];
 
     const rows = (players || []).map(p => {
@@ -125,9 +126,8 @@ export const generateTournamentPlayersCSV = (tournament, players = [], teams = [
             `"${p.cricHeroesProfileUrl || ''}"`,
             p.stats?.matches || 0,
             p.stats?.runs || 0,
-            `"${p.stats?.highestScore || ''}"`,
             p.stats?.wickets || 0,
-            `"${p.stats?.bestBowling || ''}"`
+            `"${p.stats?.economy || ''}"`
         ];
     });
 

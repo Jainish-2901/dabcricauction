@@ -60,9 +60,8 @@ export const PlayerRegistrationScreen: React.FC<PlayerRegistrationScreenProps> =
     // Stats
     const [matches, setMatches] = useState('');
     const [runs, setRuns] = useState('');
-    const [highestScore, setHighestScore] = useState('');
     const [wickets, setWickets] = useState('');
-    const [bestBowling, setBestBowling] = useState('');
+    const [economy, setEconomy] = useState('');
 
     const [loading, setLoading] = useState(false);
     const [submittedPlayer, setSubmittedPlayer] = useState<any>(null);
@@ -107,9 +106,8 @@ export const PlayerRegistrationScreen: React.FC<PlayerRegistrationScreenProps> =
             stats: {
                 matches: Number(matches) || 0,
                 runs: Number(runs) || 0,
-                highestScore: highestScore.trim() || '0',
                 wickets: Number(wickets) || 0,
-                bestBowling: bestBowling.trim() || '0/0'
+                economy: economy.trim()
             }
         };
 
@@ -385,16 +383,6 @@ export const PlayerRegistrationScreen: React.FC<PlayerRegistrationScreenProps> =
                                 onChangeText={setRuns}
                             />
                         </View>
-                        <View style={[styles.inputGroup, { flex: 1, marginLeft: 6 }]}>
-                            <Text style={styles.inputLabel}>Highest</Text>
-                            <TextInput
-                                style={styles.input}
-                                placeholder="0"
-                                placeholderTextColor="#94a3b8"
-                                value={highestScore}
-                                onChangeText={setHighestScore}
-                            />
-                        </View>
                     </View>
 
                     <View style={styles.row}>
@@ -410,13 +398,13 @@ export const PlayerRegistrationScreen: React.FC<PlayerRegistrationScreenProps> =
                             />
                         </View>
                         <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
-                            <Text style={styles.inputLabel}>Best Bowling</Text>
+                            <Text style={styles.inputLabel}>Economy</Text>
                             <TextInput
                                 style={styles.input}
-                                placeholder="e.g. 4/18"
+                                placeholder="e.g. 0.001"
                                 placeholderTextColor="#94a3b8"
-                                value={bestBowling}
-                                onChangeText={setBestBowling}
+                                value={economy}
+                                onChangeText={setEconomy}
                             />
                         </View>
                     </View>

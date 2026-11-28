@@ -231,8 +231,7 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
     const [editPlayerMatches, setEditPlayerMatches] = useState('0');
     const [editPlayerRuns, setEditPlayerRuns] = useState('0');
     const [editPlayerWickets, setEditPlayerWickets] = useState('0');
-    const [editPlayerHighestScore, setEditPlayerHighestScore] = useState('');
-    const [editPlayerBestBowling, setEditPlayerBestBowling] = useState('');
+    const [editPlayerEconomy, setEditPlayerEconomy] = useState('');
     const [savingPlayer, setSavingPlayer] = useState(false);
 
     // Image Picker Helper with 1:1 Frame Cropping
@@ -974,8 +973,7 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
         setEditPlayerMatches(String(p.stats?.matches ?? 0));
         setEditPlayerRuns(String(p.stats?.runs ?? 0));
         setEditPlayerWickets(String(p.stats?.wickets ?? 0));
-        setEditPlayerHighestScore(String(p.stats?.highestScore ?? p.highestScore ?? ''));
-        setEditPlayerBestBowling(String(p.stats?.bestBowling ?? p.bestBowling ?? ''));
+        setEditPlayerEconomy(String(p.stats?.economy ?? p.economy ?? ''));
         setEditPlayerModalVisible(true);
     };
 
@@ -1000,8 +998,7 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                     matches: Number(editPlayerMatches) || 0,
                     runs: Number(editPlayerRuns) || 0,
                     wickets: Number(editPlayerWickets) || 0,
-                    highestScore: editPlayerHighestScore.trim(),
-                    bestBowling: editPlayerBestBowling.trim()
+                    economy: editPlayerEconomy.trim()
                 }
             };
 
@@ -2250,7 +2247,7 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                                                     </Text>
                                                     {p.stats && (
                                                         <Text style={{ fontSize: 11, color: '#64748b', marginTop: 2, fontWeight: '500' }}>
-                                                            M: {p.stats.matches || 0} • R: {p.stats.runs || 0} • HS: {p.stats.highestScore || '-'} • W: {p.stats.wickets || 0} • Best: {p.stats.bestBowling || p.bestBowling || '-'}
+                                                            M: {p.stats.matches || 0} • R: {p.stats.runs || 0} • W: {p.stats.wickets || 0} • Econ: {p.stats.economy || p.economy || '-'}
                                                         </Text>
                                                     )}
 
@@ -3682,9 +3679,9 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                                                             <Text style={[styles.slabInputPrefix, { width: 34 }]}>From</Text>
                                                             <TextInput
                                                                 style={styles.slabSmallInput}
-                                                                keyboardType="numeric"
+                                                                keyboardType="decimal-pad"
                                                                 value={slab.from !== undefined ? String(slab.from) : '0'}
-                                                                onChangeText={(txt) => handleUpdateEditSlab(idx, 'from', parseInt(txt) || 0)}
+                                                                onChangeText={(txt) => handleUpdateEditSlab(idx, 'from', txt.replace(/[^0-9.]/g, ''))}
                                                             />
                                                             <View style={styles.slabUnitPillsRow}>
                                                                 {availableUnits.map(u => (
@@ -3710,13 +3707,13 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                                                             <Text style={[styles.slabInputPrefix, { width: 34 }]}>To</Text>
                                                             <TextInput
                                                                 style={styles.slabSmallInput}
-                                                                keyboardType="numeric"
+                                                                keyboardType="decimal-pad"
                                                                 placeholder={isLast ? "Above" : "Max"}
                                                                 placeholderTextColor="#94a3b8"
                                                                 value={isUnlimited ? '' : (slab.upTo !== undefined ? String(slab.upTo) : '')}
                                                                 onChangeText={(txt) => {
-                                                                    const v = txt.trim() === '' ? 999999 : parseInt(txt);
-                                                                    handleUpdateEditSlab(idx, 'upTo', isNaN(v) ? 999999 : v);
+                                                                    const cleaned = txt.replace(/[^0-9.]/g, '');
+                                                                    handleUpdateEditSlab(idx, 'upTo', cleaned.trim() === '' ? 999999 : cleaned);
                                                                 }}
                                                             />
                                                             <View style={styles.slabUnitPillsRow}>
@@ -3747,9 +3744,9 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                                                         <Text style={[styles.slabInputPrefix, { color: '#059669', fontWeight: '900' }]}>+₹</Text>
                                                         <TextInput
                                                             style={[styles.slabSmallInput, { width: 64, color: '#059669' }]}
-                                                            keyboardType="numeric"
-                                                            value={String(slab.increment || 0)}
-                                                            onChangeText={(txt) => handleUpdateEditSlab(idx, 'increment', parseInt(txt) || 0)}
+                                                            keyboardType="decimal-pad"
+                                                            value={slab.increment !== undefined ? String(slab.increment) : ''}
+                                                            onChangeText={(txt) => handleUpdateEditSlab(idx, 'increment', txt.replace(/[^0-9.]/g, ''))}
                                                         />
                                                         <View style={styles.slabUnitPillsRow}>
                                                             {availableUnits.map(u => (
@@ -3960,7 +3957,7 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                             />
 
                             <Text style={styles.fieldLabel}>CAREER STATS</Text>
-                            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+                            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
                                 <View style={{ flex: 1 }}>
                                     <Text style={styles.statMiniLabel}>MATCHES</Text>
                                     <TextInput
@@ -3988,26 +3985,13 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({
                                         keyboardType="numeric"
                                     />
                                 </View>
-                            </View>
-
-                            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
                                 <View style={{ flex: 1 }}>
-                                    <Text style={styles.statMiniLabel}>HIGHEST SCORE</Text>
+                                    <Text style={styles.statMiniLabel}>ECONOMY</Text>
                                     <TextInput
                                         style={[styles.modalInput, { textAlign: 'center' }]}
-                                        value={editPlayerHighestScore}
-                                        onChangeText={setEditPlayerHighestScore}
-                                        placeholder="e.g. 84*"
-                                        placeholderTextColor="#94a3b8"
-                                    />
-                                </View>
-                                <View style={{ flex: 1 }}>
-                                    <Text style={styles.statMiniLabel}>BEST BOWLING</Text>
-                                    <TextInput
-                                        style={[styles.modalInput, { textAlign: 'center' }]}
-                                        value={editPlayerBestBowling}
-                                        onChangeText={setEditPlayerBestBowling}
-                                        placeholder="e.g. 4/18"
+                                        value={editPlayerEconomy}
+                                        onChangeText={setEditPlayerEconomy}
+                                        placeholder="0.001"
                                         placeholderTextColor="#94a3b8"
                                     />
                                 </View>

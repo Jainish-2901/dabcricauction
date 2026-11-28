@@ -1513,11 +1513,9 @@ const SuperAdminDashboard = () => {
                                                                 <span>•</span>
                                                                 <span>R: {p.stats.runs || 0}</span>
                                                                 <span>•</span>
-                                                                <span>HS: {p.stats.highestScore || '-'}</span>
-                                                                <span>•</span>
                                                                 <span>W: {p.stats.wickets || 0}</span>
                                                                 <span>•</span>
-                                                                <span className="text-blue-700 font-black">Best: {p.stats.bestBowling || p.bestBowling || '-'}</span>
+                                                                <span className="text-blue-700 font-black">Econ: {p.stats.economy || p.economy || '-'}</span>
                                                             </div>
                                                         )}
                                                         

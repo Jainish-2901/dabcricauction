@@ -65,9 +65,8 @@ const PlayerRegistrationPage = () => {
         image: '',
         matches: '',
         runs: '',
-        highestScore: '',
         wickets: '',
-        bestBowling: ''
+        economy: ''
     });
 
     useEffect(() => {
@@ -183,9 +182,8 @@ const PlayerRegistrationPage = () => {
             stats: {
                 matches: Number(formData.matches) || 0,
                 runs: Number(formData.runs) || 0,
-                highestScore: formData.highestScore || '0',
                 wickets: Number(formData.wickets) || 0,
-                bestBowling: formData.bestBowling || '-'
+                economy: String(formData.economy ?? '').trim()
             }
         };
 
@@ -343,9 +341,8 @@ const PlayerRegistrationPage = () => {
                                     image: '',
                                     matches: '',
                                     runs: '',
-                                    highestScore: '',
                                     wickets: '',
-                                    bestBowling: ''
+                                    economy: ''
                                 });
                             }}
                             className="w-full py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs sm:text-sm transition-all active:scale-98"
@@ -648,7 +645,7 @@ const PlayerRegistrationPage = () => {
                                 </span>
                             </div>
 
-                            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                                 <div className="bg-white p-2 rounded-xl border border-slate-200">
                                     <span className="text-[10px] text-slate-500 font-bold uppercase block mb-1">Matches</span>
                                     <input
@@ -670,16 +667,6 @@ const PlayerRegistrationPage = () => {
                                     />
                                 </div>
                                 <div className="bg-white p-2 rounded-xl border border-slate-200">
-                                    <span className="text-[10px] text-slate-500 font-bold uppercase block mb-1">Highest</span>
-                                    <input
-                                        type="text"
-                                        placeholder="e.g. 84*"
-                                        className="w-full bg-transparent text-sm text-slate-900 focus:outline-none font-bold"
-                                        value={formData.highestScore}
-                                        onChange={e => setFormData({ ...formData, highestScore: e.target.value })}
-                                    />
-                                </div>
-                                <div className="bg-white p-2 rounded-xl border border-slate-200">
                                     <span className="text-[10px] text-slate-500 font-bold uppercase block mb-1">Wickets</span>
                                     <input
                                         type="number"
@@ -689,24 +676,15 @@ const PlayerRegistrationPage = () => {
                                         onChange={e => setFormData({ ...formData, wickets: e.target.value })}
                                     />
                                 </div>
-                                <div className="bg-white p-2 rounded-xl border border-slate-200 col-span-2 sm:col-span-1">
-                                    <span className="text-[10px] text-slate-500 font-bold uppercase block mb-1">Best Bowling</span>
+                                <div className="bg-white p-2 rounded-xl border border-slate-200">
+                                    <span className="text-[10px] text-slate-500 font-bold uppercase block mb-1">Economy</span>
                                     <input
                                         type="text"
-                                        placeholder="e.g. 4/18"
+                                        placeholder="e.g. 0.001"
                                         className="w-full bg-transparent text-sm text-slate-900 focus:outline-none font-bold"
-                                        value={formData.bestBowling}
-                                        onChange={e => setFormData({ ...formData, bestBowling: e.target.value })}
-                                    /><div className="bg-white p-2 rounded-xl border border-slate-200 col-span-2 sm:col-span-1">
-                                        <span className="text-[10px] text-slate-500 font-bold uppercase block mb-1">Best Bowling</span>
-                                        <input
-                                            type="text"
-                                            placeholder="e.g. 4/18"
-                                            className="w-full bg-transparent text-sm text-slate-900 focus:outline-none font-bold"
-                                            value={formData.bestBowling}
-                                            onChange={e => setFormData({ ...formData, bestBowling: e.target.value })}
-                                        />
-                                    </div>
+                                        value={formData.economy}
+                                        onChange={e => setFormData({ ...formData, economy: e.target.value })}
+                                    />
                                 </div>
                             </div>
                         </div>

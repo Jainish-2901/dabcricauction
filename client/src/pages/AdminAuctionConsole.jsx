@@ -1238,9 +1238,8 @@ const AdminAuctionConsole = () => {
                                         <span className="font-extrabold text-slate-400 text-[10px] uppercase mr-1">Career Stats:</span>
                                         <span className="px-2 py-0.5 bg-white border border-slate-200 rounded-md font-bold text-slate-700">Matches: {currentPlayer.stats.matches || 0}</span>
                                         <span className="px-2 py-0.5 bg-white border border-slate-200 rounded-md font-bold text-slate-700">Runs: {currentPlayer.stats.runs || 0}</span>
-                                        <span className="px-2 py-0.5 bg-white border border-slate-200 rounded-md font-bold text-slate-700">HS: {currentPlayer.stats.highestScore || 0}</span>
                                         <span className="px-2 py-0.5 bg-white border border-slate-200 rounded-md font-bold text-slate-700">Wickets: {currentPlayer.stats.wickets || 0}</span>
-                                        <span className="px-2 py-0.5 bg-white border border-slate-200 rounded-md font-bold text-slate-700">Best: {currentPlayer.stats.bestBowling || currentPlayer.bestBowling || '-'}</span>
+                                        <span className="px-2 py-0.5 bg-white border border-slate-200 rounded-md font-bold text-slate-700">Econ: {currentPlayer.stats.economy || currentPlayer.economy || '-'}</span>
                                         {currentPlayer.cricHeroesProfileUrl && (
                                             <a
                                                 href={currentPlayer.cricHeroesProfileUrl}

@@ -23,9 +23,8 @@ const AddPlayerModal = ({ isOpen, onClose, tournamentId, tournament, onAdded, in
         image: '',
         matches: 0,
         runs: 0,
-        highestScore: '',
         wickets: 0,
-        bestBowling: ''
+        economy: ''
     });
     const [cropImageSrc, setCropImageSrc] = useState(null);
     const [showCropModal, setShowCropModal] = useState(false);
@@ -47,9 +46,8 @@ const AddPlayerModal = ({ isOpen, onClose, tournamentId, tournament, onAdded, in
                     image: initialData.image || '',
                     matches: initialData.stats?.matches || 0,
                     runs: initialData.stats?.runs || 0,
-                    highestScore: initialData.stats?.highestScore || '',
                     wickets: initialData.stats?.wickets || 0,
-                    bestBowling: initialData.stats?.bestBowling || ''
+                    economy: initialData.stats?.economy ?? ''
                 });
                 setShowCricketDetails(true);
                 setMode('manual');
@@ -66,9 +64,8 @@ const AddPlayerModal = ({ isOpen, onClose, tournamentId, tournament, onAdded, in
                     image: '',
                     matches: 0,
                     runs: 0,
-                    highestScore: '',
                     wickets: 0,
-                    bestBowling: ''
+                    economy: ''
                 });
                 setShowCricketDetails(false);
                 setMode('manual');
@@ -121,9 +118,8 @@ const AddPlayerModal = ({ isOpen, onClose, tournamentId, tournament, onAdded, in
                 stats: {
                     matches: Number(formData.matches) || 0,
                     runs: Number(formData.runs) || 0,
-                    highestScore: formData.highestScore,
                     wickets: Number(formData.wickets) || 0,
-                    bestBowling: formData.bestBowling
+                    economy: String(formData.economy ?? '').trim()
                 },
                 image: formData.image ?? '',
                 tournamentId
@@ -221,9 +217,8 @@ const AddPlayerModal = ({ isOpen, onClose, tournamentId, tournament, onAdded, in
                 cricHeroesURL: headerRow.findIndex(h => h.includes('crich') || h.includes('url')),
                 matches: headerRow.findIndex(h => h.includes('match')),
                 runs: headerRow.findIndex(h => h.includes('run')),
-                highestScore: headerRow.findIndex(h => h.includes('high')),
                 wickets: headerRow.findIndex(h => h.includes('wick') || h.includes('wkt')),
-                bestBowling: headerRow.findIndex(h => h.includes('best'))
+                economy: headerRow.findIndex(h => h.includes('econ'))
             };
 
             for (let i = 1; i < lines.length; i++) {
@@ -251,9 +246,8 @@ const AddPlayerModal = ({ isOpen, onClose, tournamentId, tournament, onAdded, in
                     stats: {
                         matches: colIndex.matches !== -1 && cols[colIndex.matches] ? Number(cols[colIndex.matches]) || 0 : 0,
                         runs: colIndex.runs !== -1 && cols[colIndex.runs] ? Number(cols[colIndex.runs]) || 0 : 0,
-                        highestScore: colIndex.highestScore !== -1 ? (cols[colIndex.highestScore] || '') : '',
                         wickets: colIndex.wickets !== -1 && cols[colIndex.wickets] ? Number(cols[colIndex.wickets]) || 0 : 0,
-                        bestBowling: colIndex.bestBowling !== -1 ? (cols[colIndex.bestBowling] || '') : ''
+                        economy: colIndex.economy !== -1 ? (cols[colIndex.economy] || '') : ''
                     },
                     tournamentId
                 };
@@ -291,10 +285,10 @@ const AddPlayerModal = ({ isOpen, onClose, tournamentId, tournament, onAdded, in
     };
 
     const downloadTemplate = () => {
-        const headers = 'Name,Category,BattingStyle,BowlingStyle,BasePrice,Age,CricHeroesURL,Matches,Runs,HighestScore,Wickets,BestBowling\n';
-        const sample = 'Virat Kohli,Batsman,Right Handed,Right-arm Medium,200,35,https://cricheroes.in/player/1,250,8500,183,4,2/25\n' +
-            'Jasprit Bumrah,Bowler,Right Handed,Right-arm Fast,200,30,https://cricheroes.in/player/2,120,250,20,165,5/27\n' +
-            'Hardik Pandya,All-Rounder,Right Handed,Right-arm Fast Medium,150,30,https://cricheroes.in/player/3,140,2400,91,65,4/24';
+        const headers = 'Name,Category,BattingStyle,BowlingStyle,BasePrice,Age,CricHeroesURL,Matches,Runs,Wickets,Economy\n';
+        const sample = 'Virat Kohli,Batsman,Right Handed,Right-arm Medium,200,35,https://cricheroes.in/player/1,250,8500,4,6.20\n' +
+            'Jasprit Bumrah,Bowler,Right Handed,Right-arm Fast,200,30,https://cricheroes.in/player/2,120,250,165,0.001\n' +
+            'Hardik Pandya,All-Rounder,Right Handed,Right-arm Fast Medium,150,30,https://cricheroes.in/player/3,140,2400,65,7.45';
         const csvContent = "data:text/csv;charset=utf-8," + encodeURIComponent(headers + sample);
         const link = document.createElement("a");
         link.setAttribute("href", csvContent);
@@ -482,7 +476,7 @@ const AddPlayerModal = ({ isOpen, onClose, tournamentId, tournament, onAdded, in
                                         />
                                     </div>
 
-                                    <div className="grid grid-cols-4 gap-2 pt-2 border-t border-slate-200">
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-200">
                                         <div>
                                             <label className="block text-[10px] font-bold text-slate-500 uppercase">Matches</label>
                                             <input
@@ -511,13 +505,13 @@ const AddPlayerModal = ({ isOpen, onClose, tournamentId, tournament, onAdded, in
                                             />
                                         </div>
                                         <div>
-                                            <label className="block text-[10px] font-bold text-slate-500 uppercase">High Score</label>
+                                            <label className="block text-[10px] font-bold text-slate-500 uppercase">Economy</label>
                                             <input
                                                 type="text"
-                                                placeholder="e.g. 78*"
+                                                placeholder="e.g. 0.001"
                                                 className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-slate-900 text-xs text-center"
-                                                value={formData.highestScore}
-                                                onChange={e => setFormData({ ...formData, highestScore: e.target.value })}
+                                                value={formData.economy}
+                                                onChange={e => setFormData({ ...formData, economy: e.target.value })}
                                             />
                                         </div>
                                     </div>

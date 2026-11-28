@@ -45,8 +45,7 @@ export interface Player {
         matches: number;
         runs: number;
         wickets: number;
-        highestScore?: string | number;
-        bestBowling?: string;
+        economy?: string | number;
     };
     [key: string]: any;
 }
@@ -765,11 +764,9 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
                                         <Text style={{ fontSize: 11, fontWeight: '700', color: '#334155' }}>•</Text>
                                         <Text style={{ fontSize: 11, fontWeight: '700', color: '#334155' }}>R: {currentPlayer.stats.runs || 0}</Text>
                                         <Text style={{ fontSize: 11, fontWeight: '700', color: '#334155' }}>•</Text>
-                                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#334155' }}>HS: {(currentPlayer.stats as any).highestScore || (currentPlayer as any).highestScore || '-'}</Text>
-                                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#334155' }}>•</Text>
                                         <Text style={{ fontSize: 11, fontWeight: '700', color: '#334155' }}>W: {currentPlayer.stats.wickets || 0}</Text>
                                         <Text style={{ fontSize: 11, fontWeight: '700', color: '#334155' }}>•</Text>
-                                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#334155' }}>Best: {(currentPlayer.stats as any).bestBowling || (currentPlayer as any).bestBowling || '-'}</Text>
+                                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#334155' }}>Econ: {(currentPlayer.stats as any).economy || (currentPlayer as any).economy || '-'}</Text>
                                     </View>
                                 )}
                             </View>

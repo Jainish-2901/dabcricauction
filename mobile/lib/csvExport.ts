@@ -20,9 +20,10 @@ export const buildPlayersCSV = (teams: any[], players: any[]): string => {
         'CricHeroesURL',
         'Matches',
         'Runs',
-        'HighestScore',
+        'Matches',
+        'Runs',
         'Wickets',
-        'BestBowling'
+        'Economy'
     ];
 
     const rows = (players || []).map(p => {
@@ -41,9 +42,8 @@ export const buildPlayersCSV = (teams: any[], players: any[]): string => {
             csvCell(p.cricHeroesProfileUrl || ''),
             p.stats?.matches || 0,
             p.stats?.runs || 0,
-            csvCell(p.stats?.highestScore || ''),
             p.stats?.wickets || 0,
-            csvCell(p.stats?.bestBowling || '')
+            csvCell(p.stats?.economy || '')
         ];
     });
 

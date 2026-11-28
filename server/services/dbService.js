@@ -637,7 +637,7 @@ const toBaseBidUnit = (value, unit, budgetScale = 'L_TO_CR') => {
         return val;
     } else {
         if (unit === 'Cr') return val * 100;
-        if (unit === 'K') return Math.max(1, Math.round(val / 100));
+        if (unit === 'K') return Number((val / 100).toFixed(4));
         return val;
     }
 };
@@ -667,7 +667,7 @@ function getBidIncrement(currentBid, rules = DEFAULT_BID_RULES, budgetScale = 'L
             incrementUnit: iUnit,
             normFrom,
             normUpTo,
-            normInc: Math.max(1, normInc)
+            normInc: normInc > 0 ? Number(normInc.toFixed(4)) : (isKtoL ? 5 : 10)
         };
     });
 
@@ -1691,7 +1691,7 @@ const db = {
             cricHeroesProfileUrl: data.cricHeroesProfileUrl || '',
             mobile: data.mobile || '',
             age: data.age || null,
-            stats: data.stats || { matches: 0, runs: 0, wickets: 0, highestScore: '', bestBowling: '' },
+            stats: data.stats || { matches: 0, runs: 0, wickets: 0, economy: '' },
             tournamentId: data.tournamentId
         };
         state.players.push(newPlayer);
@@ -2168,9 +2168,8 @@ const db = {
             'CricHeroesURL',
             'Matches',
             'Runs',
-            'HighestScore',
             'Wickets',
-            'BestBowling'
+            'Economy'
         ];
 
         const rows = players.map(p => {
@@ -2189,9 +2188,8 @@ const db = {
                 `"${p.cricHeroesProfileUrl || ''}"`,
                 p.stats?.matches || 0,
                 p.stats?.runs || 0,
-                `"${p.stats?.highestScore || ''}"`,
                 p.stats?.wickets || 0,
-                `"${p.stats?.bestBowling || ''}"`
+                `"${p.stats?.economy || ''}"`
             ];
         });
 
