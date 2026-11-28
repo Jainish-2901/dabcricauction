@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Platform, PermissionsAndroid } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { safeStorage } from '../lib/storage';
 import socket from '../lib/socket';
 
 // Safely load native WebRTC module so Expo Go doesn't crash on import
@@ -270,7 +271,29 @@ export function useVoiceChat({ tournamentId, user }: { tournamentId: string; use
             setVoiceError('Live WebRTC audio requires an EAS Development/Preview APK build (not supported in Expo Go).');
             return;
         }
-        if (!tournamentId || !user) {
+        let resolvedUser = user;
+        if (!resolvedUser) {
+            try {
+                const sessionStr = await safeStorage.getItem('@dab_cric_auction_active_session_v1');
+                if (sessionStr) {
+                    const parsed = JSON.parse(sessionStr);
+                    if (parsed?.user) resolvedUser = parsed.user;
+                }
+            } catch {
+                // ignore
+            }
+        }
+        if (!resolvedUser) {
+            try {
+                const storedUserStr = await AsyncStorage.getItem('user');
+                if (storedUserStr) resolvedUser = JSON.parse(storedUserStr);
+            } catch {
+                // ignore
+            }
+        }
+
+        const resolvedTournamentId = tournamentId || resolvedUser?.tournamentId || resolvedUser?.tournament_id;
+        if (!resolvedTournamentId || !resolvedUser) {
             setVoiceError('Missing tournament or user details.');
             return;
         }
@@ -317,9 +340,8 @@ export function useVoiceChat({ tournamentId, user }: { tournamentId: string; use
         }
 
         const storedToken = await AsyncStorage.getItem('token');
-        const storedUserStr = await AsyncStorage.getItem('user');
-        const storedUser = storedUserStr ? JSON.parse(storedUserStr) : null;
-        const userId = user?._id || user?.id || storedUser?._id || storedUser?.id;
+        const userId = resolvedUser?._id || resolvedUser?.id;
+        const authToken = storedToken || (userId ? `sb_auth_token_${userId}` : null);
 
         if (!socket.connected) {
             socket.connect();
@@ -328,8 +350,8 @@ export function useVoiceChat({ tournamentId, user }: { tournamentId: string; use
         socket.emit(
             'voice:join',
             {
-                tournamentId,
-                token: storedToken,
+                tournamentId: resolvedTournamentId,
+                token: authToken,
                 userId,
                 isMicOn: micGranted
             },

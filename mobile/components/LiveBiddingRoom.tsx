@@ -14,7 +14,7 @@ import {
     TextInput
 } from 'react-native';
 import { Shield, Users, Pause, LogOut, CheckCircle2, AlertCircle, ArrowLeft, Timer, Coffee, Clock, Gavel, X, ChevronRight, Wallet, Radio, Trophy, Layers, Search, User, RotateCcw, Mic } from 'lucide-react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { safeStorage } from '../lib/storage';
 import socket from '../lib/socket';
 import { apiFetch } from '../lib/api';
 import { getBudgetUnits, getBidIncrement } from '../lib/currency';
@@ -70,6 +70,7 @@ export interface TeamData {
 }
 
 export interface LiveBiddingRoomProps {
+    user?: any;
     team: TeamData;
     tournamentId: string;
     onLogout: () => void;
@@ -78,6 +79,7 @@ export interface LiveBiddingRoomProps {
 }
 
 export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
+    user,
     team,
     tournamentId,
     onLogout,
@@ -98,22 +100,28 @@ export const LiveBiddingRoom: React.FC<LiveBiddingRoomProps> = ({
     const [otherTeams, setOtherTeams] = useState<TeamData[]>([]);
     const [viewingTeam, setViewingTeam] = useState<TeamData | null>(null);
     const [activeTab, setActiveTab] = useState<'auction' | 'squad' | 'slots' | 'teams' | 'unsold' | 'voice'>('auction');
-    const [currentUser, setCurrentUser] = useState<any>(null);
+    const [currentUser, setCurrentUser] = useState<any>(user || null);
 
     useEffect(() => {
-        AsyncStorage.getItem('user').then((str) => {
+        if (user) {
+            setCurrentUser(user);
+            return;
+        }
+        safeStorage.getItem('@dab_cric_auction_active_session_v1').then((str) => {
             if (str) {
                 try {
-                    setCurrentUser(JSON.parse(str));
+                    const parsed = JSON.parse(str);
+                    if (parsed?.user) setCurrentUser(parsed.user);
                 } catch {
                     // ignore
                 }
             }
         }).catch(() => {});
-    }, []);
+    }, [user]);
 
-    const isVoiceModerator = ['superadmin', 'admin', 'auctioneer'].includes((currentUser?.role || '').toLowerCase());
-    const voice = useVoiceChat({ tournamentId, user: currentUser });
+    const resolvedUser = user || currentUser;
+    const isVoiceModerator = ['superadmin', 'admin', 'auctioneer'].includes((resolvedUser?.role || '').toLowerCase());
+    const voice = useVoiceChat({ tournamentId, user: resolvedUser });
     const [slotMobileSearch, setSlotMobileSearch] = useState('');
     const [selectedSlotMobile, setSelectedSlotMobile] = useState<string>('all');
     const [notice, setNotice] = useState<string | null>(null);

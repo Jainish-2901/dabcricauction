@@ -259,6 +259,7 @@ export default function App() {
 
             {currentScreen === 'bidding' && user && (
                 <LiveBiddingRoom
+                    user={user}
                     team={team}
                     tournamentId={activeTournamentId}
                     onLogout={handleLogout}
@@ -269,6 +270,7 @@ export default function App() {
 
             {currentScreen === 'console' && user && (
                 <AdminConsoleScreen
+                    user={user}
                     tournamentId={activeTournamentId}
                     tournamentName="Dab Cric Auction Console"
                     onLogout={handleLogout}

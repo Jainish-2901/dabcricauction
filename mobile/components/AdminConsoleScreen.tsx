@@ -43,7 +43,7 @@ import {
     Check,
     Mic
 } from 'lucide-react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { safeStorage } from '../lib/storage';
 import socket from '../lib/socket';
 import { apiFetch } from '../lib/api';
 import { getBudgetUnits, getBidIncrement } from '../lib/currency';
@@ -53,6 +53,7 @@ import { useVoiceChat } from '../hooks/useVoiceChat';
 import VoiceChatPanel from './voice/VoiceChatPanel';
 
 export interface AdminConsoleScreenProps {
+    user?: any;
     tournamentId: string;
     tournamentName?: string;
     onLogout: () => void;
@@ -62,6 +63,7 @@ export interface AdminConsoleScreenProps {
 }
 
 export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
+    user,
     tournamentId,
     tournamentName = 'Tournament Auction',
     onLogout,
@@ -90,21 +92,26 @@ export const AdminConsoleScreen: React.FC<AdminConsoleScreenProps> = ({
     const [bidLogs, setBidLogs] = useState<any[]>([]);
     const [announcementModal, setAnnouncementModal] = useState<{ type: 'sold' | 'unsold'; player: any; team?: any; price?: number } | null>(null);
     const [consoleTab, setConsoleTab] = useState<'stage' | 'players' | 'slots' | 'voice'>('stage');
-    const [currentUser, setCurrentUser] = useState<any>(null);
+    const [currentUser, setCurrentUser] = useState<any>(user || null);
 
     useEffect(() => {
-        AsyncStorage.getItem('user').then((str) => {
+        if (user) {
+            setCurrentUser(user);
+            return;
+        }
+        safeStorage.getItem('@dab_cric_auction_active_session_v1').then((str) => {
             if (str) {
                 try {
-                    setCurrentUser(JSON.parse(str));
+                    const parsed = JSON.parse(str);
+                    if (parsed?.user) setCurrentUser(parsed.user);
                 } catch {
                     // ignore
                 }
             }
         }).catch(() => {});
-    }, []);
+    }, [user]);
 
-    const voice = useVoiceChat({ tournamentId, user: currentUser });
+    const voice = useVoiceChat({ tournamentId, user: user || currentUser });
     const [playerFilter, setPlayerFilter] = useState<'all' | 'remaining' | 'pending' | 'passed' | 'unsold' | 'sold'>('all');
     const [playerSearch, setPlayerSearch] = useState('');
     const [slotAdminSearch, setSlotAdminSearch] = useState('');
