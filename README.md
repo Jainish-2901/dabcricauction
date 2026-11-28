@@ -11,6 +11,7 @@
 | :--- | :--- | :--- |
 | **Web Frontend** | React 18, Vite, Tailwind CSS, Lucide Icons, Framer Motion | [Vercel](https://vercel.com) |
 | **Mobile App** | React Native, Expo SDK 58, EAS Update (`expo-updates`), EAS Standalone Build | Expo Application Services (EAS) |
+| **Real-Time Voice** | WebRTC Audio-Only P2P Mesh (`react-native-webrtc`, Socket.IO signaling, native Android `AudioRouter`) | Direct P2P (STUN / optional TURN) |
 | **Backend API** | Node.js, Express, Socket.io (WebSockets) | [Render](https://render.com) / [Railway](https://railway.app) |
 | **Database** | PostgreSQL, Realtime Sync, ACID Transactions, RLS Policies | [Supabase](https://supabase.com) |
 | **Asset CDN** | 1:1 Aspect Cropper, Fast Cloud Delivery | [Cloudinary](https://cloudinary.com) |
@@ -48,6 +49,12 @@
 - **Franchise Player Trades & Swaps**: Post-auction player trading with dynamic price differential calculation and automated team purse re-balancing across Web and Mobile.
 - **Injury Replacement & Recovery Window**: Dedicated injury replacement system with automatic purse adjustment (refund injured player's price, debit replacement player's fee) and 1-click recovery back to the unsold pool.
 - **Live Bid & Transfer Audit Ledger**: Real-time bid logs (`bids` table) and complete trade/injury audit history (`transfers` table) with instant Supabase persistence.
+
+### 🎙️ Live Audio-Only WebRTC Voice Room (v1.4.0)
+- **Cross-Platform Real-Time Voice Chat**: Admins on the React Web Console and Team Owners on the Android Mobile App can join the same tournament voice room and talk live while bidding runs uninterrupted.
+- **Audio-Only P2P Mesh**: Privacy-first WebRTC audio mesh (`echoCancellation`, `noiseSuppression`, `autoGainControl`) using existing Socket.IO rooms for signaling—no video, no camera permissions, and zero audio recording or storage.
+- **Admin & Auctioneer Moderation**: Per-participant Mute/Unmute, 1-click **Mute All / Unmute All**, and strict separation of personal mute vs. admin-enforced mute (**"Muted by Admin"**).
+- **Raise Hand Queue & Speaking Indicators**: Real-time synchronized Raise/Lower Hand queue, light-theme participant square cards with live speaking waveforms, and native Android **Speakerphone / Earpiece** routing (`AudioRouter`).
 
 ### 📱 Android Mobile App & Cross-Platform Parity
 - **100% Full Access on Both Platforms (Web & Mobile)**: All roles (SuperAdmin, Auctioneer, Team Owner, Spectator) have full feature parity across both Desktop Web and Android Mobile App. Use any device, or mix them simultaneously for the same tournament (e.g. Auctioneer on laptop, Owners on mobile). Good internet speed (Wi-Fi or 4G/5G) is recommended for seamless real-time sub-second synchronization.
