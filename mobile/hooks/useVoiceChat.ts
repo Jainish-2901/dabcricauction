@@ -3,20 +3,14 @@ import { Platform, PermissionsAndroid } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import socket from '../lib/socket';
 
-// Safely load native WebRTC & InCallManager modules so Expo Go doesn't crash on import
+// Safely load native WebRTC module so Expo Go doesn't crash on import
 let webrtc: any = null;
-let InCallManager: any = null;
 try {
     webrtc = require('react-native-webrtc');
 } catch {
     webrtc = null;
 }
-try {
-    const icm = require('react-native-incall-manager');
-    InCallManager = icm?.default || icm;
-} catch {
-    InCallManager = null;
-}
+const InCallManager: any = null;
 
 export const isNativeWebRTCAvailable = Boolean(
     webrtc && webrtc.RTCPeerConnection && webrtc.mediaDevices
